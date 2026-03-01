@@ -13,6 +13,7 @@ import {
   LayoutDashboard, Users, UserCheck, Download, LogOut, Menu, X,
   CheckCircle2, Clock, TrendingUp, Target
 } from "lucide-react";
+import logo from "@/assets/logo.png";
 
 const ChurchAdminDashboard = () => {
   const navigate = useNavigate();
@@ -81,8 +82,8 @@ const ChurchAdminDashboard = () => {
       {/* Sidebar */}
       <aside className={`${sidebarOpen ? "w-64" : "w-0 overflow-hidden"} bg-gradient-navy text-primary-foreground transition-all duration-300 flex flex-col fixed lg:relative h-screen z-40`}>
         <div className="p-5 border-b border-gold/10">
-          <h2 className="font-display text-lg font-bold text-gold">Church Admin</h2>
-          <p className="text-xs text-primary-foreground/50 font-body mt-1 truncate">{admin.churchName}</p>
+          <img src={logo} alt="100% Answered Prayer" className="w-28 mb-2" />
+          <p className="text-xs text-primary-foreground/50 font-body truncate">{admin.churchName}</p>
         </div>
         <nav className="flex-1 p-3 space-y-1">
           {navItems.map(item => (

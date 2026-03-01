@@ -1,4 +1,5 @@
 import heroBg from "@/assets/hero-bg.jpg";
+import logo from "@/assets/logo.png";
 
 const HeroSection = () => {
   return (
@@ -15,15 +16,7 @@ const HeroSection = () => {
 
       {/* Content */}
       <div className="relative z-10 text-center px-4 max-w-3xl mx-auto animate-fade-up">
-        <div className="inline-block mb-4 px-4 py-1.5 rounded-full border border-gold/30 bg-gold/10">
-          <span className="text-sm font-medium text-gold-light font-body tracking-wide">
-            ✦ Join the Movement ✦
-          </span>
-        </div>
-        <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold font-display text-primary-foreground mb-6 leading-tight">
-          100% Answered{" "}
-          <span className="text-gradient-gold">Prayer</span>
-        </h1>
+        <img src={logo} alt="100% Answered Prayer" className="w-64 md:w-80 mx-auto mb-6" />
         <p className="text-lg md:text-xl text-primary-foreground/80 font-body max-w-xl mx-auto mb-8">
           Register for the program, invite others, and be part of a movement
           that transforms lives through the power of prayer.
