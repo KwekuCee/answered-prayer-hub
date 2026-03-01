@@ -9,6 +9,7 @@ import { store } from "@/lib/store";
 import { toast } from "sonner";
 import { ArrowLeft, LogIn, UserPlus } from "lucide-react";
 import { Link } from "react-router-dom";
+import logo from "@/assets/logo.png";
 
 const AdminAuth = () => {
   const navigate = useNavigate();
@@ -84,7 +85,8 @@ const AdminAuth = () => {
         </Link>
 
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-display font-bold text-primary-foreground mb-2">Admin Access</h1>
+          <img src={logo} alt="100% Answered Prayer" className="w-48 mx-auto mb-4" />
+          <h2 className="text-xl font-display font-bold text-primary-foreground mb-1">Admin Access</h2>
           <p className="text-primary-foreground/60 font-body text-sm">Manage the 100% Answered Prayer program</p>
         </div>
 

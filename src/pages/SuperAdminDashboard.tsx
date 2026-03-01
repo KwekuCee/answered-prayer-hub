@@ -13,6 +13,7 @@ import {
   LogOut, Menu, X, TrendingUp, Target, Crown, Medal
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
+import logo from "@/assets/logo.png";
 
 const GOLD_COLORS = ["hsl(40,70%,50%)", "hsl(40,60%,60%)", "hsl(40,50%,70%)", "hsl(40,40%,75%)"];
 
@@ -83,10 +84,8 @@ const SuperAdminDashboard = () => {
       {/* Sidebar */}
       <aside className={`${sidebarOpen ? "w-64" : "w-0 overflow-hidden"} bg-gradient-navy text-primary-foreground transition-all duration-300 flex flex-col fixed lg:relative h-screen z-40`}>
         <div className="p-5 border-b border-gold/10">
-          <h2 className="font-display text-lg font-bold text-gold flex items-center gap-2">
-            <Crown className="h-5 w-5" /> Super Admin
-          </h2>
-          <p className="text-xs text-primary-foreground/50 font-body mt-1">Full system access</p>
+          <img src={logo} alt="100% Answered Prayer" className="w-28 mb-2" />
+          <p className="text-xs text-primary-foreground/50 font-body mt-1">Super Admin</p>
         </div>
         <nav className="flex-1 p-3 space-y-1">
           {navItems.map(item => (
