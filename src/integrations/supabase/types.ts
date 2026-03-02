@@ -14,16 +14,205 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      churches: {
+        Row: {
+          confirmed: number
+          created_at: string
+          id: string
+          name: string
+          target: number
+          updated_at: string
+        }
+        Insert: {
+          confirmed?: number
+          created_at?: string
+          id?: string
+          name: string
+          target?: number
+          updated_at?: string
+        }
+        Update: {
+          confirmed?: number
+          created_at?: string
+          id?: string
+          name?: string
+          target?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      inviters: {
+        Row: {
+          church_id: string
+          confirmed_count: number
+          created_at: string
+          email: string
+          full_name: string
+          id: string
+          invite_count: number
+          phone: string
+        }
+        Insert: {
+          church_id: string
+          confirmed_count?: number
+          created_at?: string
+          email: string
+          full_name: string
+          id?: string
+          invite_count?: number
+          phone: string
+        }
+        Update: {
+          church_id?: string
+          confirmed_count?: number
+          created_at?: string
+          email?: string
+          full_name?: string
+          id?: string
+          invite_count?: number
+          phone?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inviters_church_id_fkey"
+            columns: ["church_id"]
+            isOneToOne: false
+            referencedRelation: "churches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      members: {
+        Row: {
+          church_id: string
+          confirmed: boolean
+          created_at: string
+          date_of_birth: string | null
+          email: string | null
+          full_name: string
+          id: string
+          inviter_id: string | null
+          location: string | null
+          occupation: string | null
+          phone: string
+        }
+        Insert: {
+          church_id: string
+          confirmed?: boolean
+          created_at?: string
+          date_of_birth?: string | null
+          email?: string | null
+          full_name: string
+          id?: string
+          inviter_id?: string | null
+          location?: string | null
+          occupation?: string | null
+          phone: string
+        }
+        Update: {
+          church_id?: string
+          confirmed?: boolean
+          created_at?: string
+          date_of_birth?: string | null
+          email?: string | null
+          full_name?: string
+          id?: string
+          inviter_id?: string | null
+          location?: string | null
+          occupation?: string | null
+          phone?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "members_church_id_fkey"
+            columns: ["church_id"]
+            isOneToOne: false
+            referencedRelation: "churches"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "members_inviter_id_fkey"
+            columns: ["inviter_id"]
+            isOneToOne: false
+            referencedRelation: "inviters"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          church_id: string | null
+          created_at: string
+          email: string
+          full_name: string
+          id: string
+          phone: string | null
+          user_id: string
+          username: string
+        }
+        Insert: {
+          church_id?: string | null
+          created_at?: string
+          email: string
+          full_name: string
+          id?: string
+          phone?: string | null
+          user_id: string
+          username: string
+        }
+        Update: {
+          church_id?: string | null
+          created_at?: string
+          email?: string
+          full_name?: string
+          id?: string
+          phone?: string | null
+          user_id?: string
+          username?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_church_id_fkey"
+            columns: ["church_id"]
+            isOneToOne: false
+            referencedRelation: "churches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "super_admin" | "church_admin"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +339,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["super_admin", "church_admin"],
+    },
   },
 } as const
