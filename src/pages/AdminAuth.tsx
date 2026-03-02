@@ -5,76 +5,117 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { store } from "@/lib/store";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { ArrowLeft, LogIn, UserPlus } from "lucide-react";
 import { Link } from "react-router-dom";
 import logo from "@/assets/logo.png";
 
+const AUTH_CODE = "100PRAYER";
+
 const AdminAuth = () => {
   const navigate = useNavigate();
-  const [loginForm, setLoginForm] = useState({ username: "", password: "" });
+  const [loginForm, setLoginForm] = useState({ email: "", password: "" });
   const [regForm, setRegForm] = useState({
     fullName: "", username: "", email: "", phone: "",
     churchName: "", password: "", verifyPassword: "", authCode: "",
   });
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const admins = store.getAdmins();
-    const passwords = store.getPasswords();
-    const admin = admins.find(a => a.username === loginForm.username || a.email === loginForm.username);
-    if (!admin || passwords[admin.username] !== loginForm.password) {
-      toast.error("Invalid credentials.");
-      return;
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: loginForm.email,
+        password: loginForm.password,
+      });
+      if (error) throw error;
+
+      // Check role
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("No user found");
+
+      const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", user.id);
+      const isSuperAdmin = roles?.some(r => r.role === "super_admin");
+
+      toast.success("Welcome back!");
+      navigate(isSuperAdmin ? "/super-admin" : "/church-admin");
+    } catch (err: any) {
+      toast.error(err.message || "Login failed.");
+    } finally {
+      setLoading(false);
     }
-    store.setCurrentAdmin(admin);
-    toast.success(`Welcome back, ${admin.fullName}!`);
-    navigate(admin.isSuperAdmin ? "/super-admin" : "/church-admin");
   };
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (regForm.password !== regForm.verifyPassword) {
       toast.error("Passwords do not match.");
       return;
     }
-    if (!store.validateAuthCode(regForm.authCode)) {
+    if (regForm.authCode !== AUTH_CODE) {
       toast.error("Invalid authentication code.");
       return;
     }
 
-    const admins = store.getAdmins();
-    if (admins.find(a => a.username === regForm.username)) {
-      toast.error("Username already taken.");
-      return;
-    }
+    setLoading(true);
+    try {
+      // Find or create church
+      const { data: existingChurch } = await supabase
+        .from("churches")
+        .select("id")
+        .ilike("name", regForm.churchName.trim())
+        .maybeSingle();
 
-    const churches = store.getChurches();
-    let church = churches.find(c => c.name.toLowerCase() === regForm.churchName.trim().toLowerCase());
-    if (!church) {
-      church = { id: `c${Date.now()}`, name: regForm.churchName.trim(), target: 100, confirmed: 0 };
-      churches.push(church);
-      store.setChurches(churches);
-    }
+      let churchId: string;
+      if (existingChurch) {
+        churchId = existingChurch.id;
+      } else {
+        const { data: newChurch, error: cErr } = await supabase
+          .from("churches")
+          .insert({ name: regForm.churchName.trim() })
+          .select("id")
+          .single();
+        if (cErr) throw cErr;
+        churchId = newChurch.id;
+      }
 
-    const newAdmin = {
-      id: `a${Date.now()}`,
-      fullName: regForm.fullName.trim(),
-      username: regForm.username.trim(),
-      email: regForm.email.trim(),
-      phone: regForm.phone.trim(),
-      churchName: church.name,
-      churchId: church.id,
-      isSuperAdmin: false,
-      createdAt: new Date().toISOString().split("T")[0],
-    };
-    admins.push(newAdmin);
-    store.setAdmins(admins);
-    store.setPassword(newAdmin.username, regForm.password);
-    store.setCurrentAdmin(newAdmin);
-    toast.success("Admin account created!");
-    navigate("/church-admin");
+      // Sign up
+      const { data: authData, error: authErr } = await supabase.auth.signUp({
+        email: regForm.email.trim(),
+        password: regForm.password,
+        options: {
+          emailRedirectTo: window.location.origin,
+          data: {
+            full_name: regForm.fullName.trim(),
+            username: regForm.username.trim(),
+          },
+        },
+      });
+      if (authErr) throw authErr;
+
+      if (authData.user) {
+        // Update profile with phone and church
+        await supabase.from("profiles").update({
+          phone: regForm.phone.trim(),
+          church_id: churchId,
+        }).eq("user_id", authData.user.id);
+
+        // Add church_admin role
+        await supabase.from("user_roles").insert({
+          user_id: authData.user.id,
+          role: "church_admin" as const,
+        });
+      }
+
+      toast.success("Admin account created! Please check your email to verify your account, then log in.");
+      setRegForm({ fullName: "", username: "", email: "", phone: "", churchName: "", password: "", verifyPassword: "", authCode: "" });
+    } catch (err: any) {
+      toast.error(err.message || "Registration failed.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -109,19 +150,16 @@ const AdminAuth = () => {
               <CardContent>
                 <form onSubmit={handleLogin} className="space-y-4">
                   <div className="space-y-2">
-                    <Label className="text-primary-foreground/80">Username or Email</Label>
-                    <Input value={loginForm.username} onChange={e => setLoginForm(p => ({ ...p, username: e.target.value }))} placeholder="username" className="bg-navy-light/50 border-gold/20 text-primary-foreground placeholder:text-primary-foreground/30" required />
+                    <Label className="text-primary-foreground/80">Email</Label>
+                    <Input type="email" value={loginForm.email} onChange={e => setLoginForm(p => ({ ...p, email: e.target.value }))} placeholder="admin@email.com" className="bg-navy-light/50 border-gold/20 text-primary-foreground placeholder:text-primary-foreground/30" required />
                   </div>
                   <div className="space-y-2">
                     <Label className="text-primary-foreground/80">Password</Label>
                     <Input type="password" value={loginForm.password} onChange={e => setLoginForm(p => ({ ...p, password: e.target.value }))} placeholder="••••••••" className="bg-navy-light/50 border-gold/20 text-primary-foreground placeholder:text-primary-foreground/30" required />
                   </div>
-                  <Button type="submit" className="w-full bg-gradient-gold text-accent-foreground font-semibold h-11">
-                    Sign In
+                  <Button type="submit" disabled={loading} className="w-full bg-gradient-gold text-accent-foreground font-semibold h-11">
+                    {loading ? "Signing In..." : "Sign In"}
                   </Button>
-                  <p className="text-xs text-primary-foreground/40 text-center font-body">
-                    Demo: superadmin / admin123 or admingrace / admin123
-                  </p>
                 </form>
               </CardContent>
             </Card>
@@ -171,8 +209,8 @@ const AdminAuth = () => {
                     <Label className="text-primary-foreground/80 text-xs">Authentication Code</Label>
                     <Input type="password" value={regForm.authCode} onChange={e => setRegForm(p => ({ ...p, authCode: e.target.value }))} className="bg-navy-light/50 border-gold/20 text-primary-foreground placeholder:text-primary-foreground/30 h-9" required />
                   </div>
-                  <Button type="submit" className="w-full bg-gradient-gold text-accent-foreground font-semibold h-11">
-                    Create Admin Account
+                  <Button type="submit" disabled={loading} className="w-full bg-gradient-gold text-accent-foreground font-semibold h-11">
+                    {loading ? "Creating..." : "Create Admin Account"}
                   </Button>
                 </form>
               </CardContent>

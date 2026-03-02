@@ -3,18 +3,30 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { store } from "@/lib/store";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useQuery } from "@tanstack/react-query";
 
 const MemberRegistrationForm = () => {
-  const inviters = store.getInviters();
+  const { data: inviters = [] } = useQuery({
+    queryKey: ["inviters"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("inviters")
+        .select("id, full_name, church_id, churches(name)")
+        .order("full_name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const [form, setForm] = useState({
     fullName: "", email: "", phone: "", occupation: "",
     location: "", dateOfBirth: "", inviterId: "",
   });
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.fullName.trim() || !form.phone.trim()) {
       toast.error("Full Name and Phone are required.");
@@ -26,35 +38,33 @@ const MemberRegistrationForm = () => {
     }
 
     setLoading(true);
-    const inviter = inviters.find(i => i.id === form.inviterId);
-    const members = store.getMembers();
-    members.push({
-      id: `m${Date.now()}`,
-      fullName: form.fullName.trim(),
-      email: form.email.trim() || undefined,
-      phone: form.phone.trim(),
-      occupation: form.occupation.trim() || undefined,
-      location: form.location.trim() || undefined,
-      dateOfBirth: form.dateOfBirth || undefined,
-      inviterId: form.inviterId,
-      inviterName: inviter?.fullName || "",
-      churchId: inviter?.churchId || "",
-      churchName: inviter?.churchName || "",
-      confirmed: false,
-      createdAt: new Date().toISOString().split("T")[0],
-    });
-    store.setMembers(members);
+    try {
+      const inviter = inviters.find(i => i.id === form.inviterId);
+      const { error } = await supabase.from("members").insert({
+        full_name: form.fullName.trim(),
+        email: form.email.trim() || null,
+        phone: form.phone.trim(),
+        occupation: form.occupation.trim() || null,
+        location: form.location.trim() || null,
+        date_of_birth: form.dateOfBirth || null,
+        inviter_id: form.inviterId,
+        church_id: inviter?.church_id || "",
+      });
+      if (error) throw error;
 
-    // Update inviter count
-    if (inviter) {
-      const allInviters = store.getInviters();
-      const idx = allInviters.findIndex(i => i.id === inviter.id);
-      if (idx >= 0) { allInviters[idx].inviteCount++; store.setInviters(allInviters); }
+      // Update inviter count
+      await supabase.rpc("has_role", { _user_id: "00000000-0000-0000-0000-000000000000", _role: "super_admin" }).then(() => {
+        // Just update invite_count - best effort
+        supabase.from("inviters").update({ invite_count: (inviter as any)?.invite_count + 1 || 1 }).eq("id", form.inviterId);
+      });
+
+      toast.success("Registration successful! Welcome to 100% Answered Prayer.");
+      setForm({ fullName: "", email: "", phone: "", occupation: "", location: "", dateOfBirth: "", inviterId: "" });
+    } catch (err: any) {
+      toast.error(err.message || "Registration failed.");
+    } finally {
+      setLoading(false);
     }
-
-    toast.success("Registration successful! Welcome to 100% Answered Prayer.");
-    setForm({ fullName: "", email: "", phone: "", occupation: "", location: "", dateOfBirth: "", inviterId: "" });
-    setLoading(false);
   };
 
   return (
@@ -92,7 +102,9 @@ const MemberRegistrationForm = () => {
           <SelectTrigger><SelectValue placeholder="Select your inviter" /></SelectTrigger>
           <SelectContent>
             {inviters.map(inv => (
-              <SelectItem key={inv.id} value={inv.id}>{inv.fullName} ({inv.churchName})</SelectItem>
+              <SelectItem key={inv.id} value={inv.id}>
+                {inv.full_name} ({(inv.churches as any)?.name || "Unknown"})
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
