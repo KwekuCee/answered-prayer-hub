@@ -2,8 +2,10 @@ import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { store } from "@/lib/store";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+
+const AUTH_CODE = "100PRAYER";
 
 const InviterSignUpForm = () => {
   const [form, setForm] = useState({
@@ -11,44 +13,54 @@ const InviterSignUpForm = () => {
   });
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.fullName.trim() || !form.email.trim() || !form.phone.trim() || !form.churchName.trim()) {
       toast.error("All fields are required.");
       return;
     }
-    if (!store.validateAuthCode(form.authCode)) {
+    if (form.authCode !== AUTH_CODE) {
       toast.error("Invalid authentication code.");
       return;
     }
 
     setLoading(true);
-    const inviters = store.getInviters();
-    const churches = store.getChurches();
+    try {
+      // Find or create church
+      const { data: existingChurch } = await supabase
+        .from("churches")
+        .select("id, name")
+        .ilike("name", form.churchName.trim())
+        .maybeSingle();
 
-    // Find or create church
-    let church = churches.find(c => c.name.toLowerCase() === form.churchName.trim().toLowerCase());
-    if (!church) {
-      church = { id: `c${Date.now()}`, name: form.churchName.trim(), target: 100, confirmed: 0 };
-      churches.push(church);
-      store.setChurches(churches);
+      let churchId: string;
+      if (existingChurch) {
+        churchId = existingChurch.id;
+      } else {
+        const { data: newChurch, error: churchErr } = await supabase
+          .from("churches")
+          .insert({ name: form.churchName.trim() })
+          .select("id")
+          .single();
+        if (churchErr) throw churchErr;
+        churchId = newChurch.id;
+      }
+
+      const { error } = await supabase.from("inviters").insert({
+        full_name: form.fullName.trim(),
+        email: form.email.trim(),
+        phone: form.phone.trim(),
+        church_id: churchId,
+      });
+      if (error) throw error;
+
+      toast.success("You're now registered as an inviter! Start inviting members.");
+      setForm({ fullName: "", email: "", phone: "", churchName: "", authCode: "" });
+    } catch (err: any) {
+      toast.error(err.message || "Registration failed.");
+    } finally {
+      setLoading(false);
     }
-
-    inviters.push({
-      id: `i${Date.now()}`,
-      fullName: form.fullName.trim(),
-      email: form.email.trim(),
-      phone: form.phone.trim(),
-      churchName: church.name,
-      churchId: church.id,
-      createdAt: new Date().toISOString().split("T")[0],
-      inviteCount: 0,
-      confirmedCount: 0,
-    });
-    store.setInviters(inviters);
-    toast.success("You're now registered as an inviter! Start inviting members.");
-    setForm({ fullName: "", email: "", phone: "", churchName: "", authCode: "" });
-    setLoading(false);
   };
 
   return (

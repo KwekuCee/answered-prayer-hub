@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { store } from "@/lib/store";
-import { Admin } from "@/lib/types";
+import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -14,61 +13,91 @@ import {
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import logo from "@/assets/logo.png";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 const GOLD_COLORS = ["hsl(40,70%,50%)", "hsl(40,60%,60%)", "hsl(40,50%,70%)", "hsl(40,40%,75%)"];
 
 const SuperAdminDashboard = () => {
   const navigate = useNavigate();
-  const [admin, setAdmin] = useState<Admin | null>(null);
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("overview");
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   useEffect(() => {
-    const current = store.getCurrentAdmin();
-    if (!current || !current.isSuperAdmin) { navigate("/admin"); return; }
-    setAdmin(current);
+    const checkAuth = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) { navigate("/admin"); return; }
+      const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", user.id);
+      if (!roles?.some(r => r.role === "super_admin")) { navigate("/admin"); return; }
+    };
+    checkAuth();
   }, [navigate]);
 
-  if (!admin) return null;
+  const { data: members = [] } = useQuery({
+    queryKey: ["all-members"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("members").select("*, inviters(full_name), churches(name)").order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+  });
 
-  const members = store.getMembers();
-  const inviters = store.getInviters();
-  const churches = store.getChurches();
-  const admins = store.getAdmins();
+  const { data: inviters = [] } = useQuery({
+    queryKey: ["all-inviters"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("inviters").select("*, churches(name)").order("full_name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: churches = [] } = useQuery({
+    queryKey: ["all-churches"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("churches").select("*").order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: admins = [] } = useQuery({
+    queryKey: ["all-admins"],
+    queryFn: async () => {
+      const { data: profilesData, error } = await supabase.from("profiles").select("*, churches(name)");
+      if (error) throw error;
+      // Fetch roles separately
+      const { data: rolesData } = await supabase.from("user_roles").select("user_id, role");
+      return (profilesData || []).map(p => ({
+        ...p,
+        roles: (rolesData || []).filter(r => r.user_id === p.user_id),
+      }));
+    },
+  });
+
   const confirmedTotal = members.filter(m => m.confirmed).length;
 
-  // Leaderboard data
-  const churchLeaderboard = churches
-    .map(c => ({
-      name: c.name,
-      members: members.filter(m => m.churchId === c.id).length,
-      confirmed: members.filter(m => m.churchId === c.id && m.confirmed).length,
-      target: c.target,
-    }))
-    .sort((a, b) => b.confirmed - a.confirmed);
+  const churchLeaderboard = churches.map(c => ({
+    name: c.name,
+    members: members.filter(m => m.church_id === c.id).length,
+    confirmed: members.filter(m => m.church_id === c.id && m.confirmed).length,
+    target: c.target,
+  })).sort((a, b) => b.confirmed - a.confirmed);
 
-  const inviterLeaderboard = inviters
-    .map(inv => ({
-      name: inv.fullName,
-      church: inv.churchName,
-      invites: members.filter(m => m.inviterId === inv.id).length,
-      confirmed: members.filter(m => m.inviterId === inv.id && m.confirmed).length,
-    }))
-    .sort((a, b) => b.confirmed - a.confirmed)
-    .slice(0, 10);
+  const inviterLeaderboard = inviters.map(inv => ({
+    name: inv.full_name,
+    church: (inv.churches as any)?.name || "",
+    invites: members.filter(m => m.inviter_id === inv.id).length,
+    confirmed: members.filter(m => m.inviter_id === inv.id && m.confirmed).length,
+  })).sort((a, b) => b.confirmed - a.confirmed).slice(0, 10);
 
-  const handleConfirm = (memberId: string) => {
-    const all = store.getMembers();
-    const idx = all.findIndex(m => m.id === memberId);
-    if (idx >= 0) {
-      all[idx].confirmed = !all[idx].confirmed;
-      store.setMembers(all);
-      toast.success(all[idx].confirmed ? "Confirmed!" : "Removed.");
-      setActiveTab(t => t); // force re-render
-    }
+  const handleConfirm = async (memberId: string, currentStatus: boolean) => {
+    const { error } = await supabase.from("members").update({ confirmed: !currentStatus }).eq("id", memberId);
+    if (error) { toast.error("Failed."); return; }
+    toast.success(!currentStatus ? "Confirmed!" : "Removed.");
+    queryClient.invalidateQueries({ queryKey: ["all-members"] });
   };
 
-  const handleLogout = () => { store.setCurrentAdmin(null); navigate("/admin"); };
+  const handleLogout = async () => { await supabase.auth.signOut(); navigate("/admin"); };
 
   const navItems = [
     { id: "overview", label: "Overview", icon: LayoutDashboard },
@@ -81,7 +110,6 @@ const SuperAdminDashboard = () => {
 
   return (
     <div className="min-h-screen bg-background flex">
-      {/* Sidebar */}
       <aside className={`${sidebarOpen ? "w-64" : "w-0 overflow-hidden"} bg-gradient-navy text-primary-foreground transition-all duration-300 flex flex-col fixed lg:relative h-screen z-40`}>
         <div className="p-5 border-b border-gold/10">
           <img src={logo} alt="100% Answered Prayer" className="w-28 mb-2" />
@@ -89,13 +117,8 @@ const SuperAdminDashboard = () => {
         </div>
         <nav className="flex-1 p-3 space-y-1">
           {navItems.map(item => (
-            <button
-              key={item.id}
-              onClick={() => { setActiveTab(item.id); if (window.innerWidth < 1024) setSidebarOpen(false); }}
-              className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg font-body text-sm transition-colors ${
-                activeTab === item.id ? "bg-gold/15 text-gold" : "text-primary-foreground/60 hover:bg-navy-light/50"
-              }`}
-            >
+            <button key={item.id} onClick={() => { setActiveTab(item.id); if (window.innerWidth < 1024) setSidebarOpen(false); }}
+              className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg font-body text-sm transition-colors ${activeTab === item.id ? "bg-gold/15 text-gold" : "text-primary-foreground/60 hover:bg-navy-light/50"}`}>
               <item.icon className="h-4 w-4" /> {item.label}
             </button>
           ))}
@@ -107,7 +130,6 @@ const SuperAdminDashboard = () => {
         </div>
       </aside>
 
-      {/* Main */}
       <main className="flex-1 min-h-screen">
         <header className="h-14 border-b border-border flex items-center px-4 gap-4 bg-card">
           <button onClick={() => setSidebarOpen(!sidebarOpen)} className="lg:hidden">
@@ -137,8 +159,6 @@ const SuperAdminDashboard = () => {
                   </Card>
                 ))}
               </div>
-
-              {/* Church progress */}
               <Card className="border-border/50">
                 <CardHeader><CardTitle className="font-display text-lg">Church Progress</CardTitle></CardHeader>
                 <CardContent className="space-y-4">
@@ -164,10 +184,8 @@ const SuperAdminDashboard = () => {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Church Name</TableHead>
-                        <TableHead className="text-center">Target</TableHead>
-                        <TableHead className="text-center">Members</TableHead>
-                        <TableHead className="text-center">Confirmed</TableHead>
+                        <TableHead>Church Name</TableHead><TableHead className="text-center">Target</TableHead>
+                        <TableHead className="text-center">Members</TableHead><TableHead className="text-center">Confirmed</TableHead>
                         <TableHead className="text-center">Progress</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -196,25 +214,26 @@ const SuperAdminDashboard = () => {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Username</TableHead>
-                        <TableHead>Church</TableHead>
-                        <TableHead className="text-center">Role</TableHead>
+                        <TableHead>Name</TableHead><TableHead>Username</TableHead><TableHead>Church</TableHead><TableHead className="text-center">Role</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {admins.map(a => (
-                        <TableRow key={a.id}>
-                          <TableCell className="font-medium">{a.fullName}</TableCell>
-                          <TableCell className="text-sm text-muted-foreground">{a.username}</TableCell>
-                          <TableCell className="text-sm">{a.churchName}</TableCell>
-                          <TableCell className="text-center">
-                            <Badge className={a.isSuperAdmin ? "bg-gradient-gold text-accent-foreground border-0" : "bg-muted text-muted-foreground border-0"}>
-                              {a.isSuperAdmin ? "Super Admin" : "Church Admin"}
-                            </Badge>
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                      {admins.map(a => {
+                        const roles = a.roles || [];
+                        const isSuperAdmin = roles.some((r: any) => r.role === "super_admin");
+                        return (
+                          <TableRow key={a.id}>
+                            <TableCell className="font-medium">{a.full_name}</TableCell>
+                            <TableCell className="text-sm text-muted-foreground">{a.username}</TableCell>
+                            <TableCell className="text-sm">{(a.churches as any)?.name || "—"}</TableCell>
+                            <TableCell className="text-center">
+                              <Badge className={isSuperAdmin ? "bg-gradient-gold text-accent-foreground border-0" : "bg-muted text-muted-foreground border-0"}>
+                                {isSuperAdmin ? "Super Admin" : "Church Admin"}
+                              </Badge>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </CardContent>
@@ -230,21 +249,18 @@ const SuperAdminDashboard = () => {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Church</TableHead>
-                        <TableHead>Phone</TableHead>
-                        <TableHead className="text-center">Invites</TableHead>
-                        <TableHead className="text-center">Confirmed</TableHead>
+                        <TableHead>Name</TableHead><TableHead>Church</TableHead><TableHead>Phone</TableHead>
+                        <TableHead className="text-center">Invites</TableHead><TableHead className="text-center">Confirmed</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {inviters.map(inv => (
                         <TableRow key={inv.id}>
-                          <TableCell className="font-medium">{inv.fullName}</TableCell>
-                          <TableCell className="text-sm text-muted-foreground">{inv.churchName}</TableCell>
+                          <TableCell className="font-medium">{inv.full_name}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{(inv.churches as any)?.name || ""}</TableCell>
                           <TableCell className="text-sm">{inv.phone}</TableCell>
-                          <TableCell className="text-center"><Badge variant="secondary">{inv.inviteCount}</Badge></TableCell>
-                          <TableCell className="text-center"><Badge className="bg-success/10 text-success border-0">{inv.confirmedCount}</Badge></TableCell>
+                          <TableCell className="text-center"><Badge variant="secondary">{inv.invite_count}</Badge></TableCell>
+                          <TableCell className="text-center"><Badge className="bg-success/10 text-success border-0">{inv.confirmed_count}</Badge></TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -262,26 +278,23 @@ const SuperAdminDashboard = () => {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Church</TableHead>
-                        <TableHead>Invited By</TableHead>
-                        <TableHead className="text-center">Status</TableHead>
-                        <TableHead className="text-center">Action</TableHead>
+                        <TableHead>Name</TableHead><TableHead>Church</TableHead><TableHead>Invited By</TableHead>
+                        <TableHead className="text-center">Status</TableHead><TableHead className="text-center">Action</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {members.map(m => (
                         <TableRow key={m.id}>
-                          <TableCell className="font-medium">{m.fullName}</TableCell>
-                          <TableCell className="text-sm text-muted-foreground">{m.churchName}</TableCell>
-                          <TableCell className="text-sm">{m.inviterName}</TableCell>
+                          <TableCell className="font-medium">{m.full_name}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{(m.churches as any)?.name || ""}</TableCell>
+                          <TableCell className="text-sm">{(m.inviters as any)?.full_name || "—"}</TableCell>
                           <TableCell className="text-center">
                             <Badge className={m.confirmed ? "bg-success/10 text-success border-0" : "bg-muted text-muted-foreground border-0"}>
                               {m.confirmed ? "Confirmed" : "Pending"}
                             </Badge>
                           </TableCell>
                           <TableCell className="text-center">
-                            <Button size="sm" variant={m.confirmed ? "outline" : "default"} onClick={() => handleConfirm(m.id)}
+                            <Button size="sm" variant={m.confirmed ? "outline" : "default"} onClick={() => handleConfirm(m.id, m.confirmed)}
                               className={!m.confirmed ? "bg-gradient-gold text-accent-foreground hover:opacity-90" : ""}>
                               {m.confirmed ? "Undo" : "Confirm"}
                             </Button>
@@ -297,7 +310,6 @@ const SuperAdminDashboard = () => {
 
           {activeTab === "leaderboard" && (
             <div className="space-y-6 animate-fade-up">
-              {/* Church leaderboard chart */}
               <Card className="border-border/50">
                 <CardHeader>
                   <CardTitle className="font-display text-lg flex items-center gap-2">
@@ -322,7 +334,6 @@ const SuperAdminDashboard = () => {
                 </CardContent>
               </Card>
 
-              {/* Top Inviters */}
               <Card className="border-border/50">
                 <CardHeader>
                   <CardTitle className="font-display text-lg flex items-center gap-2">
