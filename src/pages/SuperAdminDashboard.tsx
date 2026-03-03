@@ -3,13 +3,16 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import {
-  LayoutDashboard, Church, Shield, UserCheck, Users, Trophy,
-  LogOut, Menu, X, TrendingUp, Target, Crown, Medal
+  LayoutDashboard, Church, Shield, UserCheck, Users, Trophy, Download,
+  LogOut, Menu, X, TrendingUp, Target, Crown, Medal, Pencil
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import logo from "@/assets/logo.png";
@@ -22,6 +25,9 @@ const SuperAdminDashboard = () => {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("overview");
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [editingChurch, setEditingChurch] = useState<any>(null);
+  const [editingMember, setEditingMember] = useState<any>(null);
+  const [editingInviter, setEditingInviter] = useState<any>(null);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -65,7 +71,6 @@ const SuperAdminDashboard = () => {
     queryFn: async () => {
       const { data: profilesData, error } = await supabase.from("profiles").select("*, churches(name)");
       if (error) throw error;
-      // Fetch roles separately
       const { data: rolesData } = await supabase.from("user_roles").select("user_id, role");
       return (profilesData || []).map(p => ({
         ...p,
@@ -77,6 +82,7 @@ const SuperAdminDashboard = () => {
   const confirmedTotal = members.filter(m => m.confirmed).length;
 
   const churchLeaderboard = churches.map(c => ({
+    id: c.id,
     name: c.name,
     members: members.filter(m => m.church_id === c.id).length,
     confirmed: members.filter(m => m.church_id === c.id && m.confirmed).length,
@@ -97,6 +103,49 @@ const SuperAdminDashboard = () => {
     queryClient.invalidateQueries({ queryKey: ["all-members"] });
   };
 
+  const handleSaveChurch = async () => {
+    if (!editingChurch) return;
+    const { error } = await supabase.from("churches").update({ name: editingChurch.name, target: editingChurch.target }).eq("id", editingChurch.id);
+    if (error) { toast.error("Failed to save."); return; }
+    toast.success("Church updated!");
+    setEditingChurch(null);
+    queryClient.invalidateQueries({ queryKey: ["all-churches"] });
+  };
+
+  const handleSaveMember = async () => {
+    if (!editingMember) return;
+    const { error } = await supabase.from("members").update({
+      full_name: editingMember.full_name, phone: editingMember.phone,
+      email: editingMember.email, occupation: editingMember.occupation, location: editingMember.location,
+    }).eq("id", editingMember.id);
+    if (error) { toast.error("Failed."); return; }
+    toast.success("Member updated!");
+    setEditingMember(null);
+    queryClient.invalidateQueries({ queryKey: ["all-members"] });
+  };
+
+  const handleSaveInviter = async () => {
+    if (!editingInviter) return;
+    const { error } = await supabase.from("inviters").update({
+      full_name: editingInviter.full_name, phone: editingInviter.phone, email: editingInviter.email,
+    }).eq("id", editingInviter.id);
+    if (error) { toast.error("Failed."); return; }
+    toast.success("Inviter updated!");
+    setEditingInviter(null);
+    queryClient.invalidateQueries({ queryKey: ["all-inviters"] });
+  };
+
+  const exportCSV = (data: Record<string, any>[], filename: string) => {
+    if (!data.length) return;
+    const headers = Object.keys(data[0]).filter(k => typeof data[0][k] !== "object");
+    const csv = [headers.join(","), ...data.map(row => headers.map(h => `"${row[h] ?? ""}"`).join(","))].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url; a.download = `${filename}.csv`; a.click();
+    URL.revokeObjectURL(url);
+    toast.success(`${filename}.csv exported!`);
+  };
+
   const handleLogout = async () => { await supabase.auth.signOut(); navigate("/admin"); };
 
   const navItems = [
@@ -106,6 +155,7 @@ const SuperAdminDashboard = () => {
     { id: "inviters", label: "Manage Inviters", icon: UserCheck },
     { id: "members", label: "Manage Members", icon: Users },
     { id: "leaderboard", label: "Leaderboards", icon: Trophy },
+    { id: "export", label: "Data Export", icon: Download },
   ];
 
   return (
@@ -178,25 +228,35 @@ const SuperAdminDashboard = () => {
 
           {activeTab === "churches" && (
             <div className="animate-fade-up">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="font-display font-bold text-lg">All Churches</h2>
+                <Button variant="outline" size="sm" onClick={() => exportCSV(churches as any, "churches")} className="gap-2">
+                  <Download className="h-4 w-4" /> Export CSV
+                </Button>
+              </div>
               <Card className="border-border/50">
-                <CardHeader><CardTitle className="font-display text-lg">All Churches</CardTitle></CardHeader>
-                <CardContent>
+                <CardContent className="p-0">
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Church Name</TableHead><TableHead className="text-center">Target</TableHead>
                         <TableHead className="text-center">Members</TableHead><TableHead className="text-center">Confirmed</TableHead>
-                        <TableHead className="text-center">Progress</TableHead>
+                        <TableHead className="text-center">Progress</TableHead><TableHead className="text-center">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {churchLeaderboard.map(c => (
-                        <TableRow key={c.name}>
+                        <TableRow key={c.id}>
                           <TableCell className="font-medium">{c.name}</TableCell>
                           <TableCell className="text-center">{c.target}</TableCell>
                           <TableCell className="text-center">{c.members}</TableCell>
                           <TableCell className="text-center"><Badge className="bg-success/10 text-success border-0">{c.confirmed}</Badge></TableCell>
                           <TableCell className="text-center">{Math.round((c.confirmed / c.target) * 100)}%</TableCell>
+                          <TableCell className="text-center">
+                            <Button size="sm" variant="ghost" onClick={() => setEditingChurch({ id: c.id, name: c.name, target: c.target })}>
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -243,14 +303,20 @@ const SuperAdminDashboard = () => {
 
           {activeTab === "inviters" && (
             <div className="animate-fade-up">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="font-display font-bold text-lg">All Inviters ({inviters.length})</h2>
+                <Button variant="outline" size="sm" onClick={() => exportCSV(inviters as any, "inviters")} className="gap-2">
+                  <Download className="h-4 w-4" /> Export CSV
+                </Button>
+              </div>
               <Card className="border-border/50">
-                <CardHeader><CardTitle className="font-display text-lg">All Inviters ({inviters.length})</CardTitle></CardHeader>
-                <CardContent>
+                <CardContent className="p-0">
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Name</TableHead><TableHead>Church</TableHead><TableHead>Phone</TableHead>
                         <TableHead className="text-center">Invites</TableHead><TableHead className="text-center">Confirmed</TableHead>
+                        <TableHead className="text-center">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -261,6 +327,11 @@ const SuperAdminDashboard = () => {
                           <TableCell className="text-sm">{inv.phone}</TableCell>
                           <TableCell className="text-center"><Badge variant="secondary">{inv.invite_count}</Badge></TableCell>
                           <TableCell className="text-center"><Badge className="bg-success/10 text-success border-0">{inv.confirmed_count}</Badge></TableCell>
+                          <TableCell className="text-center">
+                            <Button size="sm" variant="ghost" onClick={() => setEditingInviter({ ...inv })}>
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -272,14 +343,19 @@ const SuperAdminDashboard = () => {
 
           {activeTab === "members" && (
             <div className="animate-fade-up">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="font-display font-bold text-lg">All Members ({members.length})</h2>
+                <Button variant="outline" size="sm" onClick={() => exportCSV(members as any, "members")} className="gap-2">
+                  <Download className="h-4 w-4" /> Export CSV
+                </Button>
+              </div>
               <Card className="border-border/50">
-                <CardHeader><CardTitle className="font-display text-lg">All Members ({members.length})</CardTitle></CardHeader>
                 <CardContent className="p-0">
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>Name</TableHead><TableHead>Church</TableHead><TableHead>Invited By</TableHead>
-                        <TableHead className="text-center">Status</TableHead><TableHead className="text-center">Action</TableHead>
+                        <TableHead className="text-center">Status</TableHead><TableHead className="text-center">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -293,7 +369,10 @@ const SuperAdminDashboard = () => {
                               {m.confirmed ? "Confirmed" : "Pending"}
                             </Badge>
                           </TableCell>
-                          <TableCell className="text-center">
+                          <TableCell className="text-center space-x-1">
+                            <Button size="sm" variant="ghost" onClick={() => setEditingMember({ ...m })}>
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
                             <Button size="sm" variant={m.confirmed ? "outline" : "default"} onClick={() => handleConfirm(m.id, m.confirmed)}
                               className={!m.confirmed ? "bg-gradient-gold text-accent-foreground hover:opacity-90" : ""}>
                               {m.confirmed ? "Undo" : "Confirm"}
@@ -364,8 +443,82 @@ const SuperAdminDashboard = () => {
               </Card>
             </div>
           )}
+
+          {activeTab === "export" && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 animate-fade-up">
+              {[
+                { label: "Export Members", desc: "All member records", onClick: () => exportCSV(members as any, "all-members") },
+                { label: "Export Inviters", desc: "All inviter records", onClick: () => exportCSV(inviters as any, "all-inviters") },
+                { label: "Export Churches", desc: "All church data", onClick: () => exportCSV(churches as any, "churches") },
+                { label: "Export Attendance", desc: "Confirmed members only", onClick: () => exportCSV(members.filter(m => m.confirmed) as any, "attendance") },
+              ].map(item => (
+                <Card key={item.label} className="border-border/50 cursor-pointer hover:shadow-lg transition-shadow" onClick={item.onClick}>
+                  <CardContent className="p-6 text-center">
+                    <Download className="h-8 w-8 mx-auto mb-3 text-gold" />
+                    <h3 className="font-display font-bold mb-1">{item.label}</h3>
+                    <p className="text-sm text-muted-foreground font-body">{item.desc}</p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         </div>
       </main>
+
+      {/* Edit Church Dialog */}
+      <Dialog open={!!editingChurch} onOpenChange={open => !open && setEditingChurch(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle className="font-display">Edit Church</DialogTitle></DialogHeader>
+          {editingChurch && (
+            <div className="space-y-4">
+              <div className="space-y-2"><Label>Church Name</Label><Input value={editingChurch.name} onChange={e => setEditingChurch((p: any) => ({ ...p, name: e.target.value }))} /></div>
+              <div className="space-y-2"><Label>Loading Target</Label><Input type="number" value={editingChurch.target} onChange={e => setEditingChurch((p: any) => ({ ...p, target: parseInt(e.target.value) || 0 }))} /></div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingChurch(null)}>Cancel</Button>
+            <Button onClick={handleSaveChurch} className="bg-gradient-gold text-accent-foreground hover:opacity-90">Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Member Dialog */}
+      <Dialog open={!!editingMember} onOpenChange={open => !open && setEditingMember(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle className="font-display">Edit Member</DialogTitle></DialogHeader>
+          {editingMember && (
+            <div className="space-y-4">
+              <div className="space-y-2"><Label>Full Name</Label><Input value={editingMember.full_name} onChange={e => setEditingMember((p: any) => ({ ...p, full_name: e.target.value }))} /></div>
+              <div className="space-y-2"><Label>Phone</Label><Input value={editingMember.phone} onChange={e => setEditingMember((p: any) => ({ ...p, phone: e.target.value }))} /></div>
+              <div className="space-y-2"><Label>Email</Label><Input value={editingMember.email || ""} onChange={e => setEditingMember((p: any) => ({ ...p, email: e.target.value }))} /></div>
+              <div className="space-y-2"><Label>Occupation</Label><Input value={editingMember.occupation || ""} onChange={e => setEditingMember((p: any) => ({ ...p, occupation: e.target.value }))} /></div>
+              <div className="space-y-2"><Label>Location</Label><Input value={editingMember.location || ""} onChange={e => setEditingMember((p: any) => ({ ...p, location: e.target.value }))} /></div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingMember(null)}>Cancel</Button>
+            <Button onClick={handleSaveMember} className="bg-gradient-gold text-accent-foreground hover:opacity-90">Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Inviter Dialog */}
+      <Dialog open={!!editingInviter} onOpenChange={open => !open && setEditingInviter(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle className="font-display">Edit Inviter</DialogTitle></DialogHeader>
+          {editingInviter && (
+            <div className="space-y-4">
+              <div className="space-y-2"><Label>Full Name</Label><Input value={editingInviter.full_name} onChange={e => setEditingInviter((p: any) => ({ ...p, full_name: e.target.value }))} /></div>
+              <div className="space-y-2"><Label>Phone</Label><Input value={editingInviter.phone} onChange={e => setEditingInviter((p: any) => ({ ...p, phone: e.target.value }))} /></div>
+              <div className="space-y-2"><Label>Email</Label><Input value={editingInviter.email} onChange={e => setEditingInviter((p: any) => ({ ...p, email: e.target.value }))} /></div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingInviter(null)}>Cancel</Button>
+            <Button onClick={handleSaveInviter} className="bg-gradient-gold text-accent-foreground hover:opacity-90">Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

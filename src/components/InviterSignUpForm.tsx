@@ -2,20 +2,31 @@ import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useQuery } from "@tanstack/react-query";
 
 const AUTH_CODE = "100PRAYER";
 
 const InviterSignUpForm = () => {
+  const { data: churches = [] } = useQuery({
+    queryKey: ["churches-list"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("churches").select("id, name").order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
   const [form, setForm] = useState({
-    fullName: "", email: "", phone: "", churchName: "", authCode: "",
+    fullName: "", email: "", phone: "", churchId: "", authCode: "",
   });
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.fullName.trim() || !form.email.trim() || !form.phone.trim() || !form.churchName.trim()) {
+    if (!form.fullName.trim() || !form.email.trim() || !form.phone.trim() || !form.churchId) {
       toast.error("All fields are required.");
       return;
     }
@@ -26,36 +37,16 @@ const InviterSignUpForm = () => {
 
     setLoading(true);
     try {
-      // Find or create church
-      const { data: existingChurch } = await supabase
-        .from("churches")
-        .select("id, name")
-        .ilike("name", form.churchName.trim())
-        .maybeSingle();
-
-      let churchId: string;
-      if (existingChurch) {
-        churchId = existingChurch.id;
-      } else {
-        const { data: newChurch, error: churchErr } = await supabase
-          .from("churches")
-          .insert({ name: form.churchName.trim() })
-          .select("id")
-          .single();
-        if (churchErr) throw churchErr;
-        churchId = newChurch.id;
-      }
-
       const { error } = await supabase.from("inviters").insert({
         full_name: form.fullName.trim(),
         email: form.email.trim(),
         phone: form.phone.trim(),
-        church_id: churchId,
+        church_id: form.churchId,
       });
       if (error) throw error;
 
       toast.success("You're now registered as an inviter! Start inviting members.");
-      setForm({ fullName: "", email: "", phone: "", churchName: "", authCode: "" });
+      setForm({ fullName: "", email: "", phone: "", churchId: "", authCode: "" });
     } catch (err: any) {
       toast.error(err.message || "Registration failed.");
     } finally {
@@ -79,8 +70,15 @@ const InviterSignUpForm = () => {
           <Input id="inv-phone" value={form.phone} onChange={e => setForm(p => ({ ...p, phone: e.target.value }))} placeholder="+234..." required />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="inv-church">Church Name *</Label>
-          <Input id="inv-church" value={form.churchName} onChange={e => setForm(p => ({ ...p, churchName: e.target.value }))} placeholder="Your church name" required />
+          <Label>Church Name *</Label>
+          <Select value={form.churchId} onValueChange={v => setForm(p => ({ ...p, churchId: v }))}>
+            <SelectTrigger><SelectValue placeholder="Select your church" /></SelectTrigger>
+            <SelectContent>
+              {churches.map(c => (
+                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
       <div className="space-y-2">
