@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,48 +8,107 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import {
   LayoutDashboard, Users, UserCheck, Download, LogOut, Menu, X,
-  CheckCircle2, Clock, Target, Pencil
+  CheckCircle2, Clock, Target, Pencil, Trash2
 } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
+type MemberFilter = "all" | "confirmed" | "pending";
+
 const ChurchAdminDashboard = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+
   const [activeTab, setActiveTab] = useState("overview");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<MemberFilter>("all");
+
   const [churchId, setChurchId] = useState<string | null>(null);
   const [churchName, setChurchName] = useState("");
+  const [authLoading, setAuthLoading] = useState(true);
+  const [userId, setUserId] = useState<string | null>(null);
+
+  const [selectedChurchId, setSelectedChurchId] = useState("");
+  const [assigningChurch, setAssigningChurch] = useState(false);
+
   const [editingMember, setEditingMember] = useState<any>(null);
   const [editingInviter, setEditingInviter] = useState<any>(null);
 
   useEffect(() => {
     const checkAuth = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { navigate("/admin"); return; }
-      const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", user.id);
-      if (roles?.some(r => r.role === "super_admin")) { navigate("/super-admin"); return; }
-      if (!roles?.some(r => r.role === "church_admin")) { navigate("/admin"); return; }
-      const { data: profile } = await supabase.from("profiles").select("church_id").eq("user_id", user.id).single();
-      if (profile?.church_id) {
-        setChurchId(profile.church_id);
-        const { data: church } = await supabase.from("churches").select("name").eq("id", profile.church_id).single();
-        setChurchName(church?.name || "");
+      setAuthLoading(true);
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          navigate("/admin");
+          return;
+        }
+
+        setUserId(user.id);
+
+        const { data: roles, error: roleError } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", user.id);
+
+        if (roleError) throw roleError;
+
+        if (roles?.some(r => r.role === "super_admin")) {
+          navigate("/super-admin");
+          return;
+        }
+
+        if (!roles?.some(r => r.role === "church_admin")) {
+          navigate("/admin");
+          return;
+        }
+
+        const { data: profile, error: profileError } = await supabase
+          .from("profiles")
+          .select("church_id")
+          .eq("user_id", user.id)
+          .single();
+
+        if (profileError) throw profileError;
+
+        if (profile?.church_id) {
+          setChurchId(profile.church_id);
+        }
+      } catch (error: any) {
+        toast.error(error.message || "Failed to load dashboard");
+        navigate("/admin");
+      } finally {
+        setAuthLoading(false);
       }
     };
+
     checkAuth();
   }, [navigate]);
+
+  const { data: churches = [] } = useQuery({
+    queryKey: ["church-admin-church-options"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("churches").select("id, name").order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
 
   const { data: members = [] } = useQuery({
     queryKey: ["members", churchId],
     queryFn: async () => {
       if (!churchId) return [];
-      const { data, error } = await supabase.from("members").select("*, inviters(full_name)").eq("church_id", churchId).order("created_at", { ascending: false });
+      const { data, error } = await supabase
+        .from("members")
+        .select("*, inviters(full_name)")
+        .eq("church_id", churchId)
+        .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
     },
@@ -60,7 +119,11 @@ const ChurchAdminDashboard = () => {
     queryKey: ["inviters", churchId],
     queryFn: async () => {
       if (!churchId) return [];
-      const { data, error } = await supabase.from("inviters").select("*").eq("church_id", churchId).order("full_name");
+      const { data, error } = await supabase
+        .from("inviters")
+        .select("*")
+        .eq("church_id", churchId)
+        .order("full_name");
       if (error) throw error;
       return data;
     },
@@ -71,29 +134,107 @@ const ChurchAdminDashboard = () => {
     queryKey: ["church", churchId],
     queryFn: async () => {
       if (!churchId) return null;
-      const { data } = await supabase.from("churches").select("*").eq("id", churchId).single();
+      const { data, error } = await supabase.from("churches").select("*").eq("id", churchId).single();
+      if (error) throw error;
       return data;
     },
     enabled: !!churchId,
   });
 
-  if (!churchId) return null;
+  useEffect(() => {
+    if (church?.name) setChurchName(church.name);
+  }, [church]);
 
   const todayStr = new Date().toISOString().split("T")[0];
   const todayRegs = members.filter(m => m.created_at.startsWith(todayStr)).length;
   const confirmedCount = members.filter(m => m.confirmed).length;
+  const pendingCount = members.filter(m => !m.confirmed).length;
   const target = church?.target || 100;
   const progress = Math.round((confirmedCount / target) * 100);
 
+  const filteredMembers = useMemo(() => {
+    return members.filter((m) => {
+      const matchesSearch =
+        m.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        ((m.inviters as any)?.full_name || "").toLowerCase().includes(searchTerm.toLowerCase());
+
+      const matchesStatus =
+        statusFilter === "all" ||
+        (statusFilter === "confirmed" && m.confirmed) ||
+        (statusFilter === "pending" && !m.confirmed);
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [members, searchTerm, statusFilter]);
+
+  const handleAssignChurch = async () => {
+    if (!userId || !selectedChurchId) return;
+    setAssigningChurch(true);
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ church_id: selectedChurchId })
+        .eq("user_id", userId);
+
+      if (error) throw error;
+
+      setChurchId(selectedChurchId);
+      queryClient.invalidateQueries({ queryKey: ["church", selectedChurchId] });
+      toast.success("Church linked successfully. Dashboard is now active.");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to link church");
+    } finally {
+      setAssigningChurch(false);
+    }
+  };
+
   const handleConfirm = async (memberId: string, currentStatus: boolean) => {
     const { error } = await supabase.from("members").update({ confirmed: !currentStatus }).eq("id", memberId);
-    if (error) { toast.error("Failed to update."); return; }
+    if (error) {
+      toast.error("Failed to update.");
+      return;
+    }
+
     toast.success(!currentStatus ? "Member confirmed!" : "Confirmation removed.");
     queryClient.invalidateQueries({ queryKey: ["members", churchId] });
   };
 
+  const handleConfirmAllPending = async () => {
+    if (!churchId || pendingCount === 0) return;
+
+    const { error } = await supabase
+      .from("members")
+      .update({ confirmed: true })
+      .eq("church_id", churchId)
+      .eq("confirmed", false);
+
+    if (error) {
+      toast.error("Failed to confirm all pending members.");
+      return;
+    }
+
+    toast.success("All pending members have been confirmed.");
+    queryClient.invalidateQueries({ queryKey: ["members", churchId] });
+  };
+
+  const handleDeleteInviter = async (inviterId: string) => {
+    const shouldDelete = window.confirm("Delete this inviter? This cannot be undone.");
+    if (!shouldDelete) return;
+
+    const { error } = await supabase.from("inviters").delete().eq("id", inviterId);
+
+    if (error) {
+      toast.error(error.message || "Failed to delete inviter.");
+      return;
+    }
+
+    toast.success("Inviter deleted.");
+    queryClient.invalidateQueries({ queryKey: ["inviters", churchId] });
+  };
+
   const handleSaveMember = async () => {
     if (!editingMember) return;
+
     const { error } = await supabase.from("members").update({
       full_name: editingMember.full_name,
       phone: editingMember.phone,
@@ -101,7 +242,12 @@ const ChurchAdminDashboard = () => {
       occupation: editingMember.occupation,
       location: editingMember.location,
     }).eq("id", editingMember.id);
-    if (error) { toast.error("Failed to save."); return; }
+
+    if (error) {
+      toast.error("Failed to save.");
+      return;
+    }
+
     toast.success("Member updated!");
     setEditingMember(null);
     queryClient.invalidateQueries({ queryKey: ["members", churchId] });
@@ -109,29 +255,50 @@ const ChurchAdminDashboard = () => {
 
   const handleSaveInviter = async () => {
     if (!editingInviter) return;
+
     const { error } = await supabase.from("inviters").update({
       full_name: editingInviter.full_name,
       phone: editingInviter.phone,
       email: editingInviter.email,
     }).eq("id", editingInviter.id);
-    if (error) { toast.error("Failed to save."); return; }
+
+    if (error) {
+      toast.error("Failed to save.");
+      return;
+    }
+
     toast.success("Inviter updated!");
     setEditingInviter(null);
     queryClient.invalidateQueries({ queryKey: ["inviters", churchId] });
   };
 
   const exportCSV = (data: Record<string, any>[], filename: string) => {
-    if (!data.length) return;
-    const headers = Object.keys(data[0]).filter(k => typeof data[0][k] !== "object");
-    const csv = [headers.join(","), ...data.map(row => headers.map(h => `"${row[h] ?? ""}"`).join(","))].join("\n");
-    const blob = new Blob([csv], { type: "text/csv" });
+    if (!data.length) {
+      toast.error("No data to export.");
+      return;
+    }
+
+    const headers = Object.keys(data[0]).filter((k) => typeof data[0][k] !== "object");
+    const csv = [
+      headers.join(","),
+      ...data.map((row) => headers.map((h) => `"${String(row[h] ?? "").replace(/"/g, '""')}"`).join(",")),
+    ].join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href = url; a.download = `${filename}.csv`; a.click();
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${filename}.csv`;
+    a.click();
     URL.revokeObjectURL(url);
+
     toast.success(`${filename}.csv exported!`);
   };
 
-  const handleLogout = async () => { await supabase.auth.signOut(); navigate("/admin"); };
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    navigate("/admin");
+  };
 
   const navItems = [
     { id: "overview", label: "Overview", icon: LayoutDashboard },
@@ -140,23 +307,86 @@ const ChurchAdminDashboard = () => {
     { id: "export", label: "Data Export", icon: Download },
   ];
 
-  const filteredMembers = members.filter(m =>
-    m.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    ((m.inviters as any)?.full_name || "").toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center px-4">
+        <Card className="w-full max-w-md border-border/50">
+          <CardContent className="p-8 text-center space-y-2">
+            <p className="font-display text-xl">Loading dashboard...</p>
+            <p className="text-sm text-muted-foreground font-body">Please wait while we verify your admin access.</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!churchId) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center px-4">
+        <Card className="w-full max-w-xl border-border/50 shadow-lg">
+          <CardHeader>
+            <CardTitle className="font-display text-2xl">Finish Admin Setup</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <p className="text-sm text-muted-foreground font-body">
+              Your church admin account is active, but no church is linked yet—select your church to unlock the dashboard.
+            </p>
+
+            <div className="space-y-2">
+              <Label>Choose your church</Label>
+              <Select value={selectedChurchId} onValueChange={setSelectedChurchId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select your church" />
+                </SelectTrigger>
+                <SelectContent>
+                  {churches.map((churchOption) => (
+                    <SelectItem key={churchOption.id} value={churchOption.id}>
+                      {churchOption.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <Button
+                onClick={handleAssignChurch}
+                disabled={!selectedChurchId || assigningChurch}
+                className="bg-gradient-gold text-accent-foreground hover:opacity-90"
+              >
+                {assigningChurch ? "Linking church..." : "Link Church"}
+              </Button>
+              <Button variant="outline" onClick={handleLogout}>Logout</Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background flex">
       <aside className={`${sidebarOpen ? "w-64" : "w-0 overflow-hidden"} bg-gradient-navy text-primary-foreground transition-all duration-300 flex flex-col fixed lg:relative h-screen z-40`}>
         <div className="p-5 border-b border-gold/10">
           <img src={logo} alt="100% Answered Prayer" className="w-28 mb-2" />
-          <p className="text-xs text-primary-foreground/50 font-body truncate">{churchName}</p>
+          <p className="text-xs text-primary-foreground/50 font-body truncate">{churchName || "Church Admin"}</p>
         </div>
         <nav className="flex-1 p-3 space-y-1">
           {navItems.map(item => (
-            <button key={item.id} onClick={() => { setActiveTab(item.id); if (window.innerWidth < 1024) setSidebarOpen(false); }}
-              className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg font-body text-sm transition-colors ${activeTab === item.id ? "bg-gold/15 text-gold" : "text-primary-foreground/60 hover:bg-navy-light/50 hover:text-primary-foreground"}`}>
-              <item.icon className="h-4 w-4" /> {item.label}
+            <button
+              key={item.id}
+              onClick={() => {
+                setActiveTab(item.id);
+                if (window.innerWidth < 1024) setSidebarOpen(false);
+              }}
+              className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg font-body text-sm transition-colors ${
+                activeTab === item.id
+                  ? "bg-gold/15 text-gold"
+                  : "text-primary-foreground/60 hover:bg-navy-light/50 hover:text-primary-foreground"
+              }`}
+            >
+              <item.icon className="h-4 w-4" />
+              {item.label}
             </button>
           ))}
         </nav>
@@ -183,7 +413,7 @@ const ChurchAdminDashboard = () => {
                   { label: "Total Members", value: members.length, icon: Users, color: "text-gold" },
                   { label: "Total Inviters", value: inviters.length, icon: UserCheck, color: "text-success" },
                   { label: "Today's Registrations", value: todayRegs, icon: Clock, color: "text-accent" },
-                  { label: "Confirmed", value: confirmedCount, icon: CheckCircle2, color: "text-success" },
+                  { label: "Pending Confirmations", value: pendingCount, icon: CheckCircle2, color: "text-destructive" },
                 ].map(stat => (
                   <Card key={stat.label} className="border-border/50">
                     <CardContent className="p-5">
@@ -196,6 +426,7 @@ const ChurchAdminDashboard = () => {
                   </Card>
                 ))}
               </div>
+
               <Card className="border-border/50 overflow-hidden">
                 <CardHeader className="bg-gradient-gold pb-4">
                   <CardTitle className="font-display text-lg flex items-center gap-2 text-accent-foreground">
@@ -237,8 +468,11 @@ const ChurchAdminDashboard = () => {
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Name</TableHead><TableHead>Email</TableHead><TableHead>Phone</TableHead>
-                        <TableHead className="text-center">Invites</TableHead><TableHead className="text-center">Confirmed</TableHead>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Email</TableHead>
+                        <TableHead>Phone</TableHead>
+                        <TableHead className="text-center">Invites</TableHead>
+                        <TableHead className="text-center">Confirmed</TableHead>
                         <TableHead className="text-center">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -250,9 +484,12 @@ const ChurchAdminDashboard = () => {
                           <TableCell className="text-sm">{inv.phone}</TableCell>
                           <TableCell className="text-center"><Badge variant="secondary">{inv.invite_count}</Badge></TableCell>
                           <TableCell className="text-center"><Badge className="bg-success/10 text-success border-0">{inv.confirmed_count}</Badge></TableCell>
-                          <TableCell className="text-center">
+                          <TableCell className="text-center space-x-1">
                             <Button size="sm" variant="ghost" onClick={() => setEditingInviter({ ...inv })}>
                               <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => handleDeleteInviter(inv.id)}>
+                              <Trash2 className="h-3.5 w-3.5 text-destructive" />
                             </Button>
                           </TableCell>
                         </TableRow>
@@ -266,19 +503,34 @@ const ChurchAdminDashboard = () => {
 
           {activeTab === "members" && (
             <div className="space-y-4 animate-fade-up">
-              <div className="flex items-center justify-between gap-4">
-                <Input placeholder="Search members or inviters..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="max-w-sm" />
-                <Button variant="outline" size="sm" onClick={() => exportCSV(members as any, "members")} className="gap-2 shrink-0">
-                  <Download className="h-4 w-4" /> Export CSV
-                </Button>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <Input
+                  placeholder="Search members or inviters..."
+                  value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value)}
+                  className="max-w-sm"
+                />
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button variant={statusFilter === "all" ? "default" : "outline"} size="sm" onClick={() => setStatusFilter("all")}>All</Button>
+                  <Button variant={statusFilter === "confirmed" ? "default" : "outline"} size="sm" onClick={() => setStatusFilter("confirmed")}>Confirmed</Button>
+                  <Button variant={statusFilter === "pending" ? "default" : "outline"} size="sm" onClick={() => setStatusFilter("pending")}>Pending</Button>
+                  <Button size="sm" variant="outline" onClick={handleConfirmAllPending} disabled={pendingCount === 0}>Confirm All Pending</Button>
+                  <Button variant="outline" size="sm" onClick={() => exportCSV(filteredMembers as any, "members")} className="gap-2 shrink-0">
+                    <Download className="h-4 w-4" /> Export CSV
+                  </Button>
+                </div>
               </div>
               <Card className="border-border/50">
                 <CardContent className="p-0">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Name</TableHead><TableHead>Phone</TableHead><TableHead>Invited By</TableHead>
-                        <TableHead>Date</TableHead><TableHead className="text-center">Status</TableHead><TableHead className="text-center">Actions</TableHead>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Phone</TableHead>
+                        <TableHead>Invited By</TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead className="text-center">Status</TableHead>
+                        <TableHead className="text-center">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -297,8 +549,12 @@ const ChurchAdminDashboard = () => {
                             <Button size="sm" variant="ghost" onClick={() => setEditingMember({ ...m })}>
                               <Pencil className="h-3.5 w-3.5" />
                             </Button>
-                            <Button size="sm" variant={m.confirmed ? "outline" : "default"} onClick={() => handleConfirm(m.id, m.confirmed)}
-                              className={!m.confirmed ? "bg-gradient-gold text-accent-foreground hover:opacity-90" : ""}>
+                            <Button
+                              size="sm"
+                              variant={m.confirmed ? "outline" : "default"}
+                              onClick={() => handleConfirm(m.id, m.confirmed)}
+                              className={!m.confirmed ? "bg-gradient-gold text-accent-foreground hover:opacity-90" : ""}
+                            >
                               {m.confirmed ? "Undo" : "Confirm"}
                             </Button>
                           </TableCell>
@@ -315,8 +571,8 @@ const ChurchAdminDashboard = () => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 animate-fade-up">
               {[
                 { label: "Export Members", desc: "Download all member data", onClick: () => exportCSV(members as any, "members") },
+                { label: "Export Pending", desc: "Only members awaiting confirmation", onClick: () => exportCSV(members.filter(m => !m.confirmed) as any, "pending-members") },
                 { label: "Export Inviters", desc: "Download all inviter data", onClick: () => exportCSV(inviters as any, "inviters") },
-                { label: "Export Attendance", desc: "Download confirmed members", onClick: () => exportCSV(members.filter(m => m.confirmed) as any, "attendance") },
               ].map(item => (
                 <Card key={item.label} className="border-border/50 cursor-pointer hover:shadow-lg transition-shadow" onClick={item.onClick}>
                   <CardContent className="p-6 text-center">
@@ -331,7 +587,6 @@ const ChurchAdminDashboard = () => {
         </div>
       </main>
 
-      {/* Edit Member Dialog */}
       <Dialog open={!!editingMember} onOpenChange={open => !open && setEditingMember(null)}>
         <DialogContent>
           <DialogHeader><DialogTitle className="font-display">Edit Member</DialogTitle></DialogHeader>
@@ -351,7 +606,6 @@ const ChurchAdminDashboard = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Edit Inviter Dialog */}
       <Dialog open={!!editingInviter} onOpenChange={open => !open && setEditingInviter(null)}>
         <DialogContent>
           <DialogHeader><DialogTitle className="font-display">Edit Inviter</DialogTitle></DialogHeader>

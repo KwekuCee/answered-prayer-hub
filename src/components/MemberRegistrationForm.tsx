@@ -13,7 +13,7 @@ const MemberRegistrationForm = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("inviters")
-        .select("id, full_name, church_id, churches(name)")
+        .select("id, full_name, church_id, invite_count, churches(name)")
         .order("full_name");
       if (error) throw error;
       return data;
@@ -40,23 +40,36 @@ const MemberRegistrationForm = () => {
     setLoading(true);
     try {
       const inviter = inviters.find(i => i.id === form.inviterId);
-      const { error } = await supabase.from("members").insert({
-        full_name: form.fullName.trim(),
-        email: form.email.trim() || null,
-        phone: form.phone.trim(),
-        occupation: form.occupation.trim() || null,
-        location: form.location.trim() || null,
-        date_of_birth: form.dateOfBirth || null,
-        inviter_id: form.inviterId,
-        church_id: inviter?.church_id || "",
-      });
+      if (!inviter?.church_id) {
+        throw new Error("Selected inviter is missing church information.");
+      }
+
+      const { data: insertedMember, error } = await supabase
+        .from("members")
+        .insert({
+          full_name: form.fullName.trim(),
+          email: form.email.trim() || null,
+          phone: form.phone.trim(),
+          occupation: form.occupation.trim() || null,
+          location: form.location.trim() || null,
+          date_of_birth: form.dateOfBirth || null,
+          inviter_id: form.inviterId,
+          church_id: inviter.church_id,
+        })
+        .select("id")
+        .single();
       if (error) throw error;
 
-      // Update inviter count
-      await supabase.rpc("has_role", { _user_id: "00000000-0000-0000-0000-000000000000", _role: "super_admin" }).then(() => {
-        // Just update invite_count - best effort
-        supabase.from("inviters").update({ invite_count: (inviter as any)?.invite_count + 1 || 1 }).eq("id", form.inviterId);
+      const nextInviteCount = (inviter.invite_count ?? 0) + 1;
+      await supabase.from("inviters").update({ invite_count: nextInviteCount }).eq("id", form.inviterId);
+
+      const { error: emailError } = await supabase.functions.invoke("send-inviter-email", {
+        body: { memberId: insertedMember.id },
       });
+
+      if (emailError) {
+        console.error("Inviter email notification failed:", emailError);
+      }
 
       toast.success("Registration successful! Welcome to 100% Answered Prayer.");
       setForm({ fullName: "", email: "", phone: "", occupation: "", location: "", dateOfBirth: "", inviterId: "" });
