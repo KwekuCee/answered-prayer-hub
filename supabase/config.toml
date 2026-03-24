@@ -1,1 +1,10 @@
-project_id = "dhcdqisswpqwutinxdln"
+project_id = "mgxbnsudczqmnnezcvox"
+
+[functions.resend_email]
+verify_jwt = false
+
+[functions.send-inviter-email]
+verify_jwt = false
+
+[functions.welcome_email]
+verify_jwt = false
