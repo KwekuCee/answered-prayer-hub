@@ -11,6 +11,8 @@ import NotFound from "./pages/NotFound";
 import Register from "./pages/Register";
 
 
+import BackToTop from "./components/BackToTop";
+
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -18,6 +20,7 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
+      <BackToTop />
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
