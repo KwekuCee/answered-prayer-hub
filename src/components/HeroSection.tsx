@@ -31,12 +31,12 @@ const HeroSection = () => {
           that transforms lives through the power of prayer.
         </p>
         <div className="flex flex-wrap gap-4 justify-center">
-          <a
-            href="#register"
+          <Link
+            to="/register"
             className="px-8 py-3 rounded-lg bg-gradient-gold text-accent-foreground font-semibold font-body shadow-[0_0_20px_rgba(255,215,0,0.3)] hover:shadow-[0_0_30px_rgba(255,215,0,0.5)] hover:-translate-y-1 transition-all duration-300"
           >
             Register Now
-          </a>
+          </Link>
           <Link
             to="/admin"
             className="px-8 py-3 rounded-lg border border-gold/40 bg-navy/50 backdrop-blur-sm text-primary-foreground font-semibold font-body hover:bg-gold/10 hover:-translate-y-1 transition-all duration-300"
