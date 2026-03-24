@@ -24,6 +24,16 @@ const InviterSignUpForm = () => {
   });
   const [loading, setLoading] = useState(false);
 
+  const { data: activeProgram } = useQuery({
+    queryKey: ["active-program"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("programs").select("id").eq("is_active", true).maybeSingle();
+      if (error && error.code !== "PGRST116") console.error(error);
+      return data;
+    },
+  });
+
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.fullName.trim() || !form.email.trim() || !form.phone.trim() || !form.churchId) {
@@ -38,6 +48,7 @@ const InviterSignUpForm = () => {
     setLoading(true);
     try {
       const { error } = await supabase.from("inviters").insert({
+          program_id: activeProgram?.id || null,
         full_name: form.fullName.trim(),
         email: form.email.trim(),
         phone: form.phone.trim(),

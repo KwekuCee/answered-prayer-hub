@@ -9,16 +9,24 @@ import { Progress } from "@/components/ui/progress";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import {
   LayoutDashboard, Church, Shield, UserCheck, Users, Trophy, Download,
-  LogOut, Menu, X, TrendingUp, Target, Medal, Pencil, Trash2
+  LogOut, Menu, X, TrendingUp, Target, Medal, Pencil, Trash2, PieChart as PieChartIcon, Activity, MapPin, MessageCircle, Eye, History, Mail
+  , Bus, Calendar
+  , Heart
 } from "lucide-react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LineChart, Line, PieChart, Pie, Legend } from "recharts";
+import { format, parseISO, startOfMonth } from "date-fns";
 import logo from "@/assets/logo.png";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { NotificationsMenu } from "@/components/NotificationsMenu";
 
-type MemberFilter = "all" | "confirmed" | "pending";
+type AttendeeFilter = "all" | "confirmed" | "pending";
 
 const GOLD_COLORS = [
   "hsl(var(--gold))",
@@ -32,17 +40,44 @@ const SuperAdminDashboard = () => {
   const queryClient = useQueryClient();
 
   const [activeTab, setActiveTab] = useState("overview");
+  const [dashboardProgramId, setDashboardProgramId] = useState<string>("all");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [authLoading, setAuthLoading] = useState(true);
 
   const [churchSearch, setChurchSearch] = useState("");
   const [inviterSearch, setInviterSearch] = useState("");
-  const [memberSearch, setMemberSearch] = useState("");
-  const [memberFilter, setMemberFilter] = useState<MemberFilter>("all");
+  const [attendeeSearch, setAttendeeSearch] = useState("");
+  const [attendeeFilter, setAttendeeFilter] = useState<AttendeeFilter>("all");
+  const [attendeeChurchFilter, setAttendeeChurchFilter] = useState("all");
+  const [inviterChurchFilter, setInviterChurchFilter] = useState("all");
+  const [attendeePage, setAttendeePage] = useState(1);
+  const itemsPerPage = 20;
+  const [selectedAttendees, setSelectedAttendees] = useState<Set<string>>(new Set());
 
   const [editingChurch, setEditingChurch] = useState<any>(null);
-  const [editingMember, setEditingMember] = useState<any>(null);
+  const [editingAttendee, setEditingAttendee] = useState<any>(null);
   const [editingInviter, setEditingInviter] = useState<any>(null);
+  const [editingAdmin, setEditingAdmin] = useState<any>(null);
+  const [editingTestimonial, setEditingTestimonial] = useState<any>(null);
+  const [viewingAttendee, setViewingAttendee] = useState<any>(null);
+
+  const [isAddingTestimonial, setIsAddingTestimonial] = useState(false);
+  const [newTestimonial, setNewTestimonial] = useState({ author_name: "", church_name: "", content: "", is_approved: true });
+
+  const [isAddingChurch, setIsAddingChurch] = useState(false);
+  const [newChurch, setNewChurch] = useState({ name: "", target: 100 });
+
+  const [isAddingAttendee, setIsAddingAttendee] = useState(false);
+  const [newAttendee, setNewAttendee] = useState<any>({ church_id: "", full_name: "", phone: "", email: "", occupation: "", location: "", date_of_birth: "", inviter_id: "none" });
+
+  const [isAddingInviter, setIsAddingInviter] = useState(false);
+  const [newInviter, setNewInviter] = useState<any>({ church_id: "", full_name: "", phone: "", email: "" });
+
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
+  const [emailSubject, setEmailSubject] = useState("");
+  const [emailBody, setEmailBody] = useState("");
+  const [emailRecipients, setEmailRecipients] = useState<string[]>([]);
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -76,8 +111,8 @@ const SuperAdminDashboard = () => {
     checkAuth();
   }, [navigate]);
 
-  const { data: members = [] } = useQuery({
-    queryKey: ["all-members"],
+  const { data: attendees = [] } = useQuery({
+    queryKey: ["all-attendees"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("members")
@@ -124,73 +159,396 @@ const SuperAdminDashboard = () => {
     },
   });
 
-  const confirmedTotal = members.filter((m) => m.confirmed).length;
-  const pendingTotal = members.filter((m) => !m.confirmed).length;
+  const { data: auditLogs = [] } = useQuery({
+    queryKey: ["audit-logs"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("audit_logs")
+        .select("*, profiles(full_name)")
+        .order("created_at", { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: testimonials = [] } = useQuery({
+    queryKey: ["live-testimonials"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("testimonials")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+
+
+  const { data: programs = [], refetch: refetchPrograms } = useQuery({
+    queryKey: ["all-programs"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("programs").select("*").order("start_date", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const [isAddingProgram, setIsAddingProgram] = useState(false);
+  const [newProgram, setNewProgram] = useState({ name: "", location_name: "", map_iframe_url: "", start_date: "" });
+  const [editingProgram, setEditingProgram] = useState<any>(null);
+
+  const activeProgram = programs.find((p: any) => p.is_active);
+
+  const handleCreateProgram = async () => {
+    if (!newProgram.name || !newProgram.location_name) {
+      toast.error("Name and location are required.");
+      return;
+    }
+    // Auto active if it is the first program
+    const isFirst = programs.length === 0;
+    const { error } = await supabase.from("programs").insert({ ...newProgram, is_active: isFirst });
+    if (error) { toast.error("Failed."); return; }
+    toast.success("Program created!");
+    setIsAddingProgram(false);
+    setNewProgram({ name: "", location_name: "", map_iframe_url: "", start_date: "" });
+    queryClient.invalidateQueries({ queryKey: ["all-programs"] });
+  };
+
+  const handleSaveProgram = async () => {
+    if (!editingProgram) return;
+    const { error } = await supabase.from("programs").update({
+      name: editingProgram.name,
+      location_name: editingProgram.location_name,
+      map_iframe_url: editingProgram.map_iframe_url,
+      start_date: editingProgram.start_date || null
+    }).eq("id", editingProgram.id);
+    if (error) { toast.error("Failed."); return; }
+    toast.success("Program updated!");
+    setEditingProgram(null);
+    queryClient.invalidateQueries({ queryKey: ["all-programs"] });
+  };
+
+  const handleDeleteProgram = async (id: string) => {
+    if (!window.confirm("Delete this program? This cascades and deletes ALL attendees, bus routes, and inviters explicitly tied to this program! THIS CANNOT BE UNDONE.")) return;
+    const { error } = await supabase.from("programs").delete().eq("id", id);
+    if (error) { toast.error("Failed."); return; }
+    toast.success("Program deleted.");
+    queryClient.invalidateQueries({ queryKey: ["all-programs"] });
+  };
+
+  const handleSetProgramActive = async (id: string) => {
+    // Turn all off
+    await supabase.from("programs").update({ is_active: false }).neq("id", id);
+    // Turn this one on
+    const { error } = await supabase.from("programs").update({ is_active: true }).eq("id", id);
+    if (error) { toast.error("Failed."); return; }
+    toast.success("Active program updated! Website will now display this program.");
+    queryClient.invalidateQueries({ queryKey: ["all-programs"] });
+  };
+
+  const { data: busPoints = [], refetch: refetchBusPoints } = useQuery({
+    queryKey: ["all-bus-points"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("bus_points").select("*").order("name");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const [isAddingBusPoint, setIsAddingBusPoint] = useState(false);
+  const [newBusPoint, setNewBusPoint] = useState<{ name: string, location: string, departure_time: string, program_id?: string }>({ name: "", location: "", departure_time: "" });
+  const [editingBusPoint, setEditingBusPoint] = useState<any>(null);
+
+  const handleCreateBusPoint = async () => {
+    if (!newBusPoint.name || !newBusPoint.location) {
+      toast.error("Name and location are required.");
+      return;
+    }
+    const payload = { ...newBusPoint, program_id: newBusPoint.program_id || programs[0]?.id };
+    const { error } = await supabase.from("bus_points").insert(payload);
+    if (error) { toast.error("Failed."); return; }
+    toast.success("Bus Route created!");
+    setIsAddingBusPoint(false);
+    setNewBusPoint({ name: "", location: "", departure_time: "" });
+    queryClient.invalidateQueries({ queryKey: ["all-bus-points"] });
+  };
+
+  const handleSaveBusPoint = async () => {
+    if (!editingBusPoint) return;
+    const { error } = await supabase.from("bus_points").update({
+      name: editingBusPoint.name,
+      location: editingBusPoint.location,
+      departure_time: editingBusPoint.departure_time,
+      program_id: editingBusPoint.program_id
+    }).eq("id", editingBusPoint.id);
+    if (error) { toast.error("Failed."); return; }
+    toast.success("Bus Route updated!");
+    setEditingBusPoint(null);
+    queryClient.invalidateQueries({ queryKey: ["all-bus-points"] });
+  };
+
+  const handleDeleteBusPoint = async (id: string) => {
+    if (!window.confirm("Delete bus route?")) return;
+    const { error } = await supabase.from("bus_points").delete().eq("id", id);
+    if (error) { toast.error("Failed."); return; }
+    toast.success("Deleted.");
+    queryClient.invalidateQueries({ queryKey: ["all-bus-points"] });
+  };
+
+
+  const { data: prayerPoints = [], refetch: refetchPrayerPoints } = useQuery({
+    queryKey: ["all-prayer-points"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("prayer_points").select("*, programs(name)").order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const handleDeletePrayerPoint = async (id: string) => {
+    if (!window.confirm("Delete this prayer request?")) return;
+    const { error } = await supabase.from("prayer_points").delete().eq("id", id);
+    if (error) { toast.error("Failed."); return; }
+    toast.success("Deleted.");
+    queryClient.invalidateQueries({ queryKey: ["all-prayer-points"] });
+  };
+
+  const programAttendees = useMemo(() => {
+    if (dashboardProgramId === "all") return attendees;
+    return attendees.filter(a => a.program_id === dashboardProgramId);
+  }, [attendees, dashboardProgramId]);
+
+  const confirmedTotal = programAttendees.filter((m) => m.confirmed).length;
+  const pendingTotal = programAttendees.filter((m) => !m.confirmed).length;
 
   const churchLeaderboard = useMemo(() => {
     return churches
-      .map(c => ({
-        id: c.id,
-        name: c.name,
-        members: members.filter(m => m.church_id === c.id).length,
-        confirmed: members.filter(m => m.church_id === c.id && m.confirmed).length,
-        target: c.target,
-      }))
+      .map(c => {
+        const churchAttendees = programAttendees.filter(m => m.church_id === c.id);
+        const confirmedCnt = churchAttendees.filter(m => m.confirmed).length;
+        const pendingCnt = churchAttendees.length - confirmedCnt;
+        const ratio = churchAttendees.length > 0 ? Math.round((confirmedCnt / churchAttendees.length) * 100) : 0;
+
+        return {
+          id: c.id,
+          name: c.name,
+          attendees: churchAttendees.length,
+          confirmed: confirmedCnt,
+          pending: pendingCnt,
+          ratio: ratio,
+          target: c.target,
+        };
+      })
       .sort((a, b) => b.confirmed - a.confirmed);
-  }, [churches, members]);
+  }, [churches, programAttendees]);
 
   const inviterLeaderboard = useMemo(() => {
     return inviters
       .map(inv => ({
         name: inv.full_name,
         church: (inv.churches as any)?.name || "",
-        invites: members.filter(m => m.inviter_id === inv.id).length,
-        confirmed: members.filter(m => m.inviter_id === inv.id && m.confirmed).length,
+        invites: programAttendees.filter(m => m.inviter_id === inv.id).length,
+        confirmed: attendees.filter(m => m.inviter_id === inv.id && m.confirmed).length,
       }))
       .sort((a, b) => b.confirmed - a.confirmed)
       .slice(0, 10);
-  }, [inviters, members]);
+  }, [inviters, programAttendees]);
 
   const filteredChurches = useMemo(() => {
     return churchLeaderboard.filter((c) => c.name.toLowerCase().includes(churchSearch.toLowerCase()));
   }, [churchLeaderboard, churchSearch]);
 
   const filteredInviters = useMemo(() => {
-    return inviters.filter((inv) =>
-      inv.full_name.toLowerCase().includes(inviterSearch.toLowerCase()) ||
-      ((inv.churches as any)?.name || "").toLowerCase().includes(inviterSearch.toLowerCase())
-    );
-  }, [inviters, inviterSearch]);
+    return inviters.filter((inv) => {
+      const matchesSearch = inv.full_name.toLowerCase().includes(inviterSearch.toLowerCase()) ||
+        ((inv.churches as any)?.name || "").toLowerCase().includes(inviterSearch.toLowerCase());
 
-  const filteredMembers = useMemo(() => {
-    return members.filter((m) => {
+      const matchesChurch = inviterChurchFilter === "all" || inv.church_id === inviterChurchFilter;
+
+      return matchesSearch && matchesChurch;
+    }).map(inv => {
+      // Calculate real-time stats from attendees array
+      const myInvites = programAttendees.filter(m => m.inviter_id === inv.id);
+      return {
+        ...inv,
+        real_invite_count: myInvites.length,
+        real_confirmed_count: myInvites.filter(m => m.confirmed).length
+      };
+    });
+  }, [inviters, inviterSearch, inviterChurchFilter, attendees]);
+
+  const filteredAttendees = useMemo(() => {
+    return programAttendees.filter((m) => {
       const matchesSearch =
-        m.full_name.toLowerCase().includes(memberSearch.toLowerCase()) ||
-        ((m.churches as any)?.name || "").toLowerCase().includes(memberSearch.toLowerCase()) ||
-        ((m.inviters as any)?.full_name || "").toLowerCase().includes(memberSearch.toLowerCase());
+        m.full_name.toLowerCase().includes(attendeeSearch.toLowerCase()) ||
+        ((m.churches as any)?.name || "").toLowerCase().includes(attendeeSearch.toLowerCase()) ||
+        ((m.inviters as any)?.full_name || "").toLowerCase().includes(attendeeSearch.toLowerCase());
 
       const matchesStatus =
-        memberFilter === "all" ||
-        (memberFilter === "confirmed" && m.confirmed) ||
-        (memberFilter === "pending" && !m.confirmed);
+        attendeeFilter === "all" ||
+        (attendeeFilter === "confirmed" && m.confirmed) ||
+        (attendeeFilter === "pending" && !m.confirmed);
 
-      return matchesSearch && matchesStatus;
+      const matchesChurch = attendeeChurchFilter === "all" || m.church_id === attendeeChurchFilter;
+
+      return matchesSearch && matchesStatus && matchesChurch;
     });
-  }, [members, memberSearch, memberFilter]);
+  }, [programAttendees, attendeeSearch, attendeeFilter, attendeeChurchFilter]);
+
+  // Pagination for attendees
+  const paginatedAttendees = useMemo(() => {
+    const startIndex = (attendeePage - 1) * itemsPerPage;
+    return filteredAttendees.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredAttendees, attendeePage]);
+
+  const totalAttendeePages = Math.ceil(filteredAttendees.length / itemsPerPage);
+
+  // Reset pagination when searching/filtering
+  useEffect(() => {
+    setAttendeePage(1);
+    setSelectedAttendees(new Set());
+  }, [attendeeSearch, attendeeFilter, attendeeChurchFilter]);
+
+  // --- Analytics Processing ---
+
+  // Conversion Rates
+  const overallConversionRate = programAttendees.length > 0
+    ? Math.round((confirmedTotal / programAttendees.length) * 100)
+    : 0;
+
+  // Monthly Growth Data
+  const monthlyGrowth = useMemo(() => {
+    const counts: Record<string, { name: string, attendees: number, confirmed: number }> = {};
+
+    // Sort attendees chronologically from earliest to latest just in case
+    const sortedAttendees = [...programAttendees].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+    sortedAttendees.forEach((m) => {
+      // Group by month
+      if (!m.created_at) return;
+      const date = parseISO(m.created_at);
+      if (isNaN(date.getTime())) return; // Guard against 'Invalid Date' crashing format()
+
+      const monthYear = format(startOfMonth(date), "MMM yyyy");
+
+      if (!counts[monthYear]) {
+        counts[monthYear] = { name: monthYear, attendees: 0, confirmed: 0 };
+      }
+      counts[monthYear].attendees += 1;
+      if (m.confirmed) counts[monthYear].confirmed += 1;
+    });
+
+    return Object.values(counts);
+  }, [attendees]);
+
+  // Geographic Distribution
+  const geographicDistribution = useMemo(() => {
+    const locations: Record<string, number> = {};
+    programAttendees.forEach(m => {
+      const loc = m.location?.trim() || "Unknown";
+      locations[loc] = (locations[loc] || 0) + 1;
+    });
+
+    return Object.entries(locations)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 5); // Top 5 locations
+  }, [attendees]);
 
   const unassignedAdmins = admins.filter((a) => {
     const isChurchAdmin = (a.roles || []).some((r: any) => r.role === "church_admin");
     return isChurchAdmin && !a.church_id;
   }).length;
 
-  const handleConfirm = async (memberId: string, currentStatus: boolean) => {
-    const { error } = await supabase.from("members").update({ confirmed: !currentStatus }).eq("id", memberId);
+  const logAction = async (action: string, targetType: string, targetId: string, details: any = null) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    await supabase.from("audit_logs").insert({
+      admin_id: user.id, // Ensure your policies and defaults handle this securely
+      action,
+      target_type: targetType,
+      target_id: targetId,
+      details
+    });
+    queryClient.invalidateQueries({ queryKey: ["audit-logs"] });
+  };
+
+  const handleConfirm = async (attendeeId: string, currentStatus: boolean) => {
+    const newStatus = !currentStatus;
+    const { error } = await supabase.from("members").update({ confirmed: newStatus }).eq("id", attendeeId);
     if (error) {
       toast.error("Failed.");
       return;
     }
-    toast.success(!currentStatus ? "Confirmed!" : "Removed.");
-    queryClient.invalidateQueries({ queryKey: ["all-members"] });
+    toast.success(newStatus ? "Confirmed!" : "Removed.");
+    await logAction(newStatus ? "confirm_attendee" : "unconfirm_attendee", "attendee", attendeeId);
+    queryClient.invalidateQueries({ queryKey: ["all-attendees"] });
+  };
+
+  const handleBulkConfirm = async () => {
+    if (selectedAttendees.size === 0) return;
+    const { error } = await supabase
+      .from("members")
+      .update({ confirmed: true })
+      .in("id", Array.from(selectedAttendees));
+
+    if (error) {
+      toast.error("Failed to bulk confirm.");
+      return;
+    }
+    toast.success(`${selectedAttendees.size} attendees confirmed.`);
+
+    // Log bulk confirmation
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      await supabase.from("audit_logs").insert({
+        admin_id: user.id,
+        action: "bulk_confirm_attendees",
+        target_type: "attendee",
+        details: { count: selectedAttendees.size, ids: Array.from(selectedAttendees) }
+      });
+      queryClient.invalidateQueries({ queryKey: ["audit-logs"] });
+    }
+
+    setSelectedAttendees(new Set());
+    queryClient.invalidateQueries({ queryKey: ["all-attendees"] });
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedAttendees.size === 0) return;
+    const shouldDelete = window.confirm(`Delete ${selectedAttendees.size} attendees? THIS CANNOT BE UNDONE.`);
+    if (!shouldDelete) return;
+
+    const { error } = await supabase
+      .from("members")
+      .delete()
+      .in("id", Array.from(selectedAttendees));
+
+    if (error) {
+      toast.error("Failed to bulk delete attendees.");
+      return;
+    }
+
+    toast.success(`${selectedAttendees.size} attendees deleted.`);
+
+    // Log bulk delete
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      await supabase.from("audit_logs").insert({
+        admin_id: user.id,
+        action: "bulk_delete_attendees",
+        target_type: "attendee",
+        details: { count: selectedAttendees.size }
+      });
+      queryClient.invalidateQueries({ queryKey: ["audit-logs"] });
+    }
+
+    setSelectedAttendees(new Set());
+    queryClient.invalidateQueries({ queryKey: ["all-attendees"] });
+    queryClient.invalidateQueries({ queryKey: ["all-inviters"] });
+    queryClient.invalidateQueries({ queryKey: ["all-churches"] });
   };
 
   const handleConfirmAllPending = async () => {
@@ -202,12 +560,12 @@ const SuperAdminDashboard = () => {
       .eq("confirmed", false);
 
     if (error) {
-      toast.error("Failed to confirm all pending members.");
+      toast.error("Failed to confirm all pending attendees.");
       return;
     }
 
-    toast.success("All pending members confirmed.");
-    queryClient.invalidateQueries({ queryKey: ["all-members"] });
+    toast.success("All pending attendees confirmed.");
+    queryClient.invalidateQueries({ queryKey: ["all-attendees"] });
   };
 
   const handleDeleteInviter = async (inviterId: string) => {
@@ -222,6 +580,112 @@ const SuperAdminDashboard = () => {
 
     toast.success("Inviter deleted.");
     queryClient.invalidateQueries({ queryKey: ["all-inviters"] });
+  };
+
+  const handleDeleteAttendee = async (attendeeId: string) => {
+    const shouldDelete = window.confirm("Delete this attendee? This cannot be undone.");
+    if (!shouldDelete) return;
+
+    const { error } = await supabase.from("members").delete().eq("id", attendeeId);
+
+    if (error) {
+      toast.error(error.message || "Failed to delete attendee.");
+      return;
+    }
+
+    toast.success("Attendee deleted.");
+    await logAction("delete_attendee", "attendee", attendeeId);
+    queryClient.invalidateQueries({ queryKey: ["all-attendees"] });
+    queryClient.invalidateQueries({ queryKey: ["all-inviters"] });
+    queryClient.invalidateQueries({ queryKey: ["all-churches"] });
+  };
+
+  const handleDeleteChurch = async (churchId: string) => {
+    const shouldDelete = window.confirm("Delete this church? This will delete all associated attendees and inviters. THIS CANNOT BE UNDONE.");
+    if (!shouldDelete) return;
+
+    // Remove church assignment from any admins
+    await supabase.from("profiles").update({ church_id: null }).eq("church_id", churchId);
+
+    // Delete associated attendees
+    await supabase.from("members").delete().eq("church_id", churchId);
+
+    // Delete associated inviters
+    await supabase.from("inviters").delete().eq("church_id", churchId);
+
+    // Finally, delete the church
+    const { error } = await supabase.from("churches").delete().eq("id", churchId);
+
+    if (error) {
+      console.error(error);
+      toast.error(error.message || "Failed to delete church.");
+      return;
+    }
+
+    toast.success("Church deleted.");
+    await logAction("delete_church", "church", churchId);
+    queryClient.invalidateQueries({ queryKey: ["all-churches"] });
+    queryClient.invalidateQueries({ queryKey: ["all-attendees"] });
+    queryClient.invalidateQueries({ queryKey: ["all-inviters"] });
+    queryClient.invalidateQueries({ queryKey: ["all-admins"] });
+  };
+
+  const handleSaveAdmin = async () => {
+    if (!editingAdmin) return;
+
+    // 1. Update Profile (Church ID)
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .update({ church_id: editingAdmin.church_id === "none" ? null : editingAdmin.church_id })
+      .eq("id", editingAdmin.id);
+
+    if (profileError) {
+      toast.error("Failed to update admin profile.");
+      return;
+    }
+
+    // 2. Manage Roles (Super Admin toggle)
+    const isCurrentlySuper = editingAdmin.original_is_super;
+    const isNowSuper = editingAdmin.is_super;
+
+    if (isCurrentlySuper !== isNowSuper) {
+      if (isNowSuper) {
+        // Grant super_admin
+        await supabase.from("user_roles").insert({ user_id: editingAdmin.user_id, role: "super_admin" });
+        await logAction("grant_super_admin", "admin_role", editingAdmin.user_id);
+      } else {
+        // Revoke super_admin
+        await supabase.from("user_roles").delete().match({ user_id: editingAdmin.user_id, role: "super_admin" });
+        await logAction("revoke_super_admin", "admin_role", editingAdmin.user_id);
+      }
+    }
+
+    // Log church reassignment if it changed
+    if (editingAdmin.church_id !== editingAdmin.original_church_id) {
+      await logAction("reassign_church", "admin_role", editingAdmin.user_id, { new_church_id: editingAdmin.church_id });
+    }
+
+    toast.success("Admin access updated!");
+    setEditingAdmin(null);
+    queryClient.invalidateQueries({ queryKey: ["all-admins"] });
+  };
+
+  const handleDeleteAdmin = async (targetUserId: string) => {
+    const shouldDelete = window.confirm("Delete this admin? THIS CANNOT BE UNDONE. Their login and profile will be permanently removed.");
+    if (!shouldDelete) return;
+
+    try {
+      const { error } = await supabase.rpc("delete_admin_user", { target_user_id: targetUserId });
+      if (error) {
+        toast.error(error.message || "Failed to delete admin.");
+        return;
+      }
+      toast.success("Admin successfully deleted.");
+      queryClient.invalidateQueries({ queryKey: ["all-admins"] });
+      queryClient.invalidateQueries({ queryKey: ["audit-logs"] });
+    } catch (err: any) {
+      toast.error(err.message || "An unexpected error occurred.");
+    }
   };
 
   const handleSaveChurch = async () => {
@@ -241,28 +705,83 @@ const SuperAdminDashboard = () => {
     queryClient.invalidateQueries({ queryKey: ["all-churches"] });
   };
 
-  const handleSaveMember = async () => {
-    if (!editingMember) return;
+  const handleCreateChurch = async () => {
+    if (!newChurch.name) {
+      toast.error("Church name is required.");
+      return;
+    }
+
+    const { error } = await supabase.from("churches").insert({
+      name: newChurch.name,
+      target: newChurch.target,
+    });
+
+    if (error) {
+      toast.error("Failed to create church.");
+      return;
+    }
+
+    toast.success("Church created!");
+    setIsAddingChurch(false);
+    setNewChurch({ name: "", target: 100 });
+    queryClient.invalidateQueries({ queryKey: ["all-churches"] });
+  };
+
+  const handleSaveAttendee = async () => {
+    if (!editingAttendee) return;
 
     const { error } = await supabase
       .from("members")
       .update({
-        full_name: editingMember.full_name,
-        phone: editingMember.phone,
-        email: editingMember.email,
-        occupation: editingMember.occupation,
-        location: editingMember.location,
+        full_name: editingAttendee.full_name,
+        phone: editingAttendee.phone,
+        email: editingAttendee.email,
+        occupation: editingAttendee.occupation,
+        location: editingAttendee.location,
+        date_of_birth: editingAttendee.date_of_birth || null,
+        inviter_id: editingAttendee.inviter_id === "none" ? null : editingAttendee.inviter_id,
+        church_id: editingAttendee.church_id,
       })
-      .eq("id", editingMember.id);
+      .eq("id", editingAttendee.id);
 
     if (error) {
       toast.error("Failed.");
       return;
     }
 
-    toast.success("Member updated!");
-    setEditingMember(null);
-    queryClient.invalidateQueries({ queryKey: ["all-members"] });
+    toast.success("Attendee updated!");
+    setEditingAttendee(null);
+    queryClient.invalidateQueries({ queryKey: ["all-attendees"] });
+  };
+
+  const handleCreateAttendee = async () => {
+    if (!newAttendee.church_id || !newAttendee.full_name || !newAttendee.phone) {
+      toast.error("Church, Name, and Phone are required.");
+      return;
+    }
+
+    const { error } = await supabase.from("members").insert({
+      church_id: newAttendee.church_id,
+      full_name: newAttendee.full_name,
+      phone: newAttendee.phone,
+      email: newAttendee.email || null,
+      occupation: newAttendee.occupation || null,
+      location: newAttendee.location || null,
+      date_of_birth: newAttendee.date_of_birth || null,
+      inviter_id: newAttendee.inviter_id === "none" ? null : newAttendee.inviter_id,
+      program_id: dashboardProgramId === "all" ? (programs.find((p: any) => p.is_active)?.id || null) : dashboardProgramId,
+      confirmed: true, // Auto-confirm
+    });
+
+    if (error) {
+      toast.error("Failed to create attendee.");
+      return;
+    }
+
+    toast.success("Attendee added!");
+    setIsAddingAttendee(false);
+    setNewAttendee({ church_id: "", full_name: "", phone: "", email: "", occupation: "", location: "", date_of_birth: "", inviter_id: "none" });
+    queryClient.invalidateQueries({ queryKey: ["all-attendees"] });
   };
 
   const handleSaveInviter = async () => {
@@ -274,6 +793,7 @@ const SuperAdminDashboard = () => {
         full_name: editingInviter.full_name,
         phone: editingInviter.phone,
         email: editingInviter.email,
+        church_id: editingInviter.church_id,
       })
       .eq("id", editingInviter.id);
 
@@ -285,6 +805,121 @@ const SuperAdminDashboard = () => {
     toast.success("Inviter updated!");
     setEditingInviter(null);
     queryClient.invalidateQueries({ queryKey: ["all-inviters"] });
+  };
+
+  const handleCreateInviter = async () => {
+    if (!newInviter.church_id || !newInviter.full_name || !newInviter.phone || !newInviter.email) {
+      toast.error("Church, Name, Email, and Phone are required.");
+      return;
+    }
+
+    const { error } = await supabase.from("inviters").insert({
+      church_id: newInviter.church_id,
+      full_name: newInviter.full_name,
+      phone: newInviter.phone,
+      email: newInviter.email,
+    });
+
+    if (error) {
+      toast.error("Failed to create inviter.");
+      return;
+    }
+
+    toast.success("Inviter added!");
+    setIsAddingInviter(false);
+    setNewInviter({ church_id: "", full_name: "", phone: "", email: "" });
+    queryClient.invalidateQueries({ queryKey: ["all-inviters"] });
+  };
+
+  const openEmailModal = (recipients: any[]) => {
+    // Only extract valid emails to send to, but do not block the modal from opening.
+    const validEmails = recipients.map(r => r.email).filter(e => e && e.trim() !== "");
+    setEmailRecipients(validEmails);
+    setEmailSubject("");
+    setEmailBody("");
+    setIsEmailModalOpen(true);
+  };
+
+  const handleSendEmail = async () => {
+    if (!emailSubject || !emailBody) {
+      toast.error("Subject and message are required.");
+      return;
+    }
+
+    setIsSendingEmail(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('resend_email', {
+        body: {
+          to: emailRecipients,
+          subject: emailSubject,
+          html: `
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            </head>
+            <body style="margin: 0; padding: 0; background-color: #f4f4f5; font-family: 'Inter', Helvetica, Arial, sans-serif;">
+              <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f4f4f5; padding: 40px 20px;">
+                <tr>
+                  <td align="center">
+                    <table width="100%" style="max-width: 600px; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);" border="0" cellspacing="0" cellpadding="0">
+                      <!-- Header -->
+                      <tr>
+                        <td style="background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%); padding: 40px 30px; text-align: center;">
+                          <h1 style="color: #D4AF37; margin: 0; font-size: 28px; font-weight: 700; letter-spacing: 0.5px;">100% Answered Prayer</h1>
+                        </td>
+                      </tr>
+                      <!-- Body -->
+                      <tr>
+                        <td style="padding: 40px 30px;">
+                          <h2 style="color: #111827; margin: 0 0 20px 0; font-size: 22px; font-weight: 600;">${emailSubject}</h2>
+                          <div style="color: #4b5563; font-size: 16px; line-height: 1.6; white-space: pre-wrap;">${emailBody}</div>
+                        </td>
+                      </tr>
+                      <!-- Footer -->
+                      <tr>
+                        <td style="background-color: #f9fafb; padding: 30px; text-align: center; border-top: 1px solid #e5e7eb;">
+                          <p style="color: #6b7280; font-size: 14px; margin: 0 0 10px 0;">
+                            This is an automated message from the 100% Answered Prayer Administration.
+                          </p>
+                          <p style="color: #9ca3af; font-size: 12px; margin: 0;">
+                            &copy; ${new Date().getFullYear()} 100% Answered Prayer. All rights reserved.
+                          </p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </body>
+            </html>
+          `
+        }
+      });
+
+      if (error) {
+        // Supabase functions return a generic Error object for non-2xx codes, but we attached the real data message in the 400 response.
+        // Let's see if we can extract context.
+        let errorMessage = error.message;
+        if (error.context && error.context.json) {
+          try {
+            const errData = await error.context.json();
+            errorMessage = errData.error || errData.message || JSON.stringify(errData);
+          } catch (e) {
+            // ignore
+          }
+        }
+        throw new Error(errorMessage);
+      }
+
+      toast.success(`Email sent successfully to ${emailRecipients.length} recipients!`);
+      await logAction("send_bulk_email", "system", "multiple", { count: emailRecipients.length, subject: emailSubject });
+      setIsEmailModalOpen(false);
+    } catch (err: any) {
+      toast.error(`Failed to send email: ${err.message}`);
+    } finally {
+      setIsSendingEmail(false);
+    }
   };
 
   const exportCSV = (data: Record<string, any>[], filename: string) => {
@@ -315,13 +950,49 @@ const SuperAdminDashboard = () => {
     navigate("/admin");
   };
 
+  const handleCreateTestimonial = async () => {
+    const { error } = await supabase.from("testimonials").insert([{ ...newTestimonial }]);
+    if (error) { toast.error("Failed to add testimonial"); return; }
+    toast.success("Testimonial added");
+    setIsAddingTestimonial(false);
+    setNewTestimonial({ author_name: "", church_name: "", content: "", is_approved: true });
+    queryClient.invalidateQueries({ queryKey: ["live-testimonials"] });
+  };
+
+  const handleUpdateTestimonial = async () => {
+    if (!editingTestimonial) return;
+    const { error } = await supabase.from("testimonials").update({
+      author_name: editingTestimonial.author_name,
+      church_name: editingTestimonial.church_name,
+      content: editingTestimonial.content,
+      is_approved: editingTestimonial.is_approved
+    }).eq("id", editingTestimonial.id);
+    if (error) { toast.error("Failed to update"); return; }
+    toast.success("Testimonial updated");
+    setEditingTestimonial(null);
+    queryClient.invalidateQueries({ queryKey: ["live-testimonials"] });
+  };
+
+  const handleDeleteTestimonial = async (id: string) => {
+    if (!window.confirm("Delete testimonial? THIS CANNOT BE UNDONE.")) return;
+    const { error } = await supabase.from("testimonials").delete().eq("id", id);
+    if (error) { toast.error("Failed to delete testimonial."); return; }
+    toast.success("Testimonial deleted.");
+    queryClient.invalidateQueries({ queryKey: ["live-testimonials"] });
+  };
+
   const navItems = [
     { id: "overview", label: "Overview", icon: LayoutDashboard },
     { id: "churches", label: "Manage Churches", icon: Church },
     { id: "admins", label: "Manage Admins", icon: Shield },
     { id: "inviters", label: "Manage Inviters", icon: UserCheck },
-    { id: "members", label: "Manage Members", icon: Users },
+    { id: "attendees", label: "Manage Attendees", icon: Users },
     { id: "leaderboard", label: "Leaderboards", icon: Trophy },
+    { id: "testimonials", label: "Manage Testimonials", icon: MessageCircle },
+    { id: "programs", label: "Events & Locations", icon: Calendar },
+    { id: "bus-points", label: "Bus Routes", icon: Bus },
+    { id: "prayer-points", label: "Prayer Requests", icon: Heart },
+    { id: "audit_logs", label: "Audit Logs", icon: History },
     { id: "export", label: "Data Export", icon: Download },
   ];
 
@@ -353,9 +1024,8 @@ const SuperAdminDashboard = () => {
                 setActiveTab(item.id);
                 if (window.innerWidth < 1024) setSidebarOpen(false);
               }}
-              className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg font-body text-sm transition-colors ${
-                activeTab === item.id ? "bg-gold/15 text-gold" : "text-primary-foreground/60 hover:bg-navy-light/50"
-              }`}
+              className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg font-body text-sm transition-colors ${activeTab === item.id ? "bg-gold/15 text-gold" : "text-primary-foreground/60 hover:bg-navy-light/50"
+                }`}
             >
               <item.icon className="h-4 w-4" /> {item.label}
             </button>
@@ -369,25 +1039,43 @@ const SuperAdminDashboard = () => {
       </aside>
 
       <main className="flex-1 min-h-screen">
-        <header className="h-14 border-b border-border flex items-center px-4 gap-4 bg-card">
-          <button onClick={() => setSidebarOpen(!sidebarOpen)} className="lg:hidden">
-            {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-          </button>
-          <h1 className="font-display font-bold text-lg capitalize">{activeTab.replace("-", " ")}</h1>
+        <header className="h-14 border-b border-border flex items-center justify-between px-4 bg-card">
+          <div className="flex items-center gap-4">
+            <button onClick={() => setSidebarOpen(!sidebarOpen)} className="lg:hidden">
+              {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </button>
+            <h1 className="font-display font-bold text-lg capitalize">{activeTab.replace("-", " ")}</h1>
+          </div>
+          <div className="flex items-center gap-4">
+            <Select value={dashboardProgramId} onValueChange={setDashboardProgramId}>
+              <SelectTrigger className="w-[180px] bg-card border-gold/30">
+                <SelectValue placeholder="Select Program Database" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Global DB (All Programs)</SelectItem>
+                {programs.map((p: any) => (
+                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <NotificationsMenu logs={auditLogs} isLoading={!auditLogs.length && authLoading} />
+          </div>
         </header>
 
         <div className="p-4 md:p-6 max-w-7xl">
           {activeTab === "overview" && (
             <div className="space-y-6 animate-fade-up">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+              {/* Top Stats Row */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
                 {[
-                  { label: "Total Members", value: members.length, icon: Users },
+                  { label: "Total Attendees", value: attendees.length, icon: Users },
+                  { label: "Pending", value: pendingTotal, icon: Target },
+                  { label: "Conversion Rate", value: `${overallConversionRate}%`, icon: Activity },
                   { label: "Total Inviters", value: inviters.length, icon: UserCheck },
                   { label: "Churches", value: churches.length, icon: Church },
-                  { label: "Pending", value: pendingTotal, icon: Target },
                   { label: "Unassigned Admins", value: unassignedAdmins, icon: Shield },
-                ].map(s => (
-                  <Card key={s.label} className="border-border/50">
+                ].map((s, idx) => (
+                  <Card key={idx} className="border-border/50">
                     <CardContent className="p-5">
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-xs text-muted-foreground font-body uppercase tracking-wide">{s.label}</span>
@@ -399,9 +1087,66 @@ const SuperAdminDashboard = () => {
                 ))}
               </div>
 
+              {/* Analytics Section 1: Growth & Top Locations */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <Card className="border-border/50 lg:col-span-2">
+                  <CardHeader>
+                    <CardTitle className="font-display text-lg flex items-center gap-2">
+                      <TrendingUp className="h-5 w-5 text-gold" /> Attendeeship Growth
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-72">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={monthlyGrowth} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+                          <XAxis dataKey="name" tick={{ fontSize: 12, fontFamily: "DM Sans" }} />
+                          <YAxis tick={{ fontSize: 12, fontFamily: "DM Sans" }} />
+                          <Tooltip contentStyle={{ fontFamily: "DM Sans", borderRadius: 8, border: "none", boxShadow: "0 4px 20px rgba(0,0,0,0.1)" }} />
+                          <Legend wrapperStyle={{ fontSize: 13, fontFamily: 'DM Sans', paddingTop: 10 }} />
+                          <Line type="monotone" name="Total Invites" dataKey="attendees" stroke="hsl(var(--gold-dark))" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                          <Line type="monotone" name="Confirmed" dataKey="confirmed" stroke="hsl(var(--success))" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-border/50">
+                  <CardHeader>
+                    <CardTitle className="font-display text-lg flex items-center gap-2">
+                      <MapPin className="h-5 w-5 text-gold" /> Top Locations
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-72">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={geographicDistribution}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={60}
+                            outerRadius={80}
+                            paddingAngle={5}
+                            dataKey="value"
+                          >
+                            {geographicDistribution.map((_, index) => (
+                              <Cell key={`cell-${index}`} fill={GOLD_COLORS[index % GOLD_COLORS.length]} />
+                            ))}
+                          </Pie>
+                          <Tooltip contentStyle={{ fontFamily: "DM Sans", borderRadius: 8, border: "none", boxShadow: "0 4px 20px rgba(0,0,0,0.1)" }} />
+                          <Legend wrapperStyle={{ fontSize: 12, fontFamily: 'DM Sans' }} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Analytics Section 2: Church Progress */}
               <Card className="border-border/50">
                 <CardHeader className="flex flex-row items-center justify-between">
-                  <CardTitle className="font-display text-lg">Church Progress</CardTitle>
+                  <CardTitle className="font-display text-lg">Church Progress against Targets</CardTitle>
                   <Button size="sm" variant="outline" onClick={handleConfirmAllPending} disabled={pendingTotal === 0}>Confirm All Pending</Button>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -428,8 +1173,11 @@ const SuperAdminDashboard = () => {
                     value={churchSearch}
                     onChange={(e) => setChurchSearch(e.target.value)}
                     placeholder="Search church..."
-                    className="w-56"
+                    className="w-48"
                   />
+                  <Button size="sm" onClick={() => setIsAddingChurch(true)} className="gap-2 bg-gradient-gold text-accent-foreground hover:opacity-90">
+                    Add Church
+                  </Button>
                   <Button variant="outline" size="sm" onClick={() => exportCSV(filteredChurches as any, "churches")} className="gap-2">
                     <Download className="h-4 w-4" /> Export CSV
                   </Button>
@@ -442,7 +1190,7 @@ const SuperAdminDashboard = () => {
                       <TableRow>
                         <TableHead>Church Name</TableHead>
                         <TableHead className="text-center">Target</TableHead>
-                        <TableHead className="text-center">Members</TableHead>
+                        <TableHead className="text-center">Attendees</TableHead>
                         <TableHead className="text-center">Confirmed</TableHead>
                         <TableHead className="text-center">Progress</TableHead>
                         <TableHead className="text-center">Actions</TableHead>
@@ -453,16 +1201,19 @@ const SuperAdminDashboard = () => {
                         <TableRow key={c.id}>
                           <TableCell className="font-medium">{c.name}</TableCell>
                           <TableCell className="text-center">{c.target}</TableCell>
-                          <TableCell className="text-center">{c.members}</TableCell>
+                          <TableCell className="text-center">{c.attendees}</TableCell>
                           <TableCell className="text-center"><Badge className="bg-success/10 text-success border-0">{c.confirmed}</Badge></TableCell>
                           <TableCell className="text-center">
                             <Badge variant={c.confirmed >= c.target ? "default" : "secondary"}>
                               {Math.round((c.confirmed / c.target) * 100)}%
                             </Badge>
                           </TableCell>
-                          <TableCell className="text-center">
+                          <TableCell className="text-center space-x-1">
                             <Button size="sm" variant="ghost" onClick={() => setEditingChurch({ id: c.id, name: c.name, target: c.target })}>
                               <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => handleDeleteChurch(c.id)}>
+                              <Trash2 className="h-3.5 w-3.5 text-destructive" />
                             </Button>
                           </TableCell>
                         </TableRow>
@@ -491,6 +1242,7 @@ const SuperAdminDashboard = () => {
                         <TableHead>Username</TableHead>
                         <TableHead>Church</TableHead>
                         <TableHead className="text-center">Role</TableHead>
+                        <TableHead className="text-center">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -506,6 +1258,16 @@ const SuperAdminDashboard = () => {
                               <Badge className={isSuperAdmin ? "bg-gradient-gold text-accent-foreground border-0" : "bg-muted text-muted-foreground border-0"}>
                                 {isSuperAdmin ? "Super Admin" : "Church Admin"}
                               </Badge>
+                            </TableCell>
+                            <TableCell className="text-center space-x-1">
+                              <Button size="sm" variant="ghost" onClick={() => setEditingAdmin({ ...a, church_id: a.church_id || "none", original_church_id: a.church_id, is_super: isSuperAdmin, original_is_super: isSuperAdmin })}>
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              {!isSuperAdmin && (
+                                <Button size="sm" variant="ghost" onClick={() => handleDeleteAdmin(a.user_id)}>
+                                  <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                                </Button>
+                              )}
                             </TableCell>
                           </TableRow>
                         );
@@ -526,8 +1288,21 @@ const SuperAdminDashboard = () => {
                     value={inviterSearch}
                     onChange={(e) => setInviterSearch(e.target.value)}
                     placeholder="Search inviter or church..."
-                    className="w-64"
+                    className="w-48"
                   />
+                  <Select value={inviterChurchFilter} onValueChange={setInviterChurchFilter}>
+                    <SelectTrigger className="w-48"><SelectValue placeholder="All Churches" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Churches</SelectItem>
+                      {churches.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <Button size="sm" onClick={() => setIsAddingInviter(true)} className="gap-2 bg-gradient-gold text-accent-foreground hover:opacity-90">
+                    Add Inviter
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => openEmailModal(filteredInviters)} className="gap-2 text-indigo-500 border-indigo-200 hover:bg-indigo-50">
+                    <Mail className="h-4 w-4" /> Email All
+                  </Button>
                   <Button variant="outline" size="sm" onClick={() => exportCSV(filteredInviters as any, "inviters")} className="gap-2">
                     <Download className="h-4 w-4" /> Export CSV
                   </Button>
@@ -552,8 +1327,8 @@ const SuperAdminDashboard = () => {
                           <TableCell className="font-medium">{inv.full_name}</TableCell>
                           <TableCell className="text-sm text-muted-foreground">{(inv.churches as any)?.name || ""}</TableCell>
                           <TableCell className="text-sm">{inv.phone}</TableCell>
-                          <TableCell className="text-center"><Badge variant="secondary">{inv.invite_count}</Badge></TableCell>
-                          <TableCell className="text-center"><Badge className="bg-success/10 text-success border-0">{inv.confirmed_count}</Badge></TableCell>
+                          <TableCell className="text-center"><Badge variant="secondary">{inv.real_invite_count}</Badge></TableCell>
+                          <TableCell className="text-center"><Badge className="bg-success/10 text-success border-0">{inv.real_confirmed_count}</Badge></TableCell>
                           <TableCell className="text-center space-x-1">
                             <Button size="sm" variant="ghost" onClick={() => setEditingInviter({ ...inv })}>
                               <Pencil className="h-3.5 w-3.5" />
@@ -571,31 +1346,69 @@ const SuperAdminDashboard = () => {
             </div>
           )}
 
-          {activeTab === "members" && (
+          {activeTab === "attendees" && (
             <div className="animate-fade-up space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <h2 className="font-display font-bold text-lg">All Members ({filteredMembers.length})</h2>
+                <h2 className="font-display font-bold text-lg">All Attendees ({filteredAttendees.length})</h2>
                 <div className="flex flex-wrap items-center gap-2">
                   <Input
-                    value={memberSearch}
-                    onChange={(e) => setMemberSearch(e.target.value)}
-                    placeholder="Search member, church, inviter..."
-                    className="w-72"
+                    value={attendeeSearch}
+                    onChange={(e) => setAttendeeSearch(e.target.value)}
+                    placeholder="Search attendee... (Name, Church, Inviter)"
+                    className="w-56"
                   />
-                  <Button variant={memberFilter === "all" ? "default" : "outline"} size="sm" onClick={() => setMemberFilter("all")}>All</Button>
-                  <Button variant={memberFilter === "confirmed" ? "default" : "outline"} size="sm" onClick={() => setMemberFilter("confirmed")}>Confirmed</Button>
-                  <Button variant={memberFilter === "pending" ? "default" : "outline"} size="sm" onClick={() => setMemberFilter("pending")}>Pending</Button>
-                  <Button variant="outline" size="sm" onClick={handleConfirmAllPending} disabled={pendingTotal === 0}>Confirm All Pending</Button>
-                  <Button variant="outline" size="sm" onClick={() => exportCSV(filteredMembers as any, "members")} className="gap-2">
-                    <Download className="h-4 w-4" /> Export CSV
+                  <Select value={attendeeChurchFilter} onValueChange={setAttendeeChurchFilter}>
+                    <SelectTrigger className="w-48"><SelectValue placeholder="All Churches" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Churches</SelectItem>
+                      {churches.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <Button size="sm" onClick={() => setIsAddingAttendee(true)} className="gap-2 bg-gradient-gold text-accent-foreground hover:opacity-90">
+                    Add Attendee
+                  </Button>
+                  <Button variant={attendeeFilter === "all" ? "default" : "outline"} size="sm" onClick={() => setAttendeeFilter("all")}>All</Button>
+                  <Button variant={attendeeFilter === "confirmed" ? "default" : "outline"} size="sm" onClick={() => setAttendeeFilter("confirmed")}>Confirmed</Button>
+                  <Button variant={attendeeFilter === "pending" ? "default" : "outline"} size="sm" onClick={() => setAttendeeFilter("pending")}>Pending</Button>
+                  <Button variant="outline" size="sm" onClick={() => exportCSV(filteredAttendees as any, "attendees")} className="gap-2">
+                    <Download className="h-4 w-4" /> CSV
                   </Button>
                 </div>
               </div>
+
+              {selectedAttendees.size > 0 && (
+                <div className="bg-muted border border-border/50 rounded-lg p-3 flex items-center justify-between animate-fade-in shadow-sm">
+                  <span className="text-sm font-medium">{selectedAttendees.size} attendees selected</span>
+                  <div className="space-x-2">
+                    <Button variant="outline" size="sm" onClick={() => setSelectedAttendees(new Set())}>Clear Selection</Button>
+                    <Button size="sm" variant="outline" onClick={() => openEmailModal(
+                      attendees.filter(m => selectedAttendees.has(m.id))
+                    )} className="text-indigo-500 border-indigo-200 hover:bg-indigo-50"><Mail className="h-4 w-4 mr-2" /> Email Selected</Button>
+                    <Button size="sm" onClick={handleBulkConfirm} className="bg-success text-success-foreground hover:bg-success/90">Confirm Selected</Button>
+                    <Button size="sm" variant="destructive" onClick={handleBulkDelete}>Delete Selected</Button>
+                  </div>
+                </div>
+              )}
+
               <Card className="border-border/50">
                 <CardContent className="p-0">
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead className="w-[50px]">
+                          <Checkbox
+                            checked={paginatedAttendees.length > 0 && paginatedAttendees.every(m => selectedAttendees.has(m.id))}
+                            onCheckedChange={(checked) => {
+                              const newSet = new Set(selectedAttendees);
+                              if (checked) {
+                                paginatedAttendees.forEach(m => newSet.add(m.id));
+                              } else {
+                                paginatedAttendees.forEach(m => newSet.delete(m.id));
+                              }
+                              setSelectedAttendees(newSet);
+                            }}
+                          />
+                        </TableHead>
                         <TableHead>Name</TableHead>
                         <TableHead>Church</TableHead>
                         <TableHead>Invited By</TableHead>
@@ -604,19 +1417,36 @@ const SuperAdminDashboard = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredMembers.map(m => (
-                        <TableRow key={m.id}>
+                      {paginatedAttendees.map(m => (
+                        <TableRow key={m.id} className={selectedAttendees.has(m.id) ? "bg-muted/50" : ""}>
+                          <TableCell>
+                            <Checkbox
+                              checked={selectedAttendees.has(m.id)}
+                              onCheckedChange={(checked) => {
+                                const newSet = new Set(selectedAttendees);
+                                if (checked) newSet.add(m.id);
+                                else newSet.delete(m.id);
+                                setSelectedAttendees(newSet);
+                              }}
+                            />
+                          </TableCell>
                           <TableCell className="font-medium">{m.full_name}</TableCell>
                           <TableCell className="text-sm text-muted-foreground">{(m.churches as any)?.name || ""}</TableCell>
                           <TableCell className="text-sm">{(m.inviters as any)?.full_name || "—"}</TableCell>
                           <TableCell className="text-center">
-                            <Badge className={m.confirmed ? "bg-success/10 text-success border-0" : "bg-muted text-muted-foreground border-0"}>
+                            <Badge className={m.confirmed ? "bg-success/10 text-success border-0 hover:bg-success/20 transition-colors" : "bg-muted text-muted-foreground border-0"}>
                               {m.confirmed ? "Confirmed" : "Pending"}
                             </Badge>
                           </TableCell>
                           <TableCell className="text-center space-x-1">
-                            <Button size="sm" variant="ghost" onClick={() => setEditingMember({ ...m })}>
+                            <Button size="sm" variant="ghost" onClick={() => setViewingAttendee(m)}>
+                              <Eye className="h-3.5 w-3.5 text-muted-foreground" />
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => setEditingAttendee({ ...m, inviter_id: m.inviter_id || "none" })}>
                               <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => handleDeleteAttendee(m.id)}>
+                              <Trash2 className="h-3.5 w-3.5 text-destructive" />
                             </Button>
                             <Button
                               size="sm"
@@ -631,6 +1461,91 @@ const SuperAdminDashboard = () => {
                       ))}
                     </TableBody>
                   </Table>
+
+                  {/* Pagination Controls */}
+                  {totalAttendeePages > 1 && (
+                    <div className="flex items-center justify-between p-4 border-t border-border/50">
+                      <p className="text-sm text-muted-foreground">
+                        Showing {(attendeePage - 1) * itemsPerPage + 1} to {Math.min(attendeePage * itemsPerPage, filteredAttendees.length)} of {filteredAttendees.length}
+                      </p>
+                      <div className="flex items-center space-x-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setAttendeePage(p => Math.max(1, p - 1))}
+                          disabled={attendeePage === 1}
+                        >
+                          Previous
+                        </Button>
+                        <span className="text-sm font-medium px-2">Page {attendeePage} of {totalAttendeePages}</span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setAttendeePage(p => Math.min(totalAttendeePages, p + 1))}
+                          disabled={attendeePage === totalAttendeePages}
+                        >
+                          Next
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {activeTab === "testimonials" && (
+            <div className="animate-fade-up space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 className="font-display font-bold text-lg">Manage Testimonials</h2>
+                <Button size="sm" onClick={() => setIsAddingTestimonial(true)} className="gap-2 bg-gradient-gold text-accent-foreground hover:opacity-90">
+                  Add Testimonial
+                </Button>
+              </div>
+              <Card className="border-border/50">
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Author</TableHead>
+                        <TableHead>Church</TableHead>
+                        <TableHead>Content</TableHead>
+                        <TableHead className="text-center">Status</TableHead>
+                        <TableHead className="text-center">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {testimonials.map((t: any) => (
+                        <TableRow key={t.id}>
+                          <TableCell className="font-medium whitespace-nowrap">{t.author_name}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{t.church_name || "—"}</TableCell>
+                          <TableCell className="text-sm max-w-sm truncate" title={t.content}>
+                            {t.content}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Badge className={t.is_approved ? "bg-success/10 text-success border-0" : "bg-muted text-muted-foreground border-0"}>
+                              {t.is_approved ? "Approved" : "Pending"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-center space-x-1 whitespace-nowrap">
+                            <Button size="sm" variant="ghost" onClick={() => setEditingTestimonial(t)}>
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button size="sm" variant="ghost" onClick={() => handleDeleteTestimonial(t.id)}>
+                              <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {testimonials.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                            No testimonials found. Add one to show on the carousel.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
                 </CardContent>
               </Card>
             </div>
@@ -640,22 +1555,25 @@ const SuperAdminDashboard = () => {
             <div className="space-y-6 animate-fade-up">
               <Card className="border-border/50">
                 <CardHeader>
-                  <CardTitle className="font-display text-lg flex items-center gap-2">
-                    <Trophy className="h-5 w-5 text-gold" /> Most Active Churches
+                  <CardTitle className="font-display text-lg flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Activity className="h-5 w-5 text-gold" /> Church Health & Conversion
+                    </div>
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="h-64">
+                  <div className="h-72">
                     <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={churchLeaderboard}>
+                      <BarChart data={churchLeaderboard} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
                         <XAxis dataKey="name" tick={{ fontSize: 12, fontFamily: "DM Sans" }} />
                         <YAxis tick={{ fontSize: 12, fontFamily: "DM Sans" }} />
-                        <Tooltip contentStyle={{ fontFamily: "DM Sans", borderRadius: 8, border: "none", boxShadow: "0 4px 20px rgba(0,0,0,0.1)" }} />
-                        <Bar dataKey="confirmed" radius={[6, 6, 0, 0]}>
-                          {churchLeaderboard.map((_, i) => (
-                            <Cell key={i} fill={GOLD_COLORS[i % GOLD_COLORS.length]} />
-                          ))}
-                        </Bar>
+                        <Tooltip
+                          contentStyle={{ fontFamily: "DM Sans", borderRadius: 8, border: "none", boxShadow: "0 4px 20px rgba(0,0,0,0.1)" }}
+                          formatter={(value, name) => [value, name === 'confirmed' ? 'Confirmed' : 'Pending']}
+                        />
+                        <Legend wrapperStyle={{ fontFamily: "DM Sans", fontSize: "12px", paddingTop: "10px" }} />
+                        <Bar dataKey="confirmed" stackId="a" fill="hsl(var(--success))" name="Confirmed" radius={[0, 0, 4, 4]} />
+                        <Bar dataKey="pending" stackId="a" fill="hsl(var(--destructive))" name="Pending" radius={[4, 4, 0, 0]} />
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
@@ -672,11 +1590,10 @@ const SuperAdminDashboard = () => {
                   <div className="space-y-3">
                     {inviterLeaderboard.map((inv, idx) => (
                       <div key={inv.name} className="flex items-center gap-4 p-3 rounded-lg bg-muted/50">
-                        <span className={`w-8 h-8 rounded-full flex items-center justify-center font-display font-bold text-sm ${
-                          idx === 0 ? "bg-gradient-gold text-accent-foreground" :
+                        <span className={`w-8 h-8 rounded-full flex items-center justify-center font-display font-bold text-sm ${idx === 0 ? "bg-gradient-gold text-accent-foreground" :
                           idx === 1 ? "bg-gold/20 text-gold" :
-                          idx === 2 ? "bg-gold/10 text-gold-dark" : "bg-muted text-muted-foreground"
-                        }`}>{idx + 1}</span>
+                            idx === 2 ? "bg-gold/10 text-gold-dark" : "bg-muted text-muted-foreground"
+                          }`}>{idx + 1}</span>
                         <div className="flex-1">
                           <p className="font-medium text-sm">{inv.name}</p>
                           <p className="text-xs text-muted-foreground">{inv.church}</p>
@@ -696,7 +1613,7 @@ const SuperAdminDashboard = () => {
           {activeTab === "export" && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 animate-fade-up">
               {[
-                { label: "Export Members", desc: "All member records", onClick: () => exportCSV(members as any, "all-members") },
+                { label: "Export Attendees", desc: "All attendee records", onClick: () => exportCSV(attendees as any, "all-attendees") },
                 { label: "Export Inviters", desc: "All inviter records", onClick: () => exportCSV(inviters as any, "all-inviters") },
                 { label: "Export Churches", desc: "All church data", onClick: () => exportCSV(churches as any, "churches") },
                 { label: "Export Admins", desc: "All admin accounts", onClick: () => exportCSV(admins as any, "admins") },
@@ -711,8 +1628,459 @@ const SuperAdminDashboard = () => {
               ))}
             </div>
           )}
+
+
+          {activeTab === "programs" && (
+            <div className="space-y-6 animate-fade-up">
+              <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+                <div>
+                  <h2 className="text-3xl font-display font-bold text-foreground">Programs & Sessions</h2>
+                  <p className="text-muted-foreground font-body">Create events and manage the Active program shown on the website.</p>
+                </div>
+                <Button onClick={() => setIsAddingProgram(true)} className="bg-gradient-gold text-accent-foreground">
+                  <Calendar className="w-4 h-4 mr-2" /> Add Program
+                </Button>
+              </div>
+
+              <Card className="bg-card/40 backdrop-blur-xl border-border/50">
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Program Name</TableHead>
+                        <TableHead>Location</TableHead>
+                        <TableHead>Start Date</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {programs.map((prog: any) => (
+                        <TableRow key={prog.id} className={prog.is_active ? "bg-gold/10" : ""}>
+                          <TableCell className="font-medium text-foreground">{prog.name}</TableCell>
+                          <TableCell className="text-muted-foreground truncate max-w-[150px]">{prog.location_name}</TableCell>
+                          <TableCell>{prog.start_date || "TBD"}</TableCell>
+                          <TableCell>
+                            {prog.is_active ? (
+                              <Badge className="bg-green-500 hover:bg-green-600">Active Online</Badge>
+                            ) : (
+                              <Badge variant="outline">Inactive</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right space-x-2">
+                            {!prog.is_active && (
+                              <Button variant="outline" size="sm" onClick={() => handleSetProgramActive(prog.id)} className="text-green-500 border-green-500/30 hover:bg-green-500/10">
+                                Set Active
+                              </Button>
+                            )}
+                            <Button variant="outline" size="sm" onClick={() => setEditingProgram(prog)}>
+                              <Pencil className="w-4 h-4" />
+                            </Button>
+                            <Button variant="destructive" size="sm" onClick={() => handleDeleteProgram(prog.id)}>
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {programs.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No programs configured.</TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+
+              <Dialog open={isAddingProgram || !!editingProgram} onOpenChange={(open) => {
+                if (!open) { setIsAddingProgram(false); setEditingProgram(null); }
+              }}>
+                <DialogContent className="max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>{editingProgram ? "Edit Program" : "Add Program"}</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label>Program Name</Label>
+                      <Input
+                        placeholder="e.g. 100% Answered Prayer - April 2026"
+                        value={editingProgram ? editingProgram.name : newProgram.name}
+                        onChange={e => editingProgram ? setEditingProgram({ ...editingProgram, name: e.target.value }) : setNewProgram({ ...newProgram, name: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Location Name</Label>
+                      <Input
+                        placeholder="e.g. Prampram, Ghana"
+                        value={editingProgram ? editingProgram.location_name : newProgram.location_name}
+                        onChange={e => editingProgram ? setEditingProgram({ ...editingProgram, location_name: e.target.value }) : setNewProgram({ ...newProgram, location_name: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Map Iframe URL</Label>
+                      <Textarea
+                        placeholder="URL from Google Maps Embed (src attribute only)"
+                        value={editingProgram ? editingProgram.map_iframe_url : newProgram.map_iframe_url}
+                        onChange={e => editingProgram ? setEditingProgram({ ...editingProgram, map_iframe_url: e.target.value }) : setNewProgram({ ...newProgram, map_iframe_url: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Start Date</Label>
+                      <Input
+                        type="date"
+                        value={editingProgram ? editingProgram.start_date : newProgram.start_date}
+                        onChange={e => editingProgram ? setEditingProgram({ ...editingProgram, start_date: e.target.value }) : setNewProgram({ ...newProgram, start_date: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => { setIsAddingProgram(false); setEditingProgram(null); }}>Cancel</Button>
+                    <Button onClick={editingProgram ? handleSaveProgram : handleCreateProgram} className="bg-gold text-accent-foreground">
+                      {editingProgram ? "Save" : "Create"}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
+          )}
+
+
+          {activeTab === "bus-points" && (
+            <div className="space-y-6 animate-fade-up">
+              <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+                <div>
+                  <h2 className="text-3xl font-display font-bold text-foreground">Bus Routes</h2>
+                  <p className="text-muted-foreground font-body">Manage free bus services for attendees. These attach to the active program.</p>
+                </div>
+                <Button onClick={() => setIsAddingBusPoint(true)} className="bg-gradient-gold text-accent-foreground">
+                  <Bus className="w-4 h-4 mr-2" /> Add Bus Route
+                </Button>
+              </div>
+
+              <Card className="bg-card/40 backdrop-blur-xl border-border/50">
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Program</TableHead>
+                        <TableHead>Target Area</TableHead>
+                        <TableHead>Location Details</TableHead>
+                        <TableHead>Departure</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {busPoints.map((bp: any) => {
+                        const progName = programs.find((p: any) => p.id === bp.program_id)?.name || "Unknown";
+                        return (
+                          <TableRow key={bp.id}>
+                            <TableCell className="text-xs text-muted-foreground max-w-[120px] truncate" title={progName}>{progName}</TableCell>
+                            <TableCell className="font-medium text-foreground">{bp.name}</TableCell>
+                            <TableCell className="text-muted-foreground">{bp.location}</TableCell>
+                            <TableCell>{bp.departure_time}</TableCell>
+                            <TableCell className="text-right space-x-2">
+                              <Button variant="outline" size="sm" onClick={() => setEditingBusPoint(bp)}>
+                                <Pencil className="w-4 h-4" />
+                              </Button>
+                              <Button variant="destructive" size="sm" onClick={() => handleDeleteBusPoint(bp.id)}>
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })}
+                      {busPoints.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No bus routes configured.</TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+
+              <Dialog open={isAddingBusPoint || !!editingBusPoint} onOpenChange={(open) => {
+                if (!open) { setIsAddingBusPoint(false); setEditingBusPoint(null); }
+              }}>
+                <DialogContent className="max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>{editingBusPoint ? "Edit Bus Route" : "Add Bus Route"}</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label>Program</Label>
+                      <Select
+                        value={editingBusPoint ? editingBusPoint.program_id : newBusPoint.program_id || programs[0]?.id}
+                        onValueChange={v => editingBusPoint ? setEditingBusPoint({ ...editingBusPoint, program_id: v }) : setNewBusPoint({ ...newBusPoint, program_id: v })}
+                      >
+                        <SelectTrigger><SelectValue placeholder="Select Program" /></SelectTrigger>
+                        <SelectContent>
+                          {programs.map((p: any) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Route/Region Name</Label>
+                      <Select
+                        value={editingBusPoint ? editingBusPoint.name : newBusPoint.name}
+                        onValueChange={v => editingBusPoint ? setEditingBusPoint({ ...editingBusPoint, name: v }) : setNewBusPoint({ ...newBusPoint, name: v })}
+                      >
+                        <SelectTrigger><SelectValue placeholder="Select Region/Route" /></SelectTrigger>
+                        <SelectContent className="max-h-[250px]">
+                          {[
+                            "Ahafo Region", "Ashanti Region", "Bono Region", "Bono East Region",
+                            "Central Region", "Eastern Region", "Greater Accra Region", "North East Region",
+                            "Northern Region", "Oti Region", "Savannah Region", "Upper East Region",
+                            "Upper West Region", "Volta Region", "Western Region", "Western North Region",
+                            "International Route", "Other Route"
+                          ].map(region => (
+                            <SelectItem key={region} value={region}>{region}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Exact Pickup Location</Label>
+                      <Textarea
+                        placeholder="e.g. Accra Mall Parking Lot"
+                        value={editingBusPoint ? editingBusPoint.location : newBusPoint.location}
+                        onChange={e => editingBusPoint ? setEditingBusPoint({ ...editingBusPoint, location: e.target.value }) : setNewBusPoint({ ...newBusPoint, location: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Departure Time</Label>
+                      <Input
+                        type="time"
+                        value={editingBusPoint ? editingBusPoint.departure_time : newBusPoint.departure_time}
+                        onChange={e => editingBusPoint ? setEditingBusPoint({ ...editingBusPoint, departure_time: e.target.value }) : setNewBusPoint({ ...newBusPoint, departure_time: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => { setIsAddingBusPoint(false); setEditingBusPoint(null); }}>Cancel</Button>
+                    <Button onClick={editingBusPoint ? handleSaveBusPoint : handleCreateBusPoint} className="bg-gold text-accent-foreground">
+                      {editingBusPoint ? "Save" : "Create"}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
+          )}
+
+
+          {activeTab === "prayer-points" && (
+            <div className="space-y-6 animate-fade-up">
+              <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+                <div>
+                  <h2 className="text-3xl font-display font-bold text-foreground">Prayer Requests</h2>
+                  <p className="text-muted-foreground font-body">Review and manage submitted prayer points from attendees.</p>
+                </div>
+                <Button variant="outline" onClick={() => exportCSV(prayerPoints as any, "prayer_requests")} className="gap-2">
+                  <Download className="h-4 w-4" /> Export CSV
+                </Button>
+              </div>
+
+              <Card className="bg-card/40 backdrop-blur-xl border-border/50">
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Submitter</TableHead>
+                        <TableHead>Event Program</TableHead>
+                        <TableHead>Prayer Request</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {prayerPoints.map((pp: any) => (
+                        <TableRow key={pp.id}>
+                          <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{new Date(pp.created_at).toLocaleDateString()}</TableCell>
+                          <TableCell className="font-medium text-foreground">{pp.name || "Anonymous"}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{(pp.programs as any)?.name || "All Sessions"}</TableCell>
+                          <TableCell className="max-w-md whitespace-pre-wrap">{pp.request}</TableCell>
+                          <TableCell className="text-right">
+                            <Button variant="destructive" size="sm" onClick={() => handleDeletePrayerPoint(pp.id)}>
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {prayerPoints.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No prayer requests submitted yet.</TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {activeTab === "audit_logs" && (
+            <div className="animate-fade-up space-y-4">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="font-display font-bold text-lg">System Audit Logs</h2>
+                <Button variant="outline" size="sm" onClick={() => exportCSV(auditLogs as any, "audit_logs")} className="gap-2">
+                  <Download className="h-4 w-4" /> Export CSV
+                </Button>
+              </div>
+              <Card className="border-border/50">
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Date / Time</TableHead>
+                        <TableHead>Admin</TableHead>
+                        <TableHead>Action Taken</TableHead>
+                        <TableHead>Target Type</TableHead>
+                        <TableHead>Target ID</TableHead>
+                        <TableHead className="w-48">Details</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {auditLogs.map((log: any) => (
+                        <TableRow key={log.id}>
+                          <TableCell className="text-sm whitespace-nowrap">
+                            <span className="font-medium text-muted-foreground">
+                              {log.created_at ? format(new Date(log.created_at), "MMM d, yyyy") : "Unknown"}
+                            </span>
+                            <br />
+                            <span className="text-xs text-muted-foreground/70">
+                              {log.created_at ? format(new Date(log.created_at), "h:mm a") : ""}
+                            </span>
+                          </TableCell>
+                          <TableCell className="font-medium">{log.profiles?.full_name || "Unknown"}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="capitalize">
+                              {log.action.replace(/_/g, " ")}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="capitalize text-sm">{log.target_type.replace(/_/g, " ")}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground font-mono truncate max-w-[120px]" title={log.target_id}>
+                            {log.target_id || "—"}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {log.details ? JSON.stringify(log.details) : "—"}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {auditLogs.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                            No recent audit logs available.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </div>
+          )}
         </div>
       </main>
+
+      <Dialog open={!!viewingAttendee} onOpenChange={open => !open && setViewingAttendee(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle className="font-display text-xl">Attendee Details</DialogTitle></DialogHeader>
+          {viewingAttendee && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between border-b border-border/50 pb-4">
+                <div>
+                  <h3 className="text-2xl font-bold font-display">{viewingAttendee.full_name}</h3>
+                  <p className="text-muted-foreground">{viewingAttendee.churches?.name || "No Church Assigned"}</p>
+                </div>
+                <Badge className={viewingAttendee.confirmed ? "bg-success/10 text-success border-0" : "bg-muted text-muted-foreground border-0"}>
+                  {viewingAttendee.confirmed ? "Confirmed" : "Pending"}
+                </Badge>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-muted-foreground text-xs uppercase tracking-wider mb-1">Phone Number</p>
+                  <a
+                    href={`https://wa.me/${viewingAttendee.phone.replace(/\D/g, '')}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 font-medium hover:text-green-500 transition-colors"
+                  >
+                    <MessageCircle className="h-4 w-4" /> {viewingAttendee.phone}
+                  </a>
+                </div>
+                <div>
+                  <p className="text-muted-foreground text-xs uppercase tracking-wider mb-1">Email</p>
+                  <p className="font-medium">{viewingAttendee.email || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground text-xs uppercase tracking-wider mb-1">Occupation</p>
+                  <p className="font-medium">{viewingAttendee.occupation || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground text-xs uppercase tracking-wider mb-1">Location</p>
+                  <p className="font-medium">{viewingAttendee.location || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground text-xs uppercase tracking-wider mb-1">Date of Birth</p>
+                  <p className="font-medium">{viewingAttendee.date_of_birth ? format(new Date(viewingAttendee.date_of_birth), "PPP") : "—"}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground text-xs uppercase tracking-wider mb-1">Invited By</p>
+                  <p className="font-medium">{viewingAttendee.inviters?.full_name || "—"}</p>
+                </div>
+                <div className="col-span-2">
+                  <p className="text-muted-foreground text-xs uppercase tracking-wider mb-1">Registered On</p>
+                  <p className="font-medium">{format(new Date(viewingAttendee.created_at), "PPP 'at' p")}</p>
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setViewingAttendee(null)} className="w-full">Close Modal</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editingAdmin} onOpenChange={open => !open && setEditingAdmin(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle className="font-display">Manage Admin Access</DialogTitle></DialogHeader>
+          <div className="space-y-4 text-sm text-muted-foreground mb-4">
+            <p>Update assigning churches or grant global Super Admin access for <strong>{editingAdmin?.full_name}</strong>.</p>
+          </div>
+          {editingAdmin && (
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <Label>Assigned Church</Label>
+                <Select value={editingAdmin.church_id} onValueChange={(val) => setEditingAdmin((p: any) => ({ ...p, church_id: val }))}>
+                  <SelectTrigger><SelectValue placeholder="Select church" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No Church (Unassigned)</SelectItem>
+                    {churches.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">If unassigned, they cannot view specific church attendee records.</p>
+              </div>
+
+              <div className="flex items-center space-x-3 border p-4 rounded-lg bg-muted/30">
+                <Checkbox
+                  id="super-admin-cb"
+                  checked={editingAdmin.is_super}
+                  onCheckedChange={(checked) => setEditingAdmin((p: any) => ({ ...p, is_super: !!checked }))}
+                />
+                <div className="space-y-1 leading-none">
+                  <Label htmlFor="super-admin-cb" className="font-bold text-gold">Grant Super Admin Rights</Label>
+                  <p className="text-xs text-muted-foreground">Allows full access to this entire dashboard, all churches, and all attendees.</p>
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter className="mt-6">
+            <Button variant="outline" onClick={() => setEditingAdmin(null)}>Cancel</Button>
+            <Button onClick={handleSaveAdmin} className="bg-gradient-gold text-accent-foreground hover:opacity-90">Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!editingChurch} onOpenChange={open => !open && setEditingChurch(null)}>
         <DialogContent>
@@ -730,21 +2098,43 @@ const SuperAdminDashboard = () => {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!editingMember} onOpenChange={open => !open && setEditingMember(null)}>
+      <Dialog open={!!editingAttendee} onOpenChange={open => !open && setEditingAttendee(null)}>
         <DialogContent>
-          <DialogHeader><DialogTitle className="font-display">Edit Member</DialogTitle></DialogHeader>
-          {editingMember && (
+          <DialogHeader><DialogTitle className="font-display">Edit Attendee</DialogTitle></DialogHeader>
+          {editingAttendee && (
             <div className="space-y-4">
-              <div className="space-y-2"><Label>Full Name</Label><Input value={editingMember.full_name} onChange={e => setEditingMember((p: any) => ({ ...p, full_name: e.target.value }))} /></div>
-              <div className="space-y-2"><Label>Phone</Label><Input value={editingMember.phone} onChange={e => setEditingMember((p: any) => ({ ...p, phone: e.target.value }))} /></div>
-              <div className="space-y-2"><Label>Email</Label><Input value={editingMember.email || ""} onChange={e => setEditingMember((p: any) => ({ ...p, email: e.target.value }))} /></div>
-              <div className="space-y-2"><Label>Occupation</Label><Input value={editingMember.occupation || ""} onChange={e => setEditingMember((p: any) => ({ ...p, occupation: e.target.value }))} /></div>
-              <div className="space-y-2"><Label>Location</Label><Input value={editingMember.location || ""} onChange={e => setEditingMember((p: any) => ({ ...p, location: e.target.value }))} /></div>
+              <div className="space-y-2">
+                <Label>Church</Label>
+                <Select value={editingAttendee.church_id} onValueChange={(val) => setEditingAttendee((p: any) => ({ ...p, church_id: val }))}>
+                  <SelectTrigger><SelectValue placeholder="Select church" /></SelectTrigger>
+                  <SelectContent>
+                    {churches.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2"><Label>Full Name</Label><Input value={editingAttendee.full_name} onChange={e => setEditingAttendee((p: any) => ({ ...p, full_name: e.target.value }))} /></div>
+              <div className="space-y-2"><Label>Phone</Label><Input value={editingAttendee.phone} onChange={e => setEditingAttendee((p: any) => ({ ...p, phone: e.target.value }))} /></div>
+              <div className="space-y-2"><Label>Email</Label><Input value={editingAttendee.email || ""} onChange={e => setEditingAttendee((p: any) => ({ ...p, email: e.target.value }))} /></div>
+              <div className="space-y-2"><Label>Occupation</Label><Input value={editingAttendee.occupation || ""} onChange={e => setEditingAttendee((p: any) => ({ ...p, occupation: e.target.value }))} /></div>
+              <div className="space-y-2"><Label>Location</Label><Input value={editingAttendee.location || ""} onChange={e => setEditingAttendee((p: any) => ({ ...p, location: e.target.value }))} /></div>
+              <div className="space-y-2"><Label>Date of Birth</Label><Input type="date" value={editingAttendee.date_of_birth || ""} onChange={e => setEditingAttendee((p: any) => ({ ...p, date_of_birth: e.target.value }))} /></div>
+              <div className="space-y-2">
+                <Label>Invited By</Label>
+                <Select value={editingAttendee.inviter_id} onValueChange={(val) => setEditingAttendee((p: any) => ({ ...p, inviter_id: val }))}>
+                  <SelectTrigger><SelectValue placeholder="Select inviter" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No Inviter</SelectItem>
+                    {inviters.map(inv => (
+                      <SelectItem key={inv.id} value={inv.id}>{inv.full_name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditingMember(null)}>Cancel</Button>
-            <Button onClick={handleSaveMember} className="bg-gradient-gold text-accent-foreground hover:opacity-90">Save</Button>
+            <Button variant="outline" onClick={() => setEditingAttendee(null)}>Cancel</Button>
+            <Button onClick={handleSaveAttendee} className="bg-gradient-gold text-accent-foreground hover:opacity-90">Save</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -754,6 +2144,15 @@ const SuperAdminDashboard = () => {
           <DialogHeader><DialogTitle className="font-display">Edit Inviter</DialogTitle></DialogHeader>
           {editingInviter && (
             <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Church</Label>
+                <Select value={editingInviter.church_id} onValueChange={(val) => setEditingInviter((p: any) => ({ ...p, church_id: val }))}>
+                  <SelectTrigger><SelectValue placeholder="Select church" /></SelectTrigger>
+                  <SelectContent>
+                    {churches.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="space-y-2"><Label>Full Name</Label><Input value={editingInviter.full_name} onChange={e => setEditingInviter((p: any) => ({ ...p, full_name: e.target.value }))} /></div>
               <div className="space-y-2"><Label>Phone</Label><Input value={editingInviter.phone} onChange={e => setEditingInviter((p: any) => ({ ...p, phone: e.target.value }))} /></div>
               <div className="space-y-2"><Label>Email</Label><Input value={editingInviter.email} onChange={e => setEditingInviter((p: any) => ({ ...p, email: e.target.value }))} /></div>
@@ -762,6 +2161,272 @@ const SuperAdminDashboard = () => {
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditingInviter(null)}>Cancel</Button>
             <Button onClick={handleSaveInviter} className="bg-gradient-gold text-accent-foreground hover:opacity-90">Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isAddingChurch} onOpenChange={setIsAddingChurch}>
+        <DialogContent>
+          <DialogHeader><DialogTitle className="font-display">Add New Church</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2"><Label>Church Name *</Label><Input value={newChurch.name} onChange={e => setNewChurch((p: any) => ({ ...p, name: e.target.value }))} /></div>
+            <div className="space-y-2"><Label>Target *</Label><Input type="number" value={newChurch.target} onChange={e => setNewChurch((p: any) => ({ ...p, target: parseInt(e.target.value) || 0 }))} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAddingChurch(false)}>Cancel</Button>
+            <Button onClick={handleCreateChurch} className="bg-gradient-gold text-accent-foreground hover:opacity-90">Add Church</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isAddingAttendee} onOpenChange={setIsAddingAttendee}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle className="font-display">Add New Attendee</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Church *</Label>
+              <Select value={newAttendee.church_id} onValueChange={(val) => setNewAttendee((p: any) => ({ ...p, church_id: val }))}>
+                <SelectTrigger><SelectValue placeholder="Select church" /></SelectTrigger>
+                <SelectContent>
+                  {churches.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2"><Label>Full Name *</Label><Input value={newAttendee.full_name} onChange={e => setNewAttendee((p: any) => ({ ...p, full_name: e.target.value }))} /></div>
+            <div className="space-y-2"><Label>Phone *</Label><Input value={newAttendee.phone} onChange={e => setNewAttendee((p: any) => ({ ...p, phone: e.target.value }))} /></div>
+            <div className="space-y-2"><Label>Email</Label><Input value={newAttendee.email} onChange={e => setNewAttendee((p: any) => ({ ...p, email: e.target.value }))} /></div>
+            <div className="space-y-2"><Label>Occupation</Label><Input value={newAttendee.occupation} onChange={e => setNewAttendee((p: any) => ({ ...p, occupation: e.target.value }))} /></div>
+            <div className="space-y-2"><Label>Location</Label><Input value={newAttendee.location} onChange={e => setNewAttendee((p: any) => ({ ...p, location: e.target.value }))} /></div>
+            <div className="space-y-2"><Label>Date of Birth</Label><Input type="date" value={newAttendee.date_of_birth} onChange={e => setNewAttendee((p: any) => ({ ...p, date_of_birth: e.target.value }))} /></div>
+            <div className="space-y-2">
+              <Label>Invited By</Label>
+              <Select value={newAttendee.inviter_id} onValueChange={(val) => setNewAttendee((p: any) => ({ ...p, inviter_id: val }))}>
+                <SelectTrigger><SelectValue placeholder="Select inviter" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No Inviter</SelectItem>
+                  {inviters.map(inv => (
+                    <SelectItem key={inv.id} value={inv.id}>{inv.full_name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAddingAttendee(false)}>Cancel</Button>
+            <Button onClick={handleCreateAttendee} className="bg-gradient-gold text-accent-foreground hover:opacity-90">Add Attendee</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isAddingInviter} onOpenChange={setIsAddingInviter}>
+        <DialogContent>
+          <DialogHeader><DialogTitle className="font-display">Add New Inviter</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Church *</Label>
+              <Select value={newInviter.church_id} onValueChange={(val) => setNewInviter((p: any) => ({ ...p, church_id: val }))}>
+                <SelectTrigger><SelectValue placeholder="Select church" /></SelectTrigger>
+                <SelectContent>
+                  {churches.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2"><Label>Full Name *</Label><Input value={newInviter.full_name} onChange={e => setNewInviter((p: any) => ({ ...p, full_name: e.target.value }))} /></div>
+            <div className="space-y-2"><Label>Phone *</Label><Input value={newInviter.phone} onChange={e => setNewInviter((p: any) => ({ ...p, phone: e.target.value }))} /></div>
+            <div className="space-y-2"><Label>Email *</Label><Input value={newInviter.email} onChange={e => setNewInviter((p: any) => ({ ...p, email: e.target.value }))} /></div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAddingInviter(false)}>Cancel</Button>
+            <Button onClick={handleCreateInviter} className="bg-gradient-gold text-accent-foreground hover:opacity-90">Add Inviter</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isAddingTestimonial} onOpenChange={setIsAddingTestimonial}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle className="font-display">Add Testimonial</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2"><Label>Author Name *</Label><Input value={newTestimonial.author_name} onChange={e => setNewTestimonial((p: any) => ({ ...p, author_name: e.target.value }))} /></div>
+            <div className="space-y-2"><Label>Church (Optional)</Label><Input value={newTestimonial.church_name} onChange={e => setNewTestimonial((p: any) => ({ ...p, church_name: e.target.value }))} /></div>
+            <div className="space-y-2"><Label>Content *</Label><Textarea value={newTestimonial.content} onChange={e => setNewTestimonial((p: any) => ({ ...p, content: e.target.value }))} /></div>
+            <div className="flex items-center space-x-2">
+              <Switch id="approved" checked={newTestimonial.is_approved} onCheckedChange={(c) => setNewTestimonial({ ...newTestimonial, is_approved: c })} />
+              <Label htmlFor="approved">Approve Immediately</Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAddingTestimonial(false)}>Cancel</Button>
+            <Button onClick={handleCreateTestimonial} className="bg-gradient-gold text-accent-foreground hover:opacity-90">Save Testimonial</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editingTestimonial} onOpenChange={(open) => !open && setEditingTestimonial(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader><DialogTitle className="font-display">Edit Testimonial</DialogTitle></DialogHeader>
+          {editingTestimonial && (
+            <div className="space-y-4">
+              <div className="space-y-2"><Label>Author Name *</Label><Input value={editingTestimonial.author_name} onChange={e => setEditingTestimonial((p: any) => ({ ...p, author_name: e.target.value }))} /></div>
+              <div className="space-y-2"><Label>Church</Label><Input value={editingTestimonial.church_name || ""} onChange={e => setEditingTestimonial((p: any) => ({ ...p, church_name: e.target.value }))} /></div>
+              <div className="space-y-2"><Label>Content *</Label><Textarea value={editingTestimonial.content} onChange={e => setEditingTestimonial((p: any) => ({ ...p, content: e.target.value }))} /></div>
+              <div className="flex items-center space-x-2">
+                <Switch id="edit-approved" checked={editingTestimonial.is_approved} onCheckedChange={(c) => setEditingTestimonial((p: any) => ({ ...p, is_approved: c }))} />
+                <Label htmlFor="edit-approved">Approve to display</Label>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingTestimonial(null)}>Cancel</Button>
+            <Button onClick={handleUpdateTestimonial} className="bg-gradient-gold text-accent-foreground hover:opacity-90">Update</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isEmailModalOpen} onOpenChange={setIsEmailModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-display flex items-center gap-2">
+              <Mail className="h-5 w-5 text-indigo-500" /> Send Email Notification
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-md">
+              {emailRecipients.length > 0 ? (
+                <>Sending to <strong>{emailRecipients.length}</strong> recipient(s). (Users without emails were skipped.)</>
+              ) : (
+                <span className="text-destructive font-bold">Warning: None of the selected users currently have an email address stored in the system. Sending this will do nothing.</span>
+              )}
+            </div>
+            <div className="space-y-2">
+              <Label>Subject Line</Label>
+              <Input
+                value={emailSubject}
+                onChange={e => setEmailSubject(e.target.value)}
+                placeholder="e.g. Welcome to Answered Prayer Hub!"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Message Body</Label>
+              <Textarea
+                value={emailBody}
+                onChange={e => setEmailBody(e.target.value)}
+                placeholder="Type your message here..."
+                rows={6}
+                className="resize-none"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEmailModalOpen(false)} disabled={isSendingEmail}>Cancel</Button>
+            <Button
+              onClick={handleSendEmail}
+              className="bg-indigo-600 text-white hover:bg-indigo-700"
+              disabled={isSendingEmail || emailRecipients.length === 0}
+            >
+              {isSendingEmail ? "Sending..." : "Send Email"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* CREATE TESTIMONIAL MODAL */}
+      <Dialog open={isAddingTestimonial} onOpenChange={setIsAddingTestimonial}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-display">Add Testimonial</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="author" className="font-body font-semibold">Author Name *</Label>
+              <Input
+                id="author"
+                placeholder="e.g. Sarah Jenkins"
+                value={newTestimonial.author_name}
+                onChange={(e) => setNewTestimonial({ ...newTestimonial, author_name: e.target.value })}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="church" className="font-body font-semibold">Church (Optional)</Label>
+              <Input
+                id="church"
+                placeholder="e.g. Grace Chapel"
+                value={newTestimonial.church_name}
+                onChange={(e) => setNewTestimonial({ ...newTestimonial, church_name: e.target.value })}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="content" className="font-body font-semibold">Testimonial Content *</Label>
+              <Textarea
+                id="content"
+                placeholder="Write the testimony here..."
+                value={newTestimonial.content}
+                onChange={(e) => setNewTestimonial({ ...newTestimonial, content: e.target.value })}
+              />
+            </div>
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="approved"
+                checked={newTestimonial.is_approved}
+                onCheckedChange={(checked) => setNewTestimonial({ ...newTestimonial, is_approved: checked })}
+              />
+              <Label htmlFor="approved" className="font-body">Approve immediately</Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAddingTestimonial(false)} className="font-body">Cancel</Button>
+            <Button onClick={handleCreateTestimonial} className="bg-gradient-gold text-accent-foreground font-body hover:opacity-90">
+              Save Testimonial
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* EDIT TESTIMONIAL MODAL */}
+      <Dialog open={!!editingTestimonial} onOpenChange={(open) => !open && setEditingTestimonial(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-display">Edit Testimonial</DialogTitle>
+          </DialogHeader>
+          {editingTestimonial && (
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="edit-author" className="font-body font-semibold">Author Name *</Label>
+                <Input
+                  id="edit-author"
+                  value={editingTestimonial.author_name}
+                  onChange={(e) => setEditingTestimonial({ ...editingTestimonial, author_name: e.target.value })}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-church" className="font-body font-semibold">Church</Label>
+                <Input
+                  id="edit-church"
+                  value={editingTestimonial.church_name || ""}
+                  onChange={(e) => setEditingTestimonial({ ...editingTestimonial, church_name: e.target.value })}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit-content" className="font-body font-semibold">Testimonial Content *</Label>
+                <Textarea
+                  id="edit-content"
+                  value={editingTestimonial.content}
+                  onChange={(e) => setEditingTestimonial({ ...editingTestimonial, content: e.target.value })}
+                />
+              </div>
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="edit-approved"
+                  checked={editingTestimonial.is_approved}
+                  onCheckedChange={(checked) => setEditingTestimonial({ ...editingTestimonial, is_approved: checked })}
+                />
+                <Label htmlFor="edit-approved" className="font-body">Approved to display</Label>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingTestimonial(null)} className="font-body">Cancel</Button>
+            <Button onClick={handleUpdateTestimonial} className="bg-gradient-gold text-accent-foreground font-body hover:opacity-90">
+              Update
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

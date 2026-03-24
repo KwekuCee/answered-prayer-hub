@@ -36,7 +36,16 @@ const AdminAuth = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("No user found");
 
-      const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", user.id);
+      let { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", user.id);
+
+      if (!roles || roles.length === 0) {
+        await supabase.from("user_roles").insert({
+          user_id: user.id,
+          role: "church_admin",
+        });
+        roles = [{ role: "church_admin" as any }];
+      }
+
       const isSuperAdmin = roles?.some(r => r.role === "super_admin");
 
       toast.success("Welcome back!");
