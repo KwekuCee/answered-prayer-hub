@@ -17,8 +17,9 @@ export const Navbar = () => {
     const { data: liveStreamSettings } = useQuery({
         queryKey: ["live-stream"],
         queryFn: async () => {
-            const { data } = await supabase.from("live_stream_settings").select("is_active").maybeSingle();
-            return data;
+            const { data, error } = await supabase.from("live_stream_settings").select("is_active").order("updated_at", { ascending: false }).limit(1);
+            if (error) console.error(error);
+            return data?.[0] || { is_active: true };
         },
     });
 

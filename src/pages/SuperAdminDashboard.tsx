@@ -301,14 +301,53 @@ const SuperAdminDashboard = () => {
   const { data: liveStreamSettings, refetch: refetchLiveStream } = useQuery({
     queryKey: ["live-stream"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("live_stream_settings").select("*").maybeSingle();
+      const { data, error } = await supabase.from("live_stream_settings").select("*").order("updated_at", { ascending: false }).limit(1);
       if (error) throw error;
-      return data || { url: "", is_active: false };
+      return data?.[0] || null;
     },
   });
 
   const [isEditingStream, setIsEditingStream] = useState(false);
   const [streamUrl, setStreamUrl] = useState("");
+
+  const [liveChats, setLiveChats] = useState<any[]>([]);
+  const [liveViewers, setLiveViewers] = useState(0);
+
+  useEffect(() => {
+    if (activeTab !== "live-analytics") return;
+
+    const fetchChats = async () => {
+      const { data } = await supabase.from("live_chats").select("*").order("created_at", { ascending: false }).limit(50);
+      if (data) setLiveChats(data);
+    };
+    fetchChats();
+
+    const chatSub = supabase.channel('admin_live_chats')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'live_chats' }, payload => {
+        if (payload.eventType === 'INSERT') {
+          setLiveChats(prev => [payload.new, ...prev]);
+        } else if (payload.eventType === 'UPDATE') {
+          setLiveChats(prev => prev.map(c => c.id === payload.new.id ? payload.new : c));
+        }
+      }).subscribe();
+
+    const presenceChannel = supabase.channel('stream-room')
+      .on('presence', { event: 'sync' }, () => {
+        const state = presenceChannel.presenceState();
+        setLiveViewers(Object.keys(state).length);
+      }).subscribe();
+
+    return () => {
+      supabase.removeChannel(chatSub);
+      supabase.removeChannel(presenceChannel);
+    };
+  }, [activeTab]);
+
+  const handleDeleteChat = async (id: string, isDeleted: boolean) => {
+    const { error } = await supabase.from("live_chats").update({ is_deleted: !isDeleted }).eq("id", id);
+    if (error) toast.error("Action failed.");
+    else toast.success("Message moderated.");
+  };
 
   // Sync local state when settings load
   useEffect(() => {
@@ -325,7 +364,7 @@ const SuperAdminDashboard = () => {
       refetchLiveStream();
       return;
     }
-    const { error } = await supabase.from("live_stream_settings").update({ is_active: isActive }).eq("id", liveStreamSettings.id);
+    const { error } = await supabase.from("live_stream_settings").update({ is_active: isActive, url: streamUrl }).eq("id", liveStreamSettings.id);
     if (error) { toast.error("Failed to toggle: " + error.message); return; }
     toast.success(isActive ? "Stream is now LIVE!" : "Stream is now Offline.");
     refetchLiveStream();
@@ -1049,6 +1088,7 @@ const SuperAdminDashboard = () => {
     { id: "programs", label: "Events & Locations", icon: Calendar },
     { id: "bus-points", label: "Bus Routes", icon: Bus },
     { id: "prayer-points", label: "Prayer Requests", icon: Heart },
+    { id: "live-analytics", label: "Live Analytics", icon: Activity },
     { id: "audit_logs", label: "Audit Logs", icon: History },
     { id: "export", label: "Data Export", icon: Download },
   ];
@@ -1857,6 +1897,83 @@ const SuperAdminDashboard = () => {
             </div>
           )}
 
+
+          {activeTab === "live-analytics" && (
+            <div className="space-y-6 animate-fade-up">
+              <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
+                <div>
+                  <h2 className="text-3xl font-display font-bold text-foreground">Live Stream Analytics</h2>
+                  <p className="text-muted-foreground font-body">Monitor real-time viewer presence and moderate the live chat.</p>
+                </div>
+                <div className="flex items-center gap-2 bg-gold/10 px-4 py-2 rounded-lg border border-gold/20">
+                  <span className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></span>
+                  <span className="font-bold text-gold-light">{liveViewers} Active Viewers</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <Card className="col-span-1 lg:col-span-2 bg-card/40 backdrop-blur-xl border-border/50">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2"><MessageCircle className="w-5 h-5 text-gold" /> Live Chat Feed</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-[600px] overflow-y-auto pr-4 space-y-4 custom-scrollbar">
+                      {liveChats.length === 0 ? (
+                        <div className="text-center py-12 text-muted-foreground">No messages in the chat yet.</div>
+                      ) : (
+                        liveChats.map((chat) => (
+                          <div key={chat.id} className={`p-4 rounded-xl border transition-colors ${chat.is_deleted ? 'bg-destructive/10 border-destructive/20 opacity-50' : 'bg-background/50 border-border/50 hover:border-gold/30'}`}>
+                            <div className="flex justify-between items-start mb-2">
+                              <div className="flex items-center gap-2">
+                                <span className="font-bold text-gold-light">{chat.user_name}</span>
+                                <span className="text-xs text-muted-foreground">
+                                  {new Date(chat.created_at).toLocaleTimeString()}
+                                </span>
+                              </div>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteChat(chat.id, chat.is_deleted)}
+                                className={chat.is_deleted ? "text-green-500 hover:text-green-400 hover:bg-green-500/10" : "text-destructive hover:bg-destructive/10"}
+                              >
+                                {chat.is_deleted ? "Restore" : "Delete"}
+                              </Button>
+                            </div>
+                            <p className="text-foreground font-body">{chat.message}</p>
+                            {chat.is_deleted && <span className="text-xs text-destructive font-bold mt-2 block">This message is hidden from public view.</span>}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <div className="space-y-6">
+                  <Card className="bg-card/40 backdrop-blur-xl border-border/50">
+                    <CardHeader>
+                      <CardTitle className="text-lg">Stream Health</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      <div className="flex justify-between items-center p-3 rounded-lg bg-background/50">
+                        <span className="text-muted-foreground">Chat Velocity</span>
+                        <span className="font-bold">{liveChats.filter(c => new Date(c.created_at).getTime() > Date.now() - 60000).length} msgs/min</span>
+                      </div>
+                      <div className="flex justify-between items-center p-3 rounded-lg bg-background/50">
+                        <span className="text-muted-foreground">Total Messages</span>
+                        <span className="font-bold">{liveChats.length}</span>
+                      </div>
+                      <div className="flex justify-between items-center p-3 rounded-lg bg-background/50">
+                        <span className="text-muted-foreground">Status</span>
+                        <Badge className={liveStreamSettings?.is_active ? "bg-green-500" : "bg-destructive"}>
+                          {liveStreamSettings?.is_active ? "Broadcasting" : "Offline"}
+                        </Badge>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            </div>
+          )}
 
           {activeTab === "bus-points" && (
             <div className="space-y-6 animate-fade-up">
