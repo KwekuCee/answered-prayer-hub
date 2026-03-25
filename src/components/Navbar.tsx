@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { Menu, X } from "lucide-react";
 import logo from "@/assets/logo.png";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 export const Navbar = () => {
     const [isOpen, setIsOpen] = useState(false);
@@ -12,6 +14,14 @@ export const Navbar = () => {
         return () => window.removeEventListener("scroll", handleScroll);
     }, []);
 
+    const { data: liveStreamSettings } = useQuery({
+        queryKey: ["live-stream"],
+        queryFn: async () => {
+            const { data } = await supabase.from("live_stream_settings").select("is_active").maybeSingle();
+            return data;
+        },
+    });
+
     const links = [
         { label: "Home", href: "/" },
         { label: "About", href: "/#about" },
@@ -19,6 +29,8 @@ export const Navbar = () => {
         { label: "Prayer", href: "/#prayer" },
         { label: "Bus Routes", href: "/#bus" },
         { label: "Testimonies", href: "/#testimonies" },
+        { label: "Resources", href: "/resources" },
+        { label: "Give", href: "/donate" },
     ];
 
     return (
@@ -55,6 +67,12 @@ export const Navbar = () => {
                             </a>
                         ))}
                         <a
+                            href="/live"
+                            className="text-muted-foreground hover:text-foreground font-body text-sm font-semibold transition-colors flex items-center gap-1.5"
+                        >
+                            Live Stream {liveStreamSettings?.is_active && <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />}
+                        </a>
+                        <a
                             href="/register"
                             className="px-5 py-2.5 bg-gradient-gold text-accent-foreground font-semibold font-body text-sm rounded-lg shadow-gold hover:-translate-y-0.5 transition-transform"
                         >
@@ -64,6 +82,12 @@ export const Navbar = () => {
 
                     {/* Mobile Menu Button */}
                     <div className="md:hidden flex items-center gap-4">
+                        <a
+                            href="/live"
+                            className="text-muted-foreground font-body text-xs font-semibold flex items-center gap-1"
+                        >
+                            Live {liveStreamSettings?.is_active && <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />}
+                        </a>
                         <a
                             href="/register"
                             className="px-4 py-2 bg-gradient-gold text-accent-foreground font-semibold font-body text-xs rounded-lg shadow-gold"

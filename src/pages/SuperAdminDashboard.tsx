@@ -298,6 +298,55 @@ const SuperAdminDashboard = () => {
   };
 
 
+  const { data: liveStreamSettings, refetch: refetchLiveStream } = useQuery({
+    queryKey: ["live-stream"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("live_stream_settings").select("*").maybeSingle();
+      if (error) throw error;
+      return data || { url: "", is_active: false };
+    },
+  });
+
+  const [isEditingStream, setIsEditingStream] = useState(false);
+  const [streamUrl, setStreamUrl] = useState("");
+
+  // Sync local state when settings load
+  useEffect(() => {
+    if (liveStreamSettings) {
+      setStreamUrl(liveStreamSettings.url || "");
+    }
+  }, [liveStreamSettings]);
+
+  const handleToggleStream = async (isActive: boolean) => {
+    if (!liveStreamSettings?.id) {
+      const { error } = await supabase.from("live_stream_settings").insert({ is_active: isActive, url: streamUrl });
+      if (error) { toast.error("Init failed: " + error.message); return; }
+      toast.success(isActive ? "Stream initialized and LIVE!" : "Stream initialized Offline.");
+      refetchLiveStream();
+      return;
+    }
+    const { error } = await supabase.from("live_stream_settings").update({ is_active: isActive }).eq("id", liveStreamSettings.id);
+    if (error) { toast.error("Failed to toggle: " + error.message); return; }
+    toast.success(isActive ? "Stream is now LIVE!" : "Stream is now Offline.");
+    refetchLiveStream();
+  };
+
+  const handleSaveStreamUrl = async () => {
+    if (!liveStreamSettings?.id) {
+      const { error } = await supabase.from("live_stream_settings").insert({ is_active: liveStreamSettings?.is_active || false, url: streamUrl });
+      if (error) { toast.error("Init failed: " + error.message); return; }
+      toast.success("Stream URL explicitly created and updated.");
+      setIsEditingStream(false);
+      refetchLiveStream();
+      return;
+    }
+    const { error } = await supabase.from("live_stream_settings").update({ url: streamUrl }).eq("id", liveStreamSettings.id);
+    if (error) { toast.error("Failed to save URL: " + error.message); return; }
+    toast.success("Stream URL updated.");
+    setIsEditingStream(false);
+    refetchLiveStream();
+  };
+
   const { data: prayerPoints = [], refetch: refetchPrayerPoints } = useQuery({
     queryKey: ["all-prayer-points"],
     queryFn: async () => {
@@ -312,6 +361,14 @@ const SuperAdminDashboard = () => {
     const { error } = await supabase.from("prayer_points").delete().eq("id", id);
     if (error) { toast.error("Failed."); return; }
     toast.success("Deleted.");
+    queryClient.invalidateQueries({ queryKey: ["all-prayer-points"] });
+  };
+
+  const handleTogglePrayerPointStatus = async (id: string, currentStatus: string) => {
+    const newStatus = currentStatus === "pending" ? "prayed_for" : "pending";
+    const { error } = await supabase.from("prayer_points").update({ status: newStatus }).eq("id", id);
+    if (error) { toast.error("Failed to update status."); return; }
+    toast.success(newStatus === "prayed_for" ? "Marked as Prayed For!" : "Marked as Pending.");
     queryClient.invalidateQueries({ queryKey: ["all-prayer-points"] });
   };
 
@@ -1087,6 +1144,53 @@ const SuperAdminDashboard = () => {
                 ))}
               </div>
 
+              {/* Streaming Settings Area */}
+              <Card className="border-border/50 border-gold/30 bg-gold/5">
+                <CardHeader>
+                  <CardTitle className="font-display text-lg flex items-center justify-between">
+                    <span className="flex items-center gap-2">
+                      <Activity className="h-5 w-5 text-gold" /> Live Stream Configuration
+                    </span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-medium">{liveStreamSettings?.is_active ? "🟢 Stream is Live" : "⚫ Stream is Offline"}</span>
+                      <Switch
+                        checked={liveStreamSettings?.is_active || false}
+                        onCheckedChange={handleToggleStream}
+                      />
+                    </div>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-col md:flex-row gap-4 items-start md:items-end">
+                    <div className="flex-1 space-y-2 w-full">
+                      <Label htmlFor="stream_url">Stream URL (YouTube/Vimeo Embed or Link)</Label>
+                      {isEditingStream ? (
+                        <Input
+                          id="stream_url"
+                          value={streamUrl}
+                          onChange={(e) => setStreamUrl(e.target.value)}
+                          placeholder="e.g. https://www.youtube.com/embed/xxxxx"
+                        />
+                      ) : (
+                        <div className="text-sm font-mono bg-background/50 p-2 rounded border border-border/50 truncate">
+                          {liveStreamSettings?.url || "No URL configured"}
+                        </div>
+                      )}
+                    </div>
+                    {isEditingStream ? (
+                      <div className="flex gap-2">
+                        <Button onClick={handleSaveStreamUrl} className="bg-gold text-navy hover:bg-gold-light">Save</Button>
+                        <Button variant="outline" onClick={() => { setIsEditingStream(false); setStreamUrl(liveStreamSettings?.url || ""); }}>Cancel</Button>
+                      </div>
+                    ) : (
+                      <Button variant="secondary" onClick={() => setIsEditingStream(true)} className="gap-2">
+                        <Pencil className="w-4 h-4" /> Edit URL
+                      </Button>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
               {/* Analytics Section 1: Growth & Top Locations */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <Card className="border-border/50 lg:col-span-2">
@@ -1367,6 +1471,9 @@ const SuperAdminDashboard = () => {
                   <Button size="sm" onClick={() => setIsAddingAttendee(true)} className="gap-2 bg-gradient-gold text-accent-foreground hover:opacity-90">
                     Add Attendee
                   </Button>
+                  <Button size="sm" onClick={() => navigate("/admin/scanner")} className="gap-2 bg-indigo-500 text-white hover:bg-indigo-600">
+                    <MapPin className="w-4 h-4" /> QR Scanner
+                  </Button>
                   <Button variant={attendeeFilter === "all" ? "default" : "outline"} size="sm" onClick={() => setAttendeeFilter("all")}>All</Button>
                   <Button variant={attendeeFilter === "confirmed" ? "default" : "outline"} size="sm" onClick={() => setAttendeeFilter("confirmed")}>Confirmed</Button>
                   <Button variant={attendeeFilter === "pending" ? "default" : "outline"} size="sm" onClick={() => setAttendeeFilter("pending")}>Pending</Button>
@@ -1413,6 +1520,7 @@ const SuperAdminDashboard = () => {
                         <TableHead>Church</TableHead>
                         <TableHead>Invited By</TableHead>
                         <TableHead className="text-center">Status</TableHead>
+                        <TableHead className="text-center">Check-In</TableHead>
                         <TableHead className="text-center">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -1436,6 +1544,11 @@ const SuperAdminDashboard = () => {
                           <TableCell className="text-center">
                             <Badge className={m.confirmed ? "bg-success/10 text-success border-0 hover:bg-success/20 transition-colors" : "bg-muted text-muted-foreground border-0"}>
                               {m.confirmed ? "Confirmed" : "Pending"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Badge className={m.checked_in ? "bg-blue-600 text-white border-0" : "bg-muted text-muted-foreground border-0"}>
+                              {m.checked_in ? "Checked In" : "Absent"}
                             </Badge>
                           </TableCell>
                           <TableCell className="text-center space-x-1">
@@ -1889,6 +2002,7 @@ const SuperAdminDashboard = () => {
                         <TableHead>Submitter</TableHead>
                         <TableHead>Event Program</TableHead>
                         <TableHead>Prayer Request</TableHead>
+                        <TableHead>Status</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -1898,11 +2012,23 @@ const SuperAdminDashboard = () => {
                           <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{new Date(pp.created_at).toLocaleDateString()}</TableCell>
                           <TableCell className="font-medium text-foreground">{pp.name || "Anonymous"}</TableCell>
                           <TableCell className="text-sm text-muted-foreground">{(pp.programs as any)?.name || "All Sessions"}</TableCell>
-                          <TableCell className="max-w-md whitespace-pre-wrap">{pp.request}</TableCell>
+                          <TableCell className="max-w-md">
+                            <p className="text-sm font-body truncate">{pp.request}</p>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={pp.status === "prayed_for" ? "default" : "outline"} className={pp.status === "prayed_for" ? "bg-green-600" : "text-yellow-600 border-yellow-600"}>
+                              {pp.status === "prayed_for" ? "Prayed For" : "Pending"}
+                            </Badge>
+                          </TableCell>
                           <TableCell className="text-right">
-                            <Button variant="destructive" size="sm" onClick={() => handleDeletePrayerPoint(pp.id)}>
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
+                            <div className="flex justify-end gap-2">
+                              <Button variant="outline" size="sm" onClick={() => handleTogglePrayerPointStatus(pp.id, pp.status || 'pending')} className="h-8">
+                                {pp.status === "prayed_for" ? "Revert" : "Mark Prayed"}
+                              </Button>
+                              <Button variant="destructive" size="sm" onClick={() => handleDeletePrayerPoint(pp.id)} className="h-8 w-8 p-0">
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}

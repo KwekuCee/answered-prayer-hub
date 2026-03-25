@@ -9,6 +9,10 @@ import ChurchAdminDashboard from "./pages/ChurchAdminDashboard";
 import SuperAdminDashboard from "./pages/SuperAdminDashboard";
 import NotFound from "./pages/NotFound";
 import Register from "./pages/Register";
+import LiveStream from "./pages/LiveStream";
+import QrScanner from "./pages/QrScanner";
+import Donate from "./pages/Donate";
+import Resources from "./pages/Resources";
 
 
 import BackToTop from "./components/BackToTop";
@@ -24,6 +28,10 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
+          <Route path="/live" element={<LiveStream />} />
+          <Route path="/donate" element={<Donate />} />
+          <Route path="/resources" element={<Resources />} />
+          <Route path="/admin/scanner" element={<QrScanner />} />
           <Route path="/register" element={<Register />} />
           <Route path="/admin" element={<AdminAuth />} />
           <Route path="/church-admin" element={<ChurchAdminDashboard />} />
