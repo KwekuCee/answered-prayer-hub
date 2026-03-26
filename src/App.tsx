@@ -13,6 +13,7 @@ import LiveStream from "./pages/LiveStream";
 import QrScanner from "./pages/QrScanner";
 import Donate from "./pages/Donate";
 import Resources from "./pages/Resources";
+import ShareTestimony from "./pages/ShareTestimony";
 
 
 import BackToTop from "./components/BackToTop";
@@ -33,6 +34,7 @@ const App = () => (
           <Route path="/resources" element={<Resources />} />
           <Route path="/admin/scanner" element={<QrScanner />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/share-testimony" element={<ShareTestimony />} />
           <Route path="/admin" element={<AdminAuth />} />
           <Route path="/church-admin" element={<ChurchAdminDashboard />} />
           <Route path="/super-admin" element={<SuperAdminDashboard />} />

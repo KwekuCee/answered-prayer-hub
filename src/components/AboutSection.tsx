@@ -1,3 +1,5 @@
+import { Link } from "react-router-dom";
+
 export const AboutSection = () => {
     return (
         <section id="about" className="py-24 px-4 relative overflow-hidden bg-background">
@@ -21,18 +23,30 @@ export const AboutSection = () => {
                         Every Edition of <strong>100% Answered Prayer</strong> has been a catalogue of miracles and testimonies for many. Join us for the next Edition; <strong>YOUR CHANCE HAS COME!</strong>
                     </p>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12 text-center">
-                        <div className="p-6 bg-background/50 rounded-2xl border border-border/40 hover:border-gold/30 transition-all hover:shadow-gold duration-300">
-                            <h3 className="text-2xl font-display font-bold text-foreground mb-2">Faith</h3>
-                            <p className="text-sm text-muted-foreground font-body">Building unshakeable belief through the Word.</p>
-                        </div>
-                        <div className="p-6 bg-background/50 rounded-2xl border border-border/40 hover:border-gold/30 transition-all hover:shadow-gold duration-300">
-                            <h3 className="text-2xl font-display font-bold text-foreground mb-2">Strategy</h3>
-                            <p className="text-sm text-muted-foreground font-body">Learning the prophetic mechanisms of prayer.</p>
-                        </div>
-                        <div className="p-6 bg-background/50 rounded-2xl border border-border/40 hover:border-gold/30 transition-all hover:shadow-gold duration-300">
-                            <h3 className="text-2xl font-display font-bold text-foreground mb-2">Results</h3>
-                            <p className="text-sm text-muted-foreground font-body">Experiencing undeniable testimonies.</p>
-                        </div>
+                        <a
+                            href="https://pcdl.co"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="block p-8 rounded-2xl bg-gradient-to-br from-purple-500/10 to-violet-500/10 border border-purple-500/20 transition-all hover:shadow-lg duration-300"
+                        >
+                            <h3 className="text-2xl font-display font-bold text-foreground mb-2">Build your Faith</h3>
+                        </a>
+
+                        <a
+                            href="https://chat.whatsapp.com/REPLACE_WITH_GROUP_LINK"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="block p-8 rounded-2xl bg-gradient-to-br from-teal-500/10 to-emerald-500/10 border border-teal-500/20 transition-all hover:shadow-lg duration-300"
+                        >
+                            <h3 className="text-2xl font-display font-bold text-foreground mb-2">Join any of our Prayer Groups</h3>
+                        </a>
+
+                        <Link
+                            to="/share-testimony"
+                            className="block p-8 rounded-2xl bg-gradient-to-br from-amber-500/10 to-orange-500/10 border border-amber-500/20 transition-all hover:shadow-lg duration-300"
+                        >
+                            <h3 className="text-2xl font-display font-bold text-foreground mb-2">Share Your testimony</h3>
+                        </Link>
                     </div>
                 </div>
             </div>

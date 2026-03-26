@@ -127,6 +127,18 @@
     background-size: cover;
     background-repeat: no-repeat;
   }
+  .card-faith {
+    background-image: linear-gradient(135deg, #6B21A8, #8B5CF6); /* purple */
+    color: white;
+  }
+  .card-groups {
+    background-image: linear-gradient(135deg, #0EA5A4, #14B8A6); /* teal */
+    color: white;
+  }
+  .card-testimony {
+    background-image: linear-gradient(135deg, #F97316, #FB923C); /* orange */
+    color: white;
+  }
 }
 
 @keyframes fadeUp {

@@ -2,8 +2,10 @@ import React from "react";
 
 type State = { hasError: boolean };
 
-export default class ErrorBoundary extends React.Component<{ children: React.ReactNode }, State> {
-  constructor(props: { children: React.ReactNode }) {
+type Props = { children: React.ReactNode; fallback?: React.ReactNode };
+
+export default class ErrorBoundary extends React.Component<Props, State> {
+  constructor(props: Props) {
     super(props);
     this.state = { hasError: false };
   }
@@ -19,6 +21,7 @@ export default class ErrorBoundary extends React.Component<{ children: React.Rea
 
   render() {
     if (this.state.hasError) {
+      if (this.props.fallback) return <>{this.props.fallback}</>;
       return (
         <div className="p-6 bg-card/80 rounded-2xl border border-border/50 text-center">
           <p className="text-foreground font-semibold">Map failed to load.</p>

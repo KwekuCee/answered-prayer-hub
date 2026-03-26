@@ -8,6 +8,8 @@ import L from "leaflet";
 import icon from "leaflet/dist/images/marker-icon.png";
 import iconShadow from "leaflet/dist/images/marker-shadow.png";
 import ErrorBoundary from "./ErrorBoundary";
+import React, { Suspense } from "react";
+const BusMap = React.lazy(() => import("./BusMap"));
 
 const DefaultIcon = L.icon({
     iconUrl: icon,
@@ -70,33 +72,14 @@ export const BusPointsSection = () => {
                         {/* Map View */}
                         <div className="bg-card/80 backdrop-blur-sm border border-border/50 rounded-3xl p-4 shadow-xl h-[500px] overflow-hidden sticky top-24 z-10">
                             <ErrorBoundary>
-                                <MapContainer
-                                    center={[5.6037, -0.1870]} // Default center (Accra, adjust as needed)
-                                    zoom={11}
-                                    scrollWheelZoom={false}
-                                    className="w-full h-full rounded-2xl z-0"
-                                >
-                                    <TileLayer
-                                        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                                    />
-                                    {busPoints.map((bp: any) => (
-                                        bp.lat && bp.lng && (
-                                            <Marker key={bp.id} position={[bp.lat, bp.lng]}>
-                                                <Popup className="font-body">
-                                                    <strong className="text-gold font-display text-base block mb-1">{bp.name}</strong>
-                                                    <span className="block mb-1">{bp.location}</span>
-                                                    <span className="text-muted-foreground font-semibold flex items-center gap-1"><Clock className="w-3 h-3" /> {bp.departure_time || "TBD"}</span>
-                                                </Popup>
-                                            </Marker>
-                                        )
-                                    ))}
-                                </MapContainer>
+                                <Suspense fallback={<div className="w-full h-full flex items-center justify-center">Loading map…</div>}>
+                                    <BusMap busPoints={busPoints || []} />
+                                </Suspense>
                             </ErrorBoundary>
                         </div>
 
                         {/* List View */}
-                        <div className="space-y-4 max-h-[500px] lg:overflow-y-auto pr-2 custom-scrollbar">
+                        <div id="bus-list" className="space-y-4 max-h-[500px] lg:overflow-y-auto pr-2 custom-scrollbar">
                             {busPoints.map((bp: any) => (
                                 <Card key={bp.id} className="bg-card/80 backdrop-blur-sm border-border/50 hover:shadow-gold/20 hover:border-gold/50 transition-all duration-300 transform hover:-translate-y-1">
                                     <CardHeader className="py-4">
