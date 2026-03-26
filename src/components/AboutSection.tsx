@@ -12,10 +12,13 @@ export const AboutSection = () => {
 
                 <div className="bg-card/40 backdrop-blur-xl border border-border/50 shadow-2xl rounded-3xl p-8 md:p-12 text-left mt-10">
                     <p className="text-lg md:text-xl text-muted-foreground font-body leading-relaxed mb-6">
-                        100% Answered Prayer is a global prophetic movement ordained by God, dedicated to teaching believers the spiritual science and biblical principles of effective prayer. We believe that when you align your requests with God's will and understand the mechanisms of the spirit, every prayer yields a result.
+                        <strong>100% Answered Prayer</strong> is a Spirit-inspired strategic prayer movement, 
+                        dedicated to teaching believers and leading them in prayer to receive answers. 
+                        God asked us to pray because he wants to answer every prayer.
                     </p>
                     <p className="text-lg md:text-xl text-muted-foreground font-body leading-relaxed mb-6">
-                        Our mission is to equip you with the knowledge, faith, and practical steps needed to turn your requests into testimonies. We gather consistently to intercede, worship, and experience the demonstrable power of God in real time.
+                        Our mission is to equip you with the knowledge, faith, and practical steps needed to turn your requests into testimonies.
+                        Every Edition of <strong>100% Answered Prayer</strong> has been a catalogue of miracles and testimonies for many. Join us for the next Edition; <strong>YOUR CHANCE HAS COME!</strong>
                     </p>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12 text-center">
                         <div className="p-6 bg-background/50 rounded-2xl border border-border/40 hover:border-gold/30 transition-all hover:shadow-gold duration-300">

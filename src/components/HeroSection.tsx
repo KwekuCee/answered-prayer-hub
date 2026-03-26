@@ -3,19 +3,12 @@ import { Link } from "react-router-dom";
 
 const HeroSection = () => {
   return (
-    <div className="relative min-h-[70vh] flex items-center justify-center overflow-hidden bg-navy">
-      {/* Video Background */}
-      <video
-        autoPlay
-        loop
-        muted
-        playsInline
-        className="absolute top-0 left-0 w-full h-full object-cover -z-10"
-      >
-        <source src="/Promo.mp4" type="video/mp4" />
-      </video>
+    <div
+      className="relative min-h-[70vh] flex items-center justify-center overflow-hidden bg-navy"
+      style={{ backgroundImage: "url('/praying.png')", backgroundPosition: 'center top', backgroundSize: 'cover', backgroundRepeat: 'no-repeat' }}
+    >
 
-      {/* Overlay gradient for readability but keeping video visible */}
+      {/* Overlay gradient for readability */}
       <div className="absolute inset-0 bg-gradient-to-b from-navy/60 via-navy/30 to-background/90" />
 
       {/* Content */}
