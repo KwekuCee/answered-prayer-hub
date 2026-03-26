@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -250,9 +250,41 @@ const SuperAdminDashboard = () => {
 
   const handleDeactivateAllPrograms = async () => {
     if (!window.confirm("Deactivate all programs? This will disable new data writes until a program is activated.")) return;
-    const { error } = await supabase.from("programs").update({ is_active: false });
-    if (error) { toast.error("Failed to deactivate programs."); return; }
-    toast.success("All programs deactivated. Writes are now disabled until a program is activated.");
+    // PostgREST rejects an update without a WHERE clause; update each program individually.
+    try {
+      const { data: rows, error: selErr } = await supabase.from('programs').select('id');
+      if (selErr) { toast.error('Failed to fetch programs: ' + (selErr.message || selErr)); return; }
+      for (const r of rows || []) {
+        const { error: upErr } = await supabase.from('programs').update({ is_active: false }).eq('id', r.id);
+        if (upErr) {
+          console.debug('Failed to deactivate program', r.id, upErr.message || upErr);
+        }
+      }
+      toast.success('All programs deactivated. Writes are now disabled until a program is activated.');
+      queryClient.invalidateQueries({ queryKey: ['all-programs'] });
+    } catch (err) {
+      toast.error('Failed to deactivate programs: ' + (err as any).message || err);
+    }
+  };
+
+  const handleMarkProgramCompleted = async (id: string) => {
+    if (!window.confirm("Mark this program as completed? This will deactivate it but keep the record.")) return;
+    // First ensure the program is deactivated
+    const { error: e1 } = await supabase.from("programs").update({ is_active: false }).eq("id", id);
+    if (e1) { toast.error("Failed to deactivate program: " + (e1.message || e1)); return; }
+
+    // Try to set completed_at if the column exists. If it doesn't, ignore that error.
+    try {
+      const { error: e2 } = await supabase.from("programs").update({ completed_at: new Date().toISOString() }).eq("id", id);
+      if (e2) {
+        // If the column doesn't exist, that's fine — program is still deactivated and retrievable.
+        console.debug('completed_at update skipped or failed:', e2.message || e2);
+      }
+    } catch (err) {
+      console.debug('completed_at update threw:', err);
+    }
+
+    toast.success("Program marked completed and deactivated.");
     queryClient.invalidateQueries({ queryKey: ["all-programs"] });
   };
 
@@ -315,11 +347,30 @@ const SuperAdminDashboard = () => {
     },
   });
 
+  const { data: presenceSamples = [], refetch: refetchPresenceSamples } = useQuery({
+    queryKey: ["live-presence-samples", activeProgram?.id],
+    queryFn: async () => {
+      if (activeProgram?.id) {
+        const { data, error } = await supabase.from("live_presence_samples").select("*").eq("program_id", activeProgram.id).order("recorded_at", { ascending: true }).limit(1000);
+        if (error) throw error;
+        return data;
+      }
+      const { data, error } = await supabase.from("live_presence_samples").select("*").order("recorded_at", { ascending: true }).limit(1000);
+      if (error) throw error;
+      return data;
+    },
+    enabled: activeTab === "live-analytics",
+  });
+
   const [isEditingStream, setIsEditingStream] = useState(false);
   const [streamUrl, setStreamUrl] = useState("");
 
   const [liveChats, setLiveChats] = useState<any[]>([]);
   const [liveViewers, setLiveViewers] = useState(0);
+  const [totalJoins, setTotalJoins] = useState(0);
+  const [totalLeaves, setTotalLeaves] = useState(0);
+  const [uniqueViewerIds, setUniqueViewerIds] = useState<Set<string>>(new Set());
+  const liveViewersRef = useRef<number>(0);
 
   useEffect(() => {
     if (activeTab !== "live-analytics") return;
@@ -339,17 +390,138 @@ const SuperAdminDashboard = () => {
         }
       }).subscribe();
 
-    const presenceChannel = supabase.channel('stream-room')
-      .on('presence', { event: 'sync' }, () => {
-        const state = presenceChannel.presenceState();
-        setLiveViewers(Object.keys(state).length);
-      }).subscribe();
+    const presenceChannel = supabase.channel('stream-room');
+
+    presenceChannel.on('presence', { event: 'sync' }, () => {
+      const state = presenceChannel.presenceState();
+      setLiveViewers(Object.keys(state).length);
+    });
+
+    presenceChannel.on('presence', { event: 'join' }, (payload: any) => {
+      try {
+        const key = payload.key;
+        setTotalJoins((n) => n + 1);
+        setUniqueViewerIds((ids) => new Set(ids).add(key));
+        // Persist presence join event
+        (async () => {
+          try {
+            await supabase.from('live_presence_events').insert({
+              program_id: activeProgram?.id || null,
+              viewer_key: key,
+              event: 'join',
+              created_at: new Date().toISOString()
+            });
+          } catch (e) {
+            console.debug('failed to persist join event', e);
+          }
+        })();
+      } catch (e) {
+        console.debug('presence join handler error', e);
+      }
+    });
+
+    presenceChannel.on('presence', { event: 'leave' }, (payload: any) => {
+      try {
+        setTotalLeaves((n) => n + 1);
+        const key = payload.key;
+        // Persist presence leave event
+        (async () => {
+          try {
+            await supabase.from('live_presence_events').insert({
+              program_id: activeProgram?.id || null,
+              viewer_key: key,
+              event: 'leave',
+              created_at: new Date().toISOString()
+            });
+          } catch (e) {
+            console.debug('failed to persist leave event', e);
+          }
+        })();
+      } catch (e) {
+        console.debug('presence leave handler error', e);
+      }
+    }).subscribe();
+
+    // Periodically sample the current presence count every minute and persist it
+    let sampleTimer: any = null;
+    const startSampling = () => {
+      sampleTimer = setInterval(async () => {
+        try {
+          if (!activeProgram) return;
+          const count = liveViewersRef.current || 0;
+          await supabase.from('live_presence_samples').insert({ program_id: activeProgram?.id || null, count, recorded_at: new Date().toISOString() });
+        } catch (e) {
+          console.debug('failed to persist presence sample', e);
+        }
+      }, 60_000);
+    };
+
+    startSampling();
 
     return () => {
       supabase.removeChannel(chatSub);
       supabase.removeChannel(presenceChannel);
+      if (sampleTimer) clearInterval(sampleTimer);
     };
   }, [activeTab]);
+
+  useEffect(() => {
+    liveViewersRef.current = liveViewers;
+  }, [liveViewers]);
+
+  const exportLiveAnalytics = () => {
+    // Build CSV: first a summary, then chat rows
+    const rows: string[] = [];
+    rows.push(['Metric','Value'].join(','));
+    rows.push(['Active Viewers', String(liveViewers)].join(','));
+    rows.push(['Total Joined', String(totalJoins)].join(','));
+    rows.push(['Total Left', String(totalLeaves)].join(','));
+    rows.push(['Unique Viewers', String(uniqueViewerIds.size)].join(','));
+    rows.push(['',''].join(','));
+    rows.push(['Chats']);
+    rows.push(['id','user_name','created_at','message','is_deleted'].join(','));
+    for (const c of liveChats) {
+      const safeMsg = String(c.message || '').replace(/\n|\r|,/g, ' ');
+      rows.push([c.id, (c.user_name || '').replace(/,/g,''), c.created_at, safeMsg, String(!!c.is_deleted)].join(','));
+    }
+    rows.push(['',''].join(','));
+    rows.push(['Presence Events']);
+    rows.push(['id','viewer_key','event','metadata','created_at'].join(','));
+    try {
+      // fetch persisted events
+      (async () => {
+        const { data: events } = await supabase.from('live_presence_events').select('*').order('created_at', { ascending: true }).limit(5000).throwOnError();
+        for (const e of events || []) {
+          rows.push([e.id, (e.viewer_key || '').replace(/,/g,''), e.event, JSON.stringify(e.metadata || {}).replace(/,/g,' '), e.created_at].join(','));
+        }
+        rows.push(['',''].join(','));
+        rows.push(['Presence Samples']);
+        rows.push(['id','count','recorded_at'].join(','));
+        const { data: samples } = await supabase.from('live_presence_samples').select('*').order('recorded_at', { ascending: true }).limit(5000).throwOnError();
+        for (const s of samples || []) {
+          rows.push([s.id, String(s.count), s.recorded_at].join(','));
+        }
+        const csv2 = rows.join('\n');
+        const blob2 = new Blob([csv2], { type: 'text/csv;charset=utf-8;' });
+        const url2 = URL.createObjectURL(blob2);
+        const a2 = document.createElement('a');
+        a2.href = url2;
+        a2.download = `live-analytics-${new Date().toISOString()}.csv`;
+        a2.click();
+        URL.revokeObjectURL(url2);
+      })();
+    } catch (err) {
+      // fallback: already downloaded chat+summary
+    }
+    const csv = rows.join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `live-analytics-${new Date().toISOString()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const handleDeleteChat = async (id: string, isDeleted: boolean) => {
     const { error } = await supabase.from("live_chats").update({ is_deleted: !isDeleted }).eq("id", id);
@@ -1115,13 +1287,13 @@ const SuperAdminDashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-background flex">
-      <aside className={`${sidebarOpen ? "w-64" : "w-0 overflow-hidden"} bg-gradient-navy text-primary-foreground transition-all duration-300 flex flex-col fixed lg:relative h-screen z-40`}>
+    <div className="h-screen bg-background flex">
+      <aside className={`${sidebarOpen ? "w-64" : "w-0 overflow-hidden"} bg-gradient-navy text-primary-foreground transition-all duration-300 flex flex-col fixed lg:relative h-full z-40 top-0 left-0`}>
         <div className="p-5 border-b border-gold/10">
           <img src={logo} alt="100% Answered Prayer" className="w-28 mb-2" />
           <p className="text-xs text-primary-foreground/50 font-body mt-1">Super Admin</p>
         </div>
-        <nav className="flex-1 p-3 space-y-1">
+        <nav className="flex-1 p-3 space-y-1 overflow-y-auto max-h-screen">
           {navItems.map(item => (
             <button
               key={item.id}
@@ -1843,6 +2015,11 @@ const SuperAdminDashboard = () => {
                                 Set Active
                               </Button>
                             )}
+                            {prog.is_active ? (
+                              <Button variant="secondary" size="sm" onClick={() => handleMarkProgramCompleted(prog.id)}>
+                                Mark Completed
+                              </Button>
+                            ) : null}
                             <Button variant="outline" size="sm" onClick={() => setEditingProgram(prog)}>
                               <Pencil className="w-4 h-4" />
                             </Button>
@@ -1924,7 +2101,10 @@ const SuperAdminDashboard = () => {
                 </div>
                 <div className="flex items-center gap-2 bg-gold/10 px-4 py-2 rounded-lg border border-gold/20">
                   <span className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></span>
-                  <span className="font-bold text-gold-light">{liveViewers} Active Viewers</span>
+                    <div className="text-left">
+                      <div className="font-bold text-gold-light">{liveViewers} Active Viewers</div>
+                      <div className="text-xs text-muted-foreground">Total joined: {totalJoins} • Left: {totalLeaves} • Unique: {uniqueViewerIds.size}</div>
+                    </div>
                 </div>
               </div>
 
@@ -1932,6 +2112,9 @@ const SuperAdminDashboard = () => {
                 <Card className="col-span-1 lg:col-span-2 bg-card/40 backdrop-blur-xl border-border/50">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2"><MessageCircle className="w-5 h-5 text-gold" /> Live Chat Feed</CardTitle>
+                    <div className="ml-auto">
+                      <Button onClick={() => exportLiveAnalytics()} size="sm" className="ml-2">Export</Button>
+                    </div>
                   </CardHeader>
                   <CardContent>
                     <div className="h-[600px] overflow-y-auto pr-4 space-y-4 custom-scrollbar">
@@ -1985,6 +2168,48 @@ const SuperAdminDashboard = () => {
                           {liveStreamSettings?.is_active ? "Broadcasting" : "Offline"}
                         </Badge>
                       </div>
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-card/40 backdrop-blur-xl border-border/50">
+                    <CardHeader>
+                      <CardTitle className="text-lg">Viewer Retention (Samples)</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {presenceSamples.length === 0 ? (
+                        <div className="text-sm text-muted-foreground">No samples recorded yet.</div>
+                      ) : (
+                        <div style={{ width: '100%', height: 180 }}>
+                          <ResponsiveContainer width="100%" height={180}>
+                            <LineChart data={presenceSamples.map((s: any) => ({
+                              recorded_at: s.recorded_at,
+                              count: s.count
+                            }))}>
+                              <XAxis dataKey="recorded_at" tickFormatter={(d) => {
+                                try { return format(parseISO(String(d)), 'HH:mm'); } catch { return String(d); }
+                              }} />
+                              <YAxis allowDecimals={false} />
+                              <Tooltip labelFormatter={(v) => {
+                                try { return format(parseISO(String(v)), 'yyyy-MM-dd HH:mm:ss'); } catch { return String(v); }
+                              }} />
+                              <Line type="monotone" dataKey="count" stroke="hsl(var(--gold))" strokeWidth={2} dot={false} />
+                            </LineChart>
+                          </ResponsiveContainer>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-card/40 backdrop-blur-xl border-border/50">
+                    <CardHeader>
+                      <CardTitle className="text-lg">Suggestions</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <ul className="list-disc list-inside space-y-2 text-sm text-muted-foreground">
+                        <li>Viewer retention graph (1-minute intervals) — capture presence counts periodically.</li>
+                        <li>Peak concurrent viewers with timestamps.</li>
+                        <li>Sentiment analysis on chat messages (quick score) for moderation insights.</li>
+                        <li>Export full session logs (chat + presence events) for external analysis.</li>
+                        <li>Allow CSV/JSON webhook export to analytics provider.</li>
+                      </ul>
                     </CardContent>
                   </Card>
                 </div>

@@ -32,21 +32,41 @@ export const supabase: any = new Proxy(rawSupabase, {
         return new Proxy(builder, {
           get(bTarget, bProp) {
             const name = String(bProp);
+            // For mutation methods, we call the original method to get the resulting
+            // Postgrest builder, but we do NOT execute the request yet. Instead we
+            // return that builder (so chaining like `.eq()` works). We then wrap
+            // the resulting builder's `then` so when it's awaited/executed we run
+            // the active-program check first.
             if (['insert', 'update', 'delete'].includes(name)) {
-              return async (...args: any[]) => {
-                try {
-                  // Allow admin critical tables to be written even when no active program exists
-                  if (bypassTables.has(tableName)) {
-                    return (bTarget as any)[name](...args);
+              return (...args: any[]) => {
+                const resultBuilder = (bTarget as any)[name](...args);
+                return new Proxy(resultBuilder, {
+                  get(rbTarget, rbProp) {
+                    if (rbProp === 'then') {
+                      // When awaited, this function will be called. Perform the active
+                      // program check before delegating to the real then.
+                      return function (resolve: any, reject: any) {
+                        (async () => {
+                          try {
+                            if (bypassTables.has(tableName)) {
+                              return (rbTarget as any).then(resolve, reject);
+                            }
+                            const { data: active } = await rawSupabase.from('programs').select('id').eq('is_active', true).limit(1).maybeSingle();
+                            if (!active) {
+                              // Resolve with an object shaped like a supabase response
+                              return resolve({ data: null, error: { message: 'No active program. Database writes are currently disabled.' } });
+                            }
+                            return (rbTarget as any).then(resolve, reject);
+                          } catch (err) {
+                            return resolve({ data: null, error: { message: 'Write check failed. Database writes are blocked.' } });
+                          }
+                        })();
+                      };
+                    }
+                    const v = (rbTarget as any)[rbProp];
+                    return typeof v === 'function' ? v.bind(rbTarget) : v;
                   }
-                  const { data: active } = await rawSupabase.from('programs').select('id').eq('is_active', true).limit(1).maybeSingle();
-                  if (!active) {
-                    return { error: { message: 'No active program. Database writes are currently disabled.' } };
-                  }
-                } catch (e) {
-                  return { error: { message: 'Write check failed. Database writes are blocked.' } };
-                }
-                return (bTarget as any)[name](...args);
+                });
               };
             }
             const val = (bTarget as any)[name];
