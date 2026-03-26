@@ -248,6 +248,14 @@ const SuperAdminDashboard = () => {
     queryClient.invalidateQueries({ queryKey: ["all-programs"] });
   };
 
+  const handleDeactivateAllPrograms = async () => {
+    if (!window.confirm("Deactivate all programs? This will disable new data writes until a program is activated.")) return;
+    const { error } = await supabase.from("programs").update({ is_active: false });
+    if (error) { toast.error("Failed to deactivate programs."); return; }
+    toast.success("All programs deactivated. Writes are now disabled until a program is activated.");
+    queryClient.invalidateQueries({ queryKey: ["all-programs"] });
+  };
+
   const { data: busPoints = [], refetch: refetchBusPoints } = useQuery({
     queryKey: ["all-bus-points"],
     queryFn: async () => {
@@ -1790,9 +1798,18 @@ const SuperAdminDashboard = () => {
                   <h2 className="text-3xl font-display font-bold text-foreground">Programs & Sessions</h2>
                   <p className="text-muted-foreground font-body">Create events and manage the Active program shown on the website.</p>
                 </div>
-                <Button onClick={() => setIsAddingProgram(true)} className="bg-gradient-gold text-accent-foreground">
-                  <Calendar className="w-4 h-4 mr-2" /> Add Program
-                </Button>
+                <div className="flex items-center gap-3">
+                  <Button onClick={() => setIsAddingProgram(true)} className="bg-gradient-gold text-accent-foreground">
+                    <Calendar className="w-4 h-4 mr-2" /> Add Program
+                  </Button>
+                  {activeProgram ? (
+                    <Button variant="outline" onClick={handleDeactivateAllPrograms} className="text-destructive border-destructive/30">
+                      Deactivate All
+                    </Button>
+                  ) : (
+                    <Badge variant="outline">No Active Program</Badge>
+                  )}
+                </div>
               </div>
 
               <Card className="bg-card/40 backdrop-blur-xl border-border/50">

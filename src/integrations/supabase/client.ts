@@ -8,10 +8,53 @@ const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+const rawSupabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
     storage: localStorage,
     persistSession: true,
     autoRefreshToken: true,
+  }
+});
+
+// Guard writes when there is no active program.
+// This proxy intercepts `from(table).insert/update/delete` calls and checks
+// if an active program exists. If none exists, the operation is rejected
+// with a lightweight error to prevent accidental writes when the system is "off".
+export const supabase: any = new Proxy(rawSupabase, {
+  get(target, prop, receiver) {
+    const orig = (target as any)[prop];
+    if (prop === 'from') {
+      return function (tableName: string) {
+        const builder = orig.call(target, tableName);
+        const bypassTables = new Set([
+          'programs', 'audit_logs', 'user_roles', 'profiles', 'live_stream_settings', 'churches'
+        ]);
+        return new Proxy(builder, {
+          get(bTarget, bProp) {
+            const name = String(bProp);
+            if (['insert', 'update', 'delete'].includes(name)) {
+              return async (...args: any[]) => {
+                try {
+                  // Allow admin critical tables to be written even when no active program exists
+                  if (bypassTables.has(tableName)) {
+                    return (bTarget as any)[name](...args);
+                  }
+                  const { data: active } = await rawSupabase.from('programs').select('id').eq('is_active', true).limit(1).maybeSingle();
+                  if (!active) {
+                    return { error: { message: 'No active program. Database writes are currently disabled.' } };
+                  }
+                } catch (e) {
+                  return { error: { message: 'Write check failed. Database writes are blocked.' } };
+                }
+                return (bTarget as any)[name](...args);
+              };
+            }
+            const val = (bTarget as any)[name];
+            return typeof val === 'function' ? val.bind(bTarget) : val;
+          }
+        });
+      };
+    }
+    return typeof orig === 'function' ? orig.bind(target) : orig;
   }
 });
