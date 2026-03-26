@@ -40,3 +40,11 @@
 .read-the-docs {
   color: #888;
 }
+
+/* Hero background image class for main hero section */
+.hero-bg {
+  background-image: url('/praying.png');
+  background-position: center top;
+  background-size: cover;
+  background-repeat: no-repeat;
+}

@@ -121,6 +121,12 @@
   .animate-fade-in {
     animation: fadeIn 0.8s ease-out forwards;
   }
+  .hero-bg {
+    background-image: url('/praying.png');
+    background-position: center top;
+    background-size: cover;
+    background-repeat: no-repeat;
+  }
 }
 
 @keyframes fadeUp {

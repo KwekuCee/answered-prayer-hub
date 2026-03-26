@@ -3,10 +3,7 @@ import { Link } from "react-router-dom";
 
 const HeroSection = () => {
   return (
-    <div
-      className="relative min-h-[70vh] flex items-center justify-center overflow-hidden bg-navy"
-      style={{ backgroundImage: "url('/praying.png')", backgroundPosition: 'center top', backgroundSize: 'cover', backgroundRepeat: 'no-repeat' }}
-    >
+    <div className="relative min-h-[70vh] flex items-center justify-center overflow-hidden bg-navy hero-bg">
 
       {/* Overlay gradient for readability */}
       <div className="absolute inset-0 bg-gradient-to-b from-navy/60 via-navy/30 to-background/90" />
