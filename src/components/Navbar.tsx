@@ -42,6 +42,8 @@ export const Navbar = () => {
         },
     });
 
+    
+
     const links = [
         { label: "Home", href: "/" },
         { label: "About", href: "/#about" },
@@ -164,6 +166,8 @@ export const Navbar = () => {
                     </div>
                 </div>
             )}
+
+            
         </nav>
     );
 };

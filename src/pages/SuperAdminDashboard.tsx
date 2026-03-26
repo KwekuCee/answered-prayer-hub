@@ -501,6 +501,13 @@ const SuperAdminDashboard = () => {
         for (const s of samples || []) {
           rows.push([s.id, String(s.count), s.recorded_at].join(','));
         }
+        rows.push(['',''].join(','));
+        rows.push(['Participants']);
+        rows.push(['id','viewer_key','name','contact','location','program_id','joined_at'].join(','));
+        const { data: participants } = await supabase.from('live_participants').select('*').order('joined_at', { ascending: true }).limit(5000).throwOnError();
+        for (const p of participants || []) {
+          rows.push([p.id, (p.viewer_key||''), (p.name||'').replace(/,/g,''), (p.contact||'').replace(/,/g,''), (p.location||'').replace(/,/g,''), p.program_id || '', p.joined_at].join(','));
+        }
         const csv2 = rows.join('\n');
         const blob2 = new Blob([csv2], { type: 'text/csv;charset=utf-8;' });
         const url2 = URL.createObjectURL(blob2);

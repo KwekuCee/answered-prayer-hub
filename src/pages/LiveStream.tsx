@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/Navbar";
 import { Loader2, Users, Send, MessageCircle } from "lucide-react";
+import ParticipantForm from "@/components/ParticipantForm";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Link } from "react-router-dom";
@@ -49,6 +50,8 @@ const LiveStream = () => {
     const [userName, setUserName] = useState(() => localStorage.getItem("chatName") || "");
     const chatRef = useRef<HTMLDivElement>(null);
     const [viewers, setViewers] = useState(1);
+    const [iframeLoaded, setIframeLoaded] = useState(false);
+    const [iframeError, setIframeError] = useState(false);
 
     // Initial Fetch & Subscription
     useEffect(() => {
@@ -76,17 +79,27 @@ const LiveStream = () => {
         const presenceChannel = supabase.channel('stream-room', {
             config: { presence: { key: Math.random().toString() } }
         });
+        // store the viewer key so we can link it to a participant record
+        let viewerKey = Math.random().toString();
 
         presenceChannel
             .on('presence', { event: 'sync' }, () => {
-                const state = presenceChannel.presenceState();
-                setViewers(Object.keys(state).length);
-            })
-            .subscribe(async (status) => {
-                if (status === 'SUBSCRIBED') {
-                    await presenceChannel.track({ online_at: new Date().toISOString() });
-                }
-            });
+                    const state = presenceChannel.presenceState();
+                    setViewers(Object.keys(state).length);
+                })
+                .subscribe(async (status) => {
+                    if (status === 'SUBSCRIBED') {
+                        await presenceChannel.track({ online_at: new Date().toISOString() });
+                        // ensure we have a viewer key stored locally
+                        try {
+                            const storedKey = localStorage.getItem('viewer_key');
+                            if (storedKey) viewerKey = storedKey;
+                            else {
+                                localStorage.setItem('viewer_key', viewerKey);
+                            }
+                        } catch { }
+                    }
+                });
 
         return () => {
             supabase.removeChannel(chatSubscription);
@@ -150,27 +163,36 @@ const LiveStream = () => {
                                     <Loader2 className="h-10 w-10 animate-spin" />
                                     <p className="font-body tracking-widest text-sm uppercase">Loading Stream...</p>
                                 </div>
-                            ) : (liveStreamSettings?.is_active && liveStreamSettings?.url) ? (
-                                <iframe
-                                    src={getEmbedUrl(liveStreamSettings.url)}
-                                    title="Live Stream"
-                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                    allowFullScreen
-                                    className="absolute inset-0 w-full h-full border-0"
-                                ></iframe>
                             ) : (
-                                <div className="absolute inset-0 flex flex-col items-center justify-center p-6 bg-card/40 backdrop-blur-md">
-                                    <div className="w-16 h-16 bg-navy border border-border/50 rounded-full flex items-center justify-center mb-4">
-                                        <span className="text-3xl">⏳</span>
+                                <>
+                                    <iframe
+                                        src={getEmbedUrl(liveStreamSettings?.url || "")}
+                                        title="Live Stream"
+                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; autoplay"
+                                        allowFullScreen
+                                        onLoad={() => { setIframeLoaded(true); setIframeError(false); }}
+                                        onError={() => { setIframeError(true); setIframeLoaded(false); }}
+                                        className="absolute inset-0 w-full h-full border-0"
+                                    ></iframe>
+
+                                    <div className="absolute top-3 right-3 bg-card/80 backdrop-blur-md border border-border/40 rounded-md p-2 text-xs text-foreground z-20">
+                                        <div className="flex items-center gap-2">
+                                            <strong className="text-[11px]">Stream status:</strong>
+                                            <span className={`px-2 py-0.5 rounded-full text-[11px] ${iframeError ? 'bg-red-600 text-white' : iframeLoaded ? 'bg-green-600 text-white' : 'bg-yellow-600 text-white'}`}>
+                                                {iframeError ? 'Error' : iframeLoaded ? 'Loaded' : 'Loading'}
+                                            </span>
+                                        </div>
+                                        <div className="mt-1">
+                                            <div className="truncate">URL: {liveStreamSettings?.url || '—'}</div>
+                                            <div className="truncate">Embed: {getEmbedUrl(liveStreamSettings?.url || '') || '—'}</div>
+                                        </div>
+                                        {iframeError && (
+                                            <div className="mt-2 flex gap-2">
+                                                <a href={liveStreamSettings?.url || '#'} target="_blank" rel="noreferrer" className="text-xs underline">Open source URL</a>
+                                            </div>
+                                        )}
                                     </div>
-                                    <h3 className="text-2xl font-display font-bold text-foreground mb-2">Stream will begin shortly</h3>
-                                    <p className="text-muted-foreground font-body mb-6 text-center max-w-sm">
-                                        The live stream will start when a link is provided and the stream is toggled on from the Super Admin dashboard.
-                                    </p>
-                                    <Button asChild className="bg-gradient-gold text-navy hover:shadow-[0_0_20px_rgba(255,215,0,0.3)]">
-                                        <Link to="/">Back to Home</Link>
-                                    </Button>
-                                </div>
+                                </>
                             )}
                         </div>
 
@@ -243,6 +265,8 @@ const LiveStream = () => {
 
                         {/* Chat Input */}
                         <form onSubmit={handleSendMessage} className="p-3 border-t border-border/50 bg-card space-y-3 shrink-0">
+                            {/* Quick participant form toggle */}
+                            <ParticipantForm viewers={viewers} viewerKey={localStorage.getItem('viewer_key') || ''} onParticipantSaved={(name) => setUserName(name)} />
                             <Input
                                 placeholder="Chat as... (Name)"
                                 className="h-8 text-xs bg-background border-border shadow-inner"
