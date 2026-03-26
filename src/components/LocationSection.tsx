@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { MapPin } from "lucide-react";
+import logo from "@/assets/logo.png";
 
 export const LocationSection = () => {
     const { data: activeProgram, isLoading } = useQuery({
@@ -99,6 +100,13 @@ export const LocationSection = () => {
                         )}
 
                         <div className="absolute inset-0 pointer-events-none border-[12px] border-background/20 z-20 mix-blend-overlay"></div>
+                    </div>
+                </div>
+                {/* Mid image with floating logo overlay */}
+                <div className="mt-10 max-w-6xl mx-auto">
+                    <div className="mid-image-container">
+                        <img src="/mid.png" alt="Mid" className="mid-image" />
+                        <img src={logo} alt="100% Answered Prayer" className="floating-logo w-48 md:w-72" />
                     </div>
                 </div>
             </div>

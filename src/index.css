@@ -127,6 +127,26 @@
     background-size: cover;
     background-repeat: no-repeat;
   }
+  .mid-image-container {
+    position: relative;
+    overflow: hidden;
+    border-radius: 1rem;
+  }
+  .mid-image {
+    width: 100%;
+    height: auto;
+    display: block;
+    object-fit: cover;
+  }
+  .floating-logo {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    filter: drop-shadow(0 10px 30px rgba(0,0,0,0.25));
+    animation: floatUpDown 6s ease-in-out infinite;
+  }
   .card-faith {
     background-image: linear-gradient(135deg, #6B21A8, #8B5CF6); /* purple */
     color: white;
@@ -148,4 +168,9 @@
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
+}
+@keyframes floatUpDown {
+  0% { transform: translate(-50%, -52%); }
+  50% { transform: translate(-50%, -48%); }
+  100% { transform: translate(-50%, -52%); }
 }
