@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Menu, X } from "lucide-react";
+import { Menu, X, Sun, Moon } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -7,6 +7,25 @@ import { supabase } from "@/integrations/supabase/client";
 export const Navbar = () => {
     const [isOpen, setIsOpen] = useState(false);
     const [scrolled, setScrolled] = useState(false);
+    const [isDark, setIsDark] = useState<boolean>(() => {
+        try {
+            const stored = localStorage.getItem('theme');
+            if (stored) return stored === 'dark';
+            return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        } catch {
+            return false;
+        }
+    });
+
+    useEffect(() => {
+        try {
+            if (isDark) document.documentElement.classList.add('dark');
+            else document.documentElement.classList.remove('dark');
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+        } catch (e) {
+            console.debug('theme toggle error', e);
+        }
+    }, [isDark]);
 
     useEffect(() => {
         const handleScroll = () => setScrolled(window.scrollY > 20);
@@ -49,6 +68,13 @@ export const Navbar = () => {
 
                     {/* Desktop Menu */}
                     <div className="hidden md:flex space-x-8 items-center">
+                        <button
+                            aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+                            onClick={() => setIsDark(d => !d)}
+                            className="text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                            {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+                        </button>
                         {links.map((link) => (
                             <a
                                 key={link.label}
@@ -83,6 +109,13 @@ export const Navbar = () => {
 
                     {/* Mobile Menu Button */}
                     <div className="md:hidden flex items-center gap-4">
+                        <button
+                            aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+                            onClick={() => setIsDark(d => !d)}
+                            className="text-muted-foreground hover:text-foreground transition-colors"
+                        >
+                            {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+                        </button>
                         <a
                             href="/live"
                             className="text-muted-foreground font-body text-xs font-semibold flex items-center gap-1"

@@ -150,9 +150,9 @@ const LiveStream = () => {
                                     <Loader2 className="h-10 w-10 animate-spin" />
                                     <p className="font-body tracking-widest text-sm uppercase">Loading Stream...</p>
                                 </div>
-                            ) : true ? (
+                            ) : (liveStreamSettings?.is_active && liveStreamSettings?.url) ? (
                                 <iframe
-                                    src={getEmbedUrl(liveStreamSettings?.url || "https://www.youtube.com/watch?v=At7EcvV7wOM")}
+                                    src={getEmbedUrl(liveStreamSettings.url)}
                                     title="Live Stream"
                                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                                     allowFullScreen
@@ -161,14 +161,14 @@ const LiveStream = () => {
                             ) : (
                                 <div className="absolute inset-0 flex flex-col items-center justify-center p-6 bg-card/40 backdrop-blur-md">
                                     <div className="w-16 h-16 bg-navy border border-border/50 rounded-full flex items-center justify-center mb-4">
-                                        <span className="text-xl">📴</span>
+                                        <span className="text-3xl">⏳</span>
                                     </div>
-                                    <h3 className="text-2xl font-display font-bold text-foreground mb-2">Stream Offline</h3>
+                                    <h3 className="text-2xl font-display font-bold text-foreground mb-2">Stream will begin shortly</h3>
                                     <p className="text-muted-foreground font-body mb-6 text-center max-w-sm">
-                                        We are currently not live. Please check back during our scheduled program times.
+                                        The live stream will start when a link is provided and the stream is toggled on from the Super Admin dashboard.
                                     </p>
                                     <Button asChild className="bg-gradient-gold text-navy hover:shadow-[0_0_20px_rgba(255,215,0,0.3)]">
-                                        <Link to="/#testimonies">Read Testimonies</Link>
+                                        <Link to="/">Back to Home</Link>
                                     </Button>
                                 </div>
                             )}

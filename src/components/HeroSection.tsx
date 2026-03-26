@@ -9,7 +9,7 @@ const HeroSection = () => {
       <div className="absolute inset-0 bg-gradient-to-b from-navy/60 via-navy/30 to-background/90" />
 
       {/* Content */}
-      <div className="relative z-10 text-center px-4 max-w-3xl mx-auto animate-fade-up">
+      <div className="relative z-10 text-center px-4 max-w-3xl mx-auto animate-fade-up hero-content">
         <div className="relative inline-block mb-6">
           {/* Logo Glow/Bloom Effect */}
           <div className="absolute inset-0 bg-gold blur-[40px] opacity-30 rounded-full scale-110 animate-pulse-slow"></div>

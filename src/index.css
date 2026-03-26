@@ -174,3 +174,34 @@
   50% { transform: translate(-50%, -48%); }
   100% { transform: translate(-50%, -52%); }
 }
+
+/* Dark-mode overrides for hero and admin auth text to ensure high contrast */
+.dark .hero-content,
+.dark .hero-content p,
+.dark .hero-content h1,
+.dark .hero-content h2,
+.dark .hero-content h3,
+.dark .hero-content a,
+.dark .hero-content span {
+  color: #f7f3ee !important; /* cream */
+}
+
+.dark .admin-auth,
+.dark .admin-auth .text-primary-foreground,
+.dark .admin-auth p,
+.dark .admin-auth label,
+.dark .admin-auth .card,
+.dark .admin-auth .card * {
+  color: #f7f3ee !important;
+}
+
+/* Ensure placeholders in inputs are lighter in dark-mode admin UI */
+.dark .admin-auth input::placeholder {
+  color: rgba(247,243,238,0.7) !important;
+}
+
+/* Make sidebar text cream/white in dark mode */
+.dark .bg-gradient-navy,
+.dark .bg-gradient-navy * {
+  color: #f7f3ee !important;
+}
