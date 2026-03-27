@@ -59,6 +59,7 @@ const SuperAdminDashboard = () => {
   const [editingInviter, setEditingInviter] = useState<any>(null);
   const [editingAdmin, setEditingAdmin] = useState<any>(null);
   const [editingTestimonial, setEditingTestimonial] = useState<any>(null);
+  const [editingResource, setEditingResource] = useState<any>(null);
   const [viewingAttendee, setViewingAttendee] = useState<any>(null);
 
   const [isAddingTestimonial, setIsAddingTestimonial] = useState(false);
@@ -72,6 +73,12 @@ const SuperAdminDashboard = () => {
 
   const [isAddingInviter, setIsAddingInviter] = useState(false);
   const [newInviter, setNewInviter] = useState<any>({ church_id: "", full_name: "", phone: "", email: "" });
+
+  const [isAddingResource, setIsAddingResource] = useState(false);
+  const [newResource, setNewResource] = useState({ title: "", description: "", category: "general", is_public: true });
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [resourceSearch, setResourceSearch] = useState("");
+  const [resourceCategoryFilter, setResourceCategoryFilter] = useState("all");
 
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [emailSubject, setEmailSubject] = useState("");
@@ -184,7 +191,17 @@ const SuperAdminDashboard = () => {
     },
   });
 
-
+  const { data: resources = [] } = useQuery({
+    queryKey: ["all-resources"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("resources")
+        .select("*, profiles(full_name)")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+  });
 
   const { data: programs = [], refetch: refetchPrograms } = useQuery({
     queryKey: ["all-programs"],
@@ -1283,6 +1300,117 @@ const SuperAdminDashboard = () => {
     queryClient.invalidateQueries({ queryKey: ["live-testimonials"] });
   };
 
+  const handleUploadResource = async (file: File) => {
+    if (!file) return null;
+
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+    const filePath = `resources/${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('resources')
+      .upload(filePath, file);
+
+    if (uploadError) {
+      toast.error("Failed to upload file");
+      throw uploadError;
+    }
+
+    return { fileName, filePath, fileSize: file.size, mimeType: file.type };
+  };
+
+  const handleCreateResource = async () => {
+    if (!newResource.title) {
+      toast.error("Title is required.");
+      return;
+    }
+
+    const fileInput = document.getElementById('resource-file') as HTMLInputElement;
+    if (!fileInput?.files?.[0]) {
+      toast.error("Please select a file to upload.");
+      return;
+    }
+
+    setUploadingFile(true);
+    try {
+      const fileData = await handleUploadResource(fileInput.files[0]);
+
+      const { data: { user } } = await supabase.auth.getUser();
+
+      const { error } = await supabase.from("resources").insert({
+        ...newResource,
+        file_name: fileData.fileName,
+        file_path: fileData.filePath,
+        file_size: fileData.fileSize,
+        mime_type: fileData.mimeType,
+        file_type: getFileType(fileData.mimeType),
+        uploaded_by: user?.id,
+      });
+
+      if (error) throw error;
+
+      toast.success("Resource uploaded successfully!");
+      setIsAddingResource(false);
+      setNewResource({ title: "", description: "", category: "general", is_public: true });
+      if (fileInput) fileInput.value = "";
+      queryClient.invalidateQueries({ queryKey: ["all-resources"] });
+    } catch (error: any) {
+      toast.error(error.message || "Failed to create resource.");
+    } finally {
+      setUploadingFile(false);
+    }
+  };
+
+  const handleSaveResource = async () => {
+    if (!editingResource) return;
+
+    const { error } = await supabase.from("resources").update({
+      title: editingResource.title,
+      description: editingResource.description,
+      category: editingResource.category,
+      is_public: editingResource.is_public,
+    }).eq("id", editingResource.id);
+
+    if (error) { toast.error("Failed to update resource."); return; }
+    toast.success("Resource updated!");
+    setEditingResource(null);
+    queryClient.invalidateQueries({ queryKey: ["all-resources"] });
+  };
+
+  const handleDeleteResource = async (id: string) => {
+    if (!window.confirm("Delete resource? This will also delete the file from storage. THIS CANNOT BE UNDONE.")) return;
+
+    // First get the resource to know the file path
+    const { data: resource } = await supabase.from("resources").select("file_path").eq("id", id).single();
+
+    if (resource) {
+      // Delete from storage
+      await supabase.storage.from('resources').remove([resource.file_path]);
+    }
+
+    // Delete from database
+    const { error } = await supabase.from("resources").delete().eq("id", id);
+    if (error) { toast.error("Failed to delete resource."); return; }
+    toast.success("Resource deleted.");
+    queryClient.invalidateQueries({ queryKey: ["all-resources"] });
+  };
+
+  const getFileType = (mimeType: string) => {
+    if (mimeType.startsWith('application/pdf')) return 'pdf';
+    if (mimeType.startsWith('audio/')) return 'audio';
+    if (mimeType.startsWith('video/')) return 'video';
+    if (mimeType.startsWith('image/')) return 'image';
+    return 'document';
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
   const navItems = [
     { id: "overview", label: "Overview", icon: LayoutDashboard },
     { id: "churches", label: "Manage Churches", icon: Church },
@@ -1291,6 +1419,7 @@ const SuperAdminDashboard = () => {
     { id: "attendees", label: "Manage Attendees", icon: Users },
     { id: "leaderboard", label: "Leaderboards", icon: Trophy },
     { id: "testimonials", label: "Manage Testimonials", icon: MessageCircle },
+    { id: "resources", label: "Manage Resources", icon: Download },
     { id: "programs", label: "Events & Locations", icon: Calendar },
     { id: "bus-points", label: "Bus Routes", icon: Bus },
     { id: "prayer-points", label: "Prayer Requests", icon: Heart },
@@ -1900,6 +2029,102 @@ const SuperAdminDashboard = () => {
                         <TableRow>
                           <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                             No testimonials found. Add one to show on the carousel.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {activeTab === "resources" && (
+            <div className="animate-fade-up space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 className="font-display font-bold text-lg">Manage Resources</h2>
+                <div className="flex items-center gap-2">
+                  <Input
+                    value={resourceSearch}
+                    onChange={(e) => setResourceSearch(e.target.value)}
+                    placeholder="Search resources..."
+                    className="w-48"
+                  />
+                  <Select value={resourceCategoryFilter} onValueChange={setResourceCategoryFilter}>
+                    <SelectTrigger className="w-40"><SelectValue placeholder="All Categories" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Categories</SelectItem>
+                      <SelectItem value="prayer_guide">Prayer Guide</SelectItem>
+                      <SelectItem value="study_material">Study Material</SelectItem>
+                      <SelectItem value="music">Music</SelectItem>
+                      <SelectItem value="video">Video</SelectItem>
+                      <SelectItem value="testimony">Testimony</SelectItem>
+                      <SelectItem value="general">General</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button size="sm" onClick={() => setIsAddingResource(true)} className="gap-2 bg-gradient-gold text-accent-foreground hover:opacity-90">
+                    Upload Resource
+                  </Button>
+                </div>
+              </div>
+              <Card className="border-border/50">
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Title</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead>Category</TableHead>
+                        <TableHead>Size</TableHead>
+                        <TableHead>Downloads</TableHead>
+                        <TableHead className="text-center">Public</TableHead>
+                        <TableHead className="text-center">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {resources
+                        .filter(r =>
+                          (resourceCategoryFilter === "all" || r.category === resourceCategoryFilter) &&
+                          (resourceSearch === "" || r.title.toLowerCase().includes(resourceSearch.toLowerCase()) || r.description.toLowerCase().includes(resourceSearch.toLowerCase()))
+                        )
+                        .map((r: any) => (
+                          <TableRow key={r.id}>
+                            <TableCell className="font-medium">
+                              <div>
+                                <div className="font-medium">{r.title}</div>
+                                {r.description && <div className="text-sm text-muted-foreground truncate max-w-xs">{r.description}</div>}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline" className="capitalize">
+                                {r.file_type}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="capitalize">{r.category.replace('_', ' ')}</TableCell>
+                            <TableCell>{formatFileSize(r.file_size)}</TableCell>
+                            <TableCell className="text-center">{r.download_count}</TableCell>
+                            <TableCell className="text-center">
+                              <Badge className={r.is_public ? "bg-success/10 text-success border-0" : "bg-muted text-muted-foreground border-0"}>
+                                {r.is_public ? "Yes" : "No"}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-center space-x-1 whitespace-nowrap">
+                              <Button size="sm" variant="ghost" onClick={() => window.open(`${supabase.supabaseUrl}/storage/v1/object/public/resources/${r.file_path}`, '_blank')}>
+                                <Download className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button size="sm" variant="ghost" onClick={() => setEditingResource(r)}>
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button size="sm" variant="ghost" onClick={() => handleDeleteResource(r.id)}>
+                                <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                              </Button>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      {resources.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                            No resources uploaded yet. Upload your first resource to get started.
                           </TableCell>
                         </TableRow>
                       )}
@@ -2936,6 +3161,132 @@ const SuperAdminDashboard = () => {
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditingTestimonial(null)} className="font-body">Cancel</Button>
             <Button onClick={handleUpdateTestimonial} className="bg-gradient-gold text-accent-foreground font-body hover:opacity-90">
+              Update
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Resource Dialog */}
+      <Dialog open={isAddingResource} onOpenChange={setIsAddingResource}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-display">Upload Resource</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Title *</Label>
+              <Input
+                value={newResource.title}
+                onChange={(e) => setNewResource({ ...newResource, title: e.target.value })}
+                placeholder="Resource title"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Description</Label>
+              <Textarea
+                value={newResource.description}
+                onChange={(e) => setNewResource({ ...newResource, description: e.target.value })}
+                placeholder="Brief description (optional)"
+                rows={3}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Category</Label>
+              <Select value={newResource.category} onValueChange={(value) => setNewResource({ ...newResource, category: value })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="general">General</SelectItem>
+                  <SelectItem value="prayer_guide">Prayer Guide</SelectItem>
+                  <SelectItem value="study_material">Study Material</SelectItem>
+                  <SelectItem value="music">Music</SelectItem>
+                  <SelectItem value="video">Video</SelectItem>
+                  <SelectItem value="testimony">Testimony</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>File *</Label>
+              <Input
+                id="resource-file"
+                type="file"
+                accept=".pdf,.mp3,.mp4,.avi,.mov,.doc,.docx,.txt,.jpg,.png,.jpeg"
+              />
+            </div>
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="add-public"
+                checked={newResource.is_public}
+                onCheckedChange={(checked) => setNewResource({ ...newResource, is_public: checked })}
+              />
+              <Label htmlFor="add-public" className="font-body">Public (visible to all users)</Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAddingResource(false)} className="font-body">Cancel</Button>
+            <Button onClick={handleCreateResource} disabled={uploadingFile} className="bg-gradient-gold text-accent-foreground font-body hover:opacity-90">
+              {uploadingFile ? "Uploading..." : "Upload"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Resource Dialog */}
+      <Dialog open={!!editingResource} onOpenChange={(open) => !open && setEditingResource(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-display">Edit Resource</DialogTitle>
+          </DialogHeader>
+          {editingResource && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Title *</Label>
+                <Input
+                  value={editingResource.title}
+                  onChange={(e) => setEditingResource({ ...editingResource, title: e.target.value })}
+                  placeholder="Resource title"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Description</Label>
+                <Textarea
+                  value={editingResource.description}
+                  onChange={(e) => setEditingResource({ ...editingResource, description: e.target.value })}
+                  placeholder="Brief description (optional)"
+                  rows={3}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Category</Label>
+                <Select value={editingResource.category} onValueChange={(value) => setEditingResource({ ...editingResource, category: value })}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="general">General</SelectItem>
+                    <SelectItem value="prayer_guide">Prayer Guide</SelectItem>
+                    <SelectItem value="study_material">Study Material</SelectItem>
+                    <SelectItem value="music">Music</SelectItem>
+                    <SelectItem value="video">Video</SelectItem>
+                    <SelectItem value="testimony">Testimony</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="edit-public"
+                  checked={editingResource.is_public}
+                  onCheckedChange={(checked) => setEditingResource({ ...editingResource, is_public: checked })}
+                />
+                <Label htmlFor="edit-public" className="font-body">Public (visible to all users)</Label>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingResource(null)} className="font-body">Cancel</Button>
+            <Button onClick={handleSaveResource} className="bg-gradient-gold text-accent-foreground font-body hover:opacity-90">
               Update
             </Button>
           </DialogFooter>

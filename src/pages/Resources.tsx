@@ -7,37 +7,51 @@ import { Button } from "@/components/ui/button";
 import { FileText, Download, Loader2, BookOpen } from "lucide-react";
 import { toast } from "sonner";
 
+const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+};
+
 const Resources = () => {
-    // Fetch files from the 'resources' bucket
-    const { data: files, isLoading, error } = useQuery({
+    // Fetch resources from the database
+    const { data: resources, isLoading, error } = useQuery({
         queryKey: ["resources"],
         queryFn: async () => {
-            const { data, error } = await supabase.storage.from("resources").list();
+            const { data, error } = await supabase
+                .from("resources")
+                .select("*")
+                .eq("is_public", true)
+                .order("created_at", { ascending: false });
             if (error) {
-                console.error("Storage error:", error);
+                console.error("Database error:", error);
                 throw error;
             }
-            // Filter out placeholder files like .emptyFolderPlaceholder
-            return data.filter(file => file.name !== ".emptyFolderPlaceholder");
+            return data;
         },
     });
 
-    const handleDownload = async (fileName: string) => {
+    const handleDownload = async (resource: any) => {
         try {
-            const { data, error } = await supabase.storage.from("resources").download(fileName);
+            const { data, error } = await supabase.storage.from("resources").download(resource.file_path);
             if (error) throw error;
 
             // Create a download link
             const url = URL.createObjectURL(data);
             const a = document.createElement("a");
             a.href = url;
-            a.download = fileName;
+            a.download = resource.file_name;
             document.body.appendChild(a);
             a.click();
             URL.revokeObjectURL(url);
             document.body.removeChild(a);
 
-            toast.success(`Started downloading ${fileName}`);
+            // Increment download count
+            await supabase.rpc('increment_download_count', { resource_id: resource.id });
+
+            toast.success(`Started downloading ${resource.title}`);
         } catch (err: any) {
             toast.error("Failed to download file. Please try again.");
             console.error(err);
@@ -78,7 +92,7 @@ const Resources = () => {
                                 <h3 className="text-xl font-display font-semibold text-foreground mb-2">Unavailable</h3>
                                 <p className="text-muted-foreground font-body">We couldn't connect to the resource library at this time.</p>
                             </div>
-                        ) : !files || files.length === 0 ? (
+                        ) : !resources || resources.length === 0 ? (
                             <div className="text-center py-20 bg-card/40 rounded-3xl border border-dashed border-border/50">
                                 <BookOpen className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-50" />
                                 <h3 className="text-xl font-display font-semibold text-foreground mb-2">No resources available yet</h3>
@@ -86,8 +100,8 @@ const Resources = () => {
                             </div>
                         ) : (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fade-up">
-                                {files.map((file) => (
-                                    <Card key={file.id} className="bg-card/80 backdrop-blur-xl border-border/50 hover:shadow-gold/10 hover:border-gold/30 transition-all duration-300 group">
+                                {resources.map((resource) => (
+                                    <Card key={resource.id} className="bg-card/80 backdrop-blur-xl border-border/50 hover:shadow-gold/10 hover:border-gold/30 transition-all duration-300 group">
                                         <CardHeader className="pb-4">
                                             <div className="flex items-start justify-between">
                                                 <div className="flex items-center gap-3">
@@ -96,12 +110,21 @@ const Resources = () => {
                                                     </div>
                                                     <div>
                                                         <CardTitle className="font-display text-lg group-hover:text-gold transition-colors line-clamp-1">
-                                                            {file.name.replace(/\.[^/.]+$/, "")}
+                                                            {resource.title}
                                                         </CardTitle>
                                                         <CardDescription className="text-xs uppercase tracking-wider font-semibold mt-1">
-                                                            PDF Document
+                                                            {resource.file_type.toUpperCase()} • {resource.category.replace('_', ' ')}
                                                         </CardDescription>
+                                                        {resource.description && (
+                                                            <p className="text-sm text-muted-foreground mt-2 line-clamp-2">
+                                                                {resource.description}
+                                                            </p>
+                                                        )}
                                                     </div>
+                                                </div>
+                                                <div className="text-right text-xs text-muted-foreground">
+                                                    <div>{formatFileSize(resource.file_size)}</div>
+                                                    <div>{resource.download_count} downloads</div>
                                                 </div>
                                             </div>
                                         </CardHeader>
@@ -109,7 +132,7 @@ const Resources = () => {
                                             <Button
                                                 variant="outline"
                                                 className="w-full gap-2 border-border/50 hover:bg-gold hover:text-navy hover:border-gold transition-colors"
-                                                onClick={() => handleDownload(file.name)}
+                                                onClick={() => handleDownload(resource)}
                                             >
                                                 <Download className="w-4 h-4" /> Download Resource
                                             </Button>
