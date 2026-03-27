@@ -14,7 +14,7 @@ const LiveStream = () => {
         queryFn: async () => {
             const { data, error } = await supabase.from("live_stream_settings").select("*").order("updated_at", { ascending: false }).limit(1);
             if (error) console.error(error);
-            return data?.[0] || { url: "https://www.youtube.com/watch?v=At7EcvV7wOM", is_active: true };
+            return data?.[0] || null;
         },
     });
 
@@ -127,71 +127,33 @@ const LiveStream = () => {
                                     <Loader2 className="h-10 w-10 animate-spin" />
                                     <p className="font-body tracking-widest text-sm uppercase">Loading Stream...</p>
                                 </div>
-                            ) : (
-                                <>
-                                    {/* compute embed src and allow autoplay only after user gesture */}
-                                    {(() => {
-                                        const embedBase = getEmbedUrl(liveStreamSettings?.url || "");
-
-                                        const sep = embedBase.includes('?') ? '&' : '?';
-                                        let candidate = embedBase ? `${embedBase}${sep}autoplay=1&mute=1` : (liveStreamSettings?.url || '');
-                                        // Ensure autoplay & mute are present for non-embed raw URLs too
-                                        if (candidate && !/autoplay=/.test(candidate)) {
-                                            const sep2 = candidate.includes('?') ? '&' : '?';
-                                            candidate = `${candidate}${sep2}autoplay=1&mute=1`;
-                                        }
-                                        // Render iframe using candidate; if URL is malformed the browser will handle it.
-                                        const src = candidate;
-                                        return (
-                                            <iframe
-                                                key={src}
-                                                src={src}
-                                                title="Live Stream"
-                                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; autoplay"
-                                                
-                                                allowFullScreen
-                                                onLoad={() => { setIframeLoaded(true); setIframeError(false); }}
-                                                onError={() => { setIframeError(true); setIframeLoaded(false); }}
-                                                className="absolute inset-0 w-full h-full border-0"
-                                            />
-                                        );
-                                    })()}
-
-                                    {/* click-to-play overlay for autoplay-sensitive browsers */}
-                                    {!userPlayed && (
-                                        <div className="absolute inset-0 flex items-center justify-center z-30 pointer-events-auto">
-                                            <button
-                                                onClick={() => setUserPlayed(true)}
-                                                className="flex flex-col items-center gap-2 bg-black/60 hover:bg-black/70 text-white px-6 py-4 rounded-lg backdrop-blur-sm"
-                                            >
-                                                <div className="bg-white/10 p-4 rounded-full">
-                                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-8 h-8">
-                                                        <path d="M5 3v18l15-9L5 3z" />
-                                                    </svg>
-                                                </div>
-                                                <div className="text-sm font-semibold">Play Live Stream</div>
-                                            </button>
-                                        </div>
-                                    )}
-
-                                    <div className="absolute top-3 right-3 bg-card/80 backdrop-blur-md border border-border/40 rounded-md p-2 text-xs text-foreground z-20">
-                                        <div className="flex items-center gap-2">
-                                            <strong className="text-[11px]">Stream status:</strong>
-                                            <span className={`px-2 py-0.5 rounded-full text-[11px] ${iframeError ? 'bg-red-600 text-white' : iframeLoaded ? 'bg-green-600 text-white' : 'bg-yellow-600 text-white'}`}>
-                                                {iframeError ? 'Error' : iframeLoaded ? 'Loaded' : 'Loading'}
-                                            </span>
-                                        </div>
-                                        <div className="mt-1">
-                                            <div className="truncate">URL: {liveStreamSettings?.url || '—'}</div>
-                                            <div className="truncate">Embed: {getEmbedUrl(liveStreamSettings?.url || '') || '—'}</div>
-                                        </div>
-                                        {iframeError && (
-                                            <div className="mt-2 flex gap-2">
-                                                <a href={liveStreamSettings?.url || '#'} target="_blank" rel="noreferrer" className="text-xs underline">Open source URL</a>
-                                            </div>
-                                        )}
+                            ) : !liveStreamSettings?.is_active || !liveStreamSettings?.url ? (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 text-muted-foreground">
+                                    <div className="w-20 h-20 rounded-full bg-muted/20 flex items-center justify-center">
+                                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-10 h-10 opacity-50">
+                                            <path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z" />
+                                            <line x1="3" y1="3" x2="21" y2="21" strokeLinecap="round" />
+                                        </svg>
                                     </div>
-                                </>
+                                    <p className="font-display text-xl font-bold">Stream Offline</p>
+                                    <p className="text-sm text-muted-foreground/70">The live stream is currently not available. Check back later!</p>
+                                </div>
+                            ) : (
+                                <iframe
+                                    key={getEmbedUrl(liveStreamSettings.url)}
+                                    src={(() => {
+                                        const embed = getEmbedUrl(liveStreamSettings.url);
+                                        if (!embed) return liveStreamSettings.url;
+                                        const sep = embed.includes('?') ? '&' : '?';
+                                        return `${embed}${sep}autoplay=1&mute=1`;
+                                    })()}
+                                    title="Live Stream"
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                    allowFullScreen
+                                    onLoad={() => { setIframeLoaded(true); setIframeError(false); }}
+                                    onError={() => { setIframeError(true); setIframeLoaded(false); }}
+                                    className="absolute inset-0 w-full h-full border-0"
+                                />
                             )}
                         </div>
 
