@@ -10,12 +10,22 @@ import { Link } from "react-router-dom";
 import { toast } from "sonner";
 const LiveStream = () => {
     const { data: liveStreamSettings, isLoading } = useQuery({
-        queryKey: ["live-stream"],
+        queryKey: ["live-stream-settings"],
         queryFn: async () => {
-            const { data, error } = await supabase.from("live_stream_settings").select("*").order("updated_at", { ascending: false }).limit(1);
-            if (error) console.error(error);
-            return data?.[0] || null;
+            try {
+                const { data, error } = await supabase.from("live_stream_settings").select("*").order("updated_at", { ascending: false }).limit(1);
+                if (error) {
+                    console.error("Failed to fetch live stream settings:", error);
+                    return null;
+                }
+                return data?.[0] || null;
+            } catch (err) {
+                console.error("Live stream settings fetch error:", err);
+                return null;
+            }
         },
+        refetchOnWindowFocus: true,
+        staleTime: 0,
     });
 
     useEffect(() => {
