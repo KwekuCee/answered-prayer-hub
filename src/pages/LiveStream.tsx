@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
-
 const LiveStream = () => {
     const { data: liveStreamSettings, isLoading } = useQuery({
         queryKey: ["live-stream"],
@@ -19,95 +18,60 @@ const LiveStream = () => {
         },
     });
 
-    const getEmbedUrl = (url: string) => {
-        if (!url) return "";
-        try {
-            if (url.includes("youtube.com") || url.includes("youtu.be")) {
-                let videoId = "";
-                if (url.includes("watch?v=")) {
-                    videoId = url.split("watch?v=")[1]?.split("&")[0];
-                } else if (url.includes("youtu.be/")) {
-                    videoId = url.split("youtu.be/")[1]?.split("?")[0];
-                } else if (url.includes("youtube.com/live/")) {
-                    videoId = url.split("youtube.com/live/")[1]?.split("?")[0];
-                } else if (url.includes("embed/")) {
-                    return url;
-                }
-
-                if (videoId) {
-                    return `https://www.youtube.com/embed/${videoId}`;
-                }
-            }
-        } catch (e) {
-            console.error("URL Parsing error:", e);
-        }
-        return url;
-    };
-
-    // Chat State
-    const [messages, setMessages] = useState<any[]>([]);
-    const [newMessage, setNewMessage] = useState("");
-    const [userName, setUserName] = useState(() => localStorage.getItem("chatName") || "");
-    const chatRef = useRef<HTMLDivElement>(null);
-    const [viewers, setViewers] = useState(1);
+    useEffect(() => {
+        console.debug('liveStreamSettings:', liveStreamSettings);
+    }, [liveStreamSettings]);
+    // Local UI state
     const [iframeLoaded, setIframeLoaded] = useState(false);
     const [iframeError, setIframeError] = useState(false);
+    // persist user-play intent so refresh keeps attempting autoplay
+    const [userPlayed, setUserPlayed] = useState<boolean>(() => {
+        const v = localStorage.getItem('userPlayed');
+        return v === null ? true : v === '1';
+    });
+    const [viewers, setViewers] = useState(0);
 
-    // Initial Fetch & Subscription
+    // Chat state
+    const [messages, setMessages] = useState<any[]>([]);
+    const chatRef = useRef<HTMLDivElement | null>(null);
+    const [userName, setUserName] = useState<string>(localStorage.getItem("chatName") || "");
+    const [newMessage, setNewMessage] = useState<string>("");
+
+    // Simple helper to convert popular watch URLs to embed URLs
+    const getEmbedUrl = (url?: string) => {
+        if (!url) return "";
+        try {
+            // Normalize whitespace
+            const u = url.trim();
+            // YouTube watch URL
+            const ytMatch = u.match(/(?:v=|youtu\.be\/)([A-Za-z0-9_-]{6,})/);
+            if (ytMatch && ytMatch[1]) return `https://www.youtube.com/embed/${ytMatch[1]}`;
+            // If already an embed or absolute URL, return as-is
+            if (/^https?:\/\//.test(u)) return u;
+            return u;
+        } catch (err) {
+            console.debug("getEmbedUrl error", err);
+            return "";
+        }
+    };
+
+    // Load recent chat messages once
     useEffect(() => {
-        // Fetch existing messages
-        const fetchMessages = async () => {
-            const { data } = await supabase.from("live_chats").select("*").eq("is_deleted", false).order("created_at", { ascending: true }).limit(100);
-            if (data) setMessages(data);
-        };
-        fetchMessages();
+        let mounted = true;
+        (async () => {
+            try {
+                const { data, error } = await supabase.from("live_chats").select("*").order("created_at", { ascending: true }).limit(200);
+                if (error) throw error;
+                if (mounted && data) setMessages(data as any[]);
+            } catch (err) {
+                console.debug("Failed to load messages", err);
+            }
+        })();
 
-        // Subscribe to New Messages
-        const chatSubscription = supabase.channel('public:live_chats')
-            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'live_chats' }, payload => {
-                setMessages(prev => [...prev, payload.new]);
-            })
-            .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'live_chats' }, payload => {
-                // Handle deletions
-                if (payload.new.is_deleted) {
-                    setMessages(prev => prev.filter(msg => msg.id !== payload.new.id));
-                }
-            })
-            .subscribe();
-
-        // Presence Tracking
-        const presenceChannel = supabase.channel('stream-room', {
-            config: { presence: { key: Math.random().toString() } }
-        });
-        // store the viewer key so we can link it to a participant record
-        let viewerKey = Math.random().toString();
-
-        presenceChannel
-            .on('presence', { event: 'sync' }, () => {
-                    const state = presenceChannel.presenceState();
-                    setViewers(Object.keys(state).length);
-                })
-                .subscribe(async (status) => {
-                    if (status === 'SUBSCRIBED') {
-                        await presenceChannel.track({ online_at: new Date().toISOString() });
-                        // ensure we have a viewer key stored locally
-                        try {
-                            const storedKey = localStorage.getItem('viewer_key');
-                            if (storedKey) viewerKey = storedKey;
-                            else {
-                                localStorage.setItem('viewer_key', viewerKey);
-                            }
-                        } catch { }
-                    }
-                });
-
-        return () => {
-            supabase.removeChannel(chatSubscription);
-            supabase.removeChannel(presenceChannel);
-        };
+        return () => { mounted = false; };
     }, []);
 
-    // Auto-scroll to bottom of chat
+    // Auto-scroll chat when messages update
     useEffect(() => {
         if (chatRef.current) {
             chatRef.current.scrollTop = chatRef.current.scrollHeight;
@@ -165,15 +129,50 @@ const LiveStream = () => {
                                 </div>
                             ) : (
                                 <>
-                                    <iframe
-                                        src={getEmbedUrl(liveStreamSettings?.url || "")}
-                                        title="Live Stream"
-                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; autoplay"
-                                        allowFullScreen
-                                        onLoad={() => { setIframeLoaded(true); setIframeError(false); }}
-                                        onError={() => { setIframeError(true); setIframeLoaded(false); }}
-                                        className="absolute inset-0 w-full h-full border-0"
-                                    ></iframe>
+                                    {/* compute embed src and allow autoplay only after user gesture */}
+                                    {(() => {
+                                        const embedBase = getEmbedUrl(liveStreamSettings?.url || "");
+
+                                        const sep = embedBase.includes('?') ? '&' : '?';
+                                        let candidate = embedBase ? `${embedBase}${sep}autoplay=1&mute=1` : (liveStreamSettings?.url || '');
+                                        // Ensure autoplay & mute are present for non-embed raw URLs too
+                                        if (candidate && !/autoplay=/.test(candidate)) {
+                                            const sep2 = candidate.includes('?') ? '&' : '?';
+                                            candidate = `${candidate}${sep2}autoplay=1&mute=1`;
+                                        }
+                                        // Render iframe using candidate; if URL is malformed the browser will handle it.
+                                        const src = candidate;
+                                        return (
+                                            <iframe
+                                                key={src}
+                                                src={src}
+                                                title="Live Stream"
+                                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; autoplay"
+                                                playsInline
+                                                allowFullScreen
+                                                onLoad={() => { setIframeLoaded(true); setIframeError(false); }}
+                                                onError={() => { setIframeError(true); setIframeLoaded(false); }}
+                                                className="absolute inset-0 w-full h-full border-0"
+                                            />
+                                        );
+                                    })()}
+
+                                    {/* click-to-play overlay for autoplay-sensitive browsers */}
+                                    {!userPlayed && (
+                                        <div className="absolute inset-0 flex items-center justify-center z-30 pointer-events-auto">
+                                            <button
+                                                onClick={() => setUserPlayed(true)}
+                                                className="flex flex-col items-center gap-2 bg-black/60 hover:bg-black/70 text-white px-6 py-4 rounded-lg backdrop-blur-sm"
+                                            >
+                                                <div className="bg-white/10 p-4 rounded-full">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-8 h-8">
+                                                        <path d="M5 3v18l15-9L5 3z" />
+                                                    </svg>
+                                                </div>
+                                                <div className="text-sm font-semibold">Play Live Stream</div>
+                                            </button>
+                                        </div>
+                                    )}
 
                                     <div className="absolute top-3 right-3 bg-card/80 backdrop-blur-md border border-border/40 rounded-md p-2 text-xs text-foreground z-20">
                                         <div className="flex items-center gap-2">
