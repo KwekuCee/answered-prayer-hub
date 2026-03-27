@@ -3,6 +3,27 @@ import { supabase } from "@/integrations/supabase/client";
 import { MapPin } from "lucide-react";
 import logo from "@/assets/logo.png";
 
+const normalizeMapIframeUrl = (value: string) => {
+    if (!value) return "";
+    let clean = value.trim();
+
+    // If user pasted an <iframe> snippet, extract src attribute
+    const srcMatch = clean.match(/src\s*=\s*["']([^"']+)["']/i);
+    if (srcMatch) {
+        clean = srcMatch[1];
+    }
+
+    // Remove stray src= prefix
+    clean = clean.replace(/^src\s*=\s*/i, "");
+
+    // Trim possible surrounding quotes
+    if ((clean.startsWith('"') && clean.endsWith('"')) || (clean.startsWith("'") && clean.endsWith("'"))) {
+        clean = clean.slice(1, -1);
+    }
+
+    return clean;
+};
+
 export const LocationSection = () => {
     const { data: activeProgram, isLoading } = useQuery({
         queryKey: ["active-program"],
@@ -22,7 +43,7 @@ export const LocationSection = () => {
     });
 
     const locationName = activeProgram?.location_name || "our upcoming location";
-    const mapIframeSrc = activeProgram?.map_iframe_url || "";
+    const mapIframeSrc = normalizeMapIframeUrl(activeProgram?.map_iframe_url || "");
 
     return (
         <section id="location" className="py-24 px-4 bg-muted/20 relative">
@@ -88,6 +109,7 @@ export const LocationSection = () => {
 
                         {mapIframeSrc && (
                             <iframe
+                                title="Location map"
                                 src={mapIframeSrc}
                                 width="100%"
                                 height="100%"

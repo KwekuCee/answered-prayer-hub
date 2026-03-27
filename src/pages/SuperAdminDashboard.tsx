@@ -199,6 +199,20 @@ const SuperAdminDashboard = () => {
   const [newProgram, setNewProgram] = useState({ name: "", location_name: "", map_iframe_url: "", start_date: "" });
   const [editingProgram, setEditingProgram] = useState<any>(null);
 
+  const normalizeMapIframeUrl = (value: string) => {
+    if (!value) return "";
+    let clean = value.trim();
+    const srcMatch = clean.match(/src\s*=\s*["']([^"']+)["']/i);
+    if (srcMatch) {
+      clean = srcMatch[1];
+    }
+    clean = clean.replace(/^src\s*=\s*/i, "");
+    if ((clean.startsWith('"') && clean.endsWith('"')) || (clean.startsWith("'") && clean.endsWith("'"))) {
+      clean = clean.slice(1, -1);
+    }
+    return clean;
+  };
+
   const activeProgram = programs.find((p: any) => p.is_active);
 
   const handleCreateProgram = async () => {
@@ -208,7 +222,12 @@ const SuperAdminDashboard = () => {
     }
     // Auto active if it is the first program
     const isFirst = programs.length === 0;
-    const { error } = await supabase.from("programs").insert({ ...newProgram, is_active: isFirst });
+    const payload = {
+      ...newProgram,
+      map_iframe_url: normalizeMapIframeUrl(newProgram.map_iframe_url),
+      is_active: isFirst,
+    };
+    const { error } = await supabase.from("programs").insert(payload);
     if (error) { toast.error("Failed."); return; }
     toast.success("Program created!");
     setIsAddingProgram(false);
@@ -221,7 +240,7 @@ const SuperAdminDashboard = () => {
     const { error } = await supabase.from("programs").update({
       name: editingProgram.name,
       location_name: editingProgram.location_name,
-      map_iframe_url: editingProgram.map_iframe_url,
+      map_iframe_url: normalizeMapIframeUrl(editingProgram.map_iframe_url),
       start_date: editingProgram.start_date || null
     }).eq("id", editingProgram.id);
     if (error) { toast.error("Failed."); return; }
