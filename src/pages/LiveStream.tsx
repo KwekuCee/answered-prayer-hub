@@ -148,7 +148,7 @@ const LiveStream = () => {
                                                 src={src}
                                                 title="Live Stream"
                                                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; autoplay"
-                                                playsInline
+                                                
                                                 allowFullScreen
                                                 onLoad={() => { setIframeLoaded(true); setIframeError(false); }}
                                                 onError={() => { setIframeError(true); setIframeLoaded(false); }}

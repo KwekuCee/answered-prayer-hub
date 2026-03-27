@@ -478,14 +478,14 @@ const SuperAdminDashboard = () => {
     rows.push(['Total Left', String(totalLeaves)].join(','));
     rows.push(['Unique Viewers', String(uniqueViewerIds.size)].join(','));
     rows.push(['',''].join(','));
-    rows.push(['Chats']);
+    rows.push('Chats');
     rows.push(['id','user_name','created_at','message','is_deleted'].join(','));
     for (const c of liveChats) {
       const safeMsg = String(c.message || '').replace(/\n|\r|,/g, ' ');
       rows.push([c.id, (c.user_name || '').replace(/,/g,''), c.created_at, safeMsg, String(!!c.is_deleted)].join(','));
     }
     rows.push(['',''].join(','));
-    rows.push(['Presence Events']);
+    rows.push('Presence Events');
     rows.push(['id','viewer_key','event','metadata','created_at'].join(','));
     try {
       // fetch persisted events
@@ -495,14 +495,14 @@ const SuperAdminDashboard = () => {
           rows.push([e.id, (e.viewer_key || '').replace(/,/g,''), e.event, JSON.stringify(e.metadata || {}).replace(/,/g,' '), e.created_at].join(','));
         }
         rows.push(['',''].join(','));
-        rows.push(['Presence Samples']);
+        rows.push('Presence Samples');
         rows.push(['id','count','recorded_at'].join(','));
         const { data: samples } = await supabase.from('live_presence_samples').select('*').order('recorded_at', { ascending: true }).limit(5000).throwOnError();
         for (const s of samples || []) {
           rows.push([s.id, String(s.count), s.recorded_at].join(','));
         }
         rows.push(['',''].join(','));
-        rows.push(['Participants']);
+        rows.push('Participants');
         rows.push(['id','viewer_key','name','contact','location','program_id','joined_at'].join(','));
         const { data: participants } = await supabase.from('live_participants').select('*').order('joined_at', { ascending: true }).limit(5000).throwOnError();
         for (const p of participants || []) {

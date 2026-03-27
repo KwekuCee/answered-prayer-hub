@@ -225,7 +225,7 @@ const ChurchAdminDashboard = () => {
         m.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         ((m.inviters as any)?.full_name || "").toLowerCase().includes(searchTerm.toLowerCase());
 
-      const matchesProgram = programFilter === "all" || m.program_id === programFilter;
+      const matchesProgram = true;
       const matchesStatus =
         statusFilter === "all" ||
         (statusFilter === "confirmed" && m.confirmed) ||
