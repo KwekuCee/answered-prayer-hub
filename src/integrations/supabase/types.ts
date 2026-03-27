@@ -14,6 +14,65 @@ export type Database = {
   }
   public: {
     Tables: {
+      audit_logs: {
+        Row: {
+          action: string
+          created_at: string
+          details: string | null
+          id: string
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          details?: string | null
+          id?: string
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          details?: string | null
+          id?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      bus_points: {
+        Row: {
+          created_at: string
+          departure_time: string | null
+          id: string
+          location: string
+          name: string
+          program_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          departure_time?: string | null
+          id?: string
+          location?: string
+          name: string
+          program_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          departure_time?: string | null
+          id?: string
+          location?: string
+          name?: string
+          program_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bus_points_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "programs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       churches: {
         Row: {
           confirmed: number
@@ -81,6 +140,134 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      live_chats: {
+        Row: {
+          created_at: string
+          id: string
+          is_deleted: boolean
+          message: string
+          user_name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_deleted?: boolean
+          message: string
+          user_name?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_deleted?: boolean
+          message?: string
+          user_name?: string
+        }
+        Relationships: []
+      }
+      live_participants: {
+        Row: {
+          contact: string | null
+          id: string
+          joined_at: string
+          location: string | null
+          name: string | null
+          program_id: string | null
+          viewer_key: string | null
+        }
+        Insert: {
+          contact?: string | null
+          id?: string
+          joined_at?: string
+          location?: string | null
+          name?: string | null
+          program_id?: string | null
+          viewer_key?: string | null
+        }
+        Update: {
+          contact?: string | null
+          id?: string
+          joined_at?: string
+          location?: string | null
+          name?: string | null
+          program_id?: string | null
+          viewer_key?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "live_participants_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "programs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      live_presence_events: {
+        Row: {
+          created_at: string
+          event: string
+          id: string
+          metadata: Json | null
+          viewer_key: string | null
+        }
+        Insert: {
+          created_at?: string
+          event: string
+          id?: string
+          metadata?: Json | null
+          viewer_key?: string | null
+        }
+        Update: {
+          created_at?: string
+          event?: string
+          id?: string
+          metadata?: Json | null
+          viewer_key?: string | null
+        }
+        Relationships: []
+      }
+      live_presence_samples: {
+        Row: {
+          count: number
+          id: string
+          recorded_at: string
+        }
+        Insert: {
+          count?: number
+          id?: string
+          recorded_at?: string
+        }
+        Update: {
+          count?: number
+          id?: string
+          recorded_at?: string
+        }
+        Relationships: []
+      }
+      live_stream_settings: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          updated_at: string
+          url: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          updated_at?: string
+          url?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          updated_at?: string
+          url?: string
+        }
+        Relationships: []
       }
       members: {
         Row: {
@@ -179,6 +366,69 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      programs: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          id: string
+          is_active: boolean
+          location_name: string
+          map_iframe_url: string | null
+          name: string
+          start_date: string | null
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          location_name?: string
+          map_iframe_url?: string | null
+          name: string
+          start_date?: string | null
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          location_name?: string
+          map_iframe_url?: string | null
+          name?: string
+          start_date?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      testimonials: {
+        Row: {
+          author_name: string
+          church_name: string | null
+          content: string
+          created_at: string
+          id: string
+          is_approved: boolean
+        }
+        Insert: {
+          author_name: string
+          church_name?: string | null
+          content: string
+          created_at?: string
+          id?: string
+          is_approved?: boolean
+        }
+        Update: {
+          author_name?: string
+          church_name?: string | null
+          content?: string
+          created_at?: string
+          id?: string
+          is_approved?: boolean
+        }
+        Relationships: []
       }
       user_roles: {
         Row: {
