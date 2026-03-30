@@ -53,9 +53,7 @@ const LiveStream = () => {
 
     // Track watcher presence
     useEffect(() => {
-        const sessionId = typeof sessionIdRef.current === 'function' ? (sessionIdRef.current as () => string)() : sessionIdRef.current;
-        // Store resolved value
-        sessionIdRef.current = sessionId as any;
+        const sessionId = sessionIdRef.current;
 
         const upsertPresence = async () => {
             await supabase.from('live_stream_watchers').upsert(
