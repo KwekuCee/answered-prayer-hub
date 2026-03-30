@@ -329,6 +329,11 @@ CREATE POLICY "Anyone can insert live_presence_samples" ON public.live_presence_
 CREATE POLICY "Anyone can read live_participants" ON public.live_participants FOR SELECT USING (true);
 CREATE POLICY "Anyone can insert live_participants" ON public.live_participants FOR INSERT WITH CHECK (true);
 
+-- LIVE STREAM WATCHERS
+CREATE POLICY "watchers_read" ON public.live_stream_watchers FOR SELECT USING (true);
+CREATE POLICY "watchers_insert" ON public.live_stream_watchers FOR INSERT WITH CHECK (true);
+CREATE POLICY "watchers_update" ON public.live_stream_watchers FOR UPDATE USING (true);
+
 -- ========================
 -- 6. REALTIME (optional)
 -- ========================
