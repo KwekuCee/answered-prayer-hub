@@ -256,6 +256,7 @@ ALTER TABLE public.bus_points ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.live_presence_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.live_presence_samples ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.live_participants ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.live_stream_watchers ENABLE ROW LEVEL SECURITY;
 
 -- CHURCHES
 CREATE POLICY "Anyone can read churches" ON public.churches FOR SELECT USING (true);
