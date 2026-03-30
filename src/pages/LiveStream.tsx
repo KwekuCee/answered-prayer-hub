@@ -40,6 +40,57 @@ const LiveStream = () => {
         return v === null ? true : v === '1';
     });
     const [viewers, setViewers] = useState(0);
+    const sessionIdRef = useRef<string>('');
+
+    if (!sessionIdRef.current) {
+        let sid = localStorage.getItem('viewer_session_id');
+        if (!sid) {
+            sid = crypto.randomUUID();
+            localStorage.setItem('viewer_session_id', sid);
+        }
+        sessionIdRef.current = sid;
+    }
+
+    // Track watcher presence
+    useEffect(() => {
+        const sessionId = sessionIdRef.current;
+
+        const upsertPresence = async () => {
+            await supabase.from('live_stream_watchers').upsert(
+                { session_id: sessionId, is_active: true, last_seen: new Date().toISOString() },
+                { onConflict: 'session_id' }
+            );
+        };
+
+        const fetchCount = async () => {
+            const fiveMinAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+            const { count } = await supabase
+                .from('live_stream_watchers')
+                .select('*', { count: 'exact', head: true })
+                .eq('is_active', true)
+                .gte('last_seen', fiveMinAgo);
+            setViewers(count ?? 0);
+        };
+
+        upsertPresence();
+        fetchCount();
+
+        const interval = setInterval(() => {
+            upsertPresence();
+            fetchCount();
+        }, 30000);
+
+        const handleBeforeUnload = () => {
+            navigator.sendBeacon && supabase.from('live_stream_watchers').update({ is_active: false }).eq('session_id', sessionId);
+        };
+        window.addEventListener('beforeunload', handleBeforeUnload);
+
+        return () => {
+            clearInterval(interval);
+            window.removeEventListener('beforeunload', handleBeforeUnload);
+            supabase.from('live_stream_watchers').update({ is_active: false }).eq('session_id', sessionId);
+        };
+    }, []);
 
     // Chat state
     const [messages, setMessages] = useState<any[]>([]);

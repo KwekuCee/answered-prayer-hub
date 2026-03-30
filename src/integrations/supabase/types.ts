@@ -269,6 +269,30 @@ export type Database = {
         }
         Relationships: []
       }
+      live_stream_watchers: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          last_seen: string
+          session_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          last_seen?: string
+          session_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          last_seen?: string
+          session_id?: string
+        }
+        Relationships: []
+      }
       members: {
         Row: {
           church_id: string

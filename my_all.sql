@@ -156,8 +156,16 @@ CREATE TABLE IF NOT EXISTS public.live_participants (
   program_id uuid REFERENCES public.programs(id) ON DELETE SET NULL,
   joined_at timestamptz NOT NULL DEFAULT now()
 );
+-- Live stream watchers (persistent viewer tracking)
+CREATE TABLE IF NOT EXISTS public.live_stream_watchers (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  session_id text NOT NULL UNIQUE,
+  is_active boolean NOT NULL DEFAULT true,
+  last_seen timestamptz NOT NULL DEFAULT now(),
+  created_at timestamptz NOT NULL DEFAULT now()
+);
 
--- ========================
+
 -- 3. FUNCTIONS
 -- ========================
 
@@ -248,6 +256,7 @@ ALTER TABLE public.bus_points ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.live_presence_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.live_presence_samples ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.live_participants ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.live_stream_watchers ENABLE ROW LEVEL SECURITY;
 
 -- CHURCHES
 CREATE POLICY "Anyone can read churches" ON public.churches FOR SELECT USING (true);
@@ -319,6 +328,11 @@ CREATE POLICY "Anyone can insert live_presence_samples" ON public.live_presence_
 -- LIVE PARTICIPANTS
 CREATE POLICY "Anyone can read live_participants" ON public.live_participants FOR SELECT USING (true);
 CREATE POLICY "Anyone can insert live_participants" ON public.live_participants FOR INSERT WITH CHECK (true);
+
+-- LIVE STREAM WATCHERS
+CREATE POLICY "watchers_read" ON public.live_stream_watchers FOR SELECT USING (true);
+CREATE POLICY "watchers_insert" ON public.live_stream_watchers FOR INSERT WITH CHECK (true);
+CREATE POLICY "watchers_update" ON public.live_stream_watchers FOR UPDATE USING (true);
 
 -- ========================
 -- 6. REALTIME (optional)
