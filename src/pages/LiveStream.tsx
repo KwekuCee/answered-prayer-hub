@@ -40,14 +40,16 @@ const LiveStream = () => {
         return v === null ? true : v === '1';
     });
     const [viewers, setViewers] = useState(0);
-    const sessionIdRef = useRef<string>(() => {
+    const sessionIdRef = useRef<string>('');
+
+    if (!sessionIdRef.current) {
         let sid = localStorage.getItem('viewer_session_id');
         if (!sid) {
             sid = crypto.randomUUID();
             localStorage.setItem('viewer_session_id', sid);
         }
-        return sid;
-    });
+        sessionIdRef.current = sid;
+    }
 
     // Track watcher presence
     useEffect(() => {
