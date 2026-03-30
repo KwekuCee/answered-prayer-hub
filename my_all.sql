@@ -156,8 +156,16 @@ CREATE TABLE IF NOT EXISTS public.live_participants (
   program_id uuid REFERENCES public.programs(id) ON DELETE SET NULL,
   joined_at timestamptz NOT NULL DEFAULT now()
 );
+-- Live stream watchers (persistent viewer tracking)
+CREATE TABLE IF NOT EXISTS public.live_stream_watchers (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  session_id text NOT NULL UNIQUE,
+  is_active boolean NOT NULL DEFAULT true,
+  last_seen timestamptz NOT NULL DEFAULT now(),
+  created_at timestamptz NOT NULL DEFAULT now()
+);
 
--- ========================
+
 -- 3. FUNCTIONS
 -- ========================
 
