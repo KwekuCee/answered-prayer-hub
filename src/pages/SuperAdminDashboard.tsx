@@ -191,17 +191,27 @@ const SuperAdminDashboard = () => {
     },
   });
 
-  const { data: resources = [] } = useQuery({
+  const { data: resources = [], error: resourcesError } = useQuery({
     queryKey: ["all-resources"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("resources")
-        .select("*, profiles(full_name)")
+        .select("*")
         .order("created_at", { ascending: false });
-      if (error) throw error;
+      if (error) {
+        console.error("Error fetching resources:", error);
+        throw error;
+      }
       return data;
     },
   });
+
+  useEffect(() => {
+    if (resourcesError) {
+      console.error("Resources query error:", resourcesError);
+      toast.error("Failed to load resources");
+    }
+  }, [resourcesError]);
 
   const { data: programs = [], refetch: refetchPrograms } = useQuery({
     queryKey: ["all-programs"],
@@ -1354,6 +1364,7 @@ const SuperAdminDashboard = () => {
       setNewResource({ title: "", description: "", category: "general", is_public: true });
       if (fileInput) fileInput.value = "";
       queryClient.invalidateQueries({ queryKey: ["all-resources"] });
+      queryClient.invalidateQueries({ queryKey: ["resources"] });
     } catch (error: any) {
       toast.error(error.message || "Failed to create resource.");
     } finally {
@@ -1375,6 +1386,7 @@ const SuperAdminDashboard = () => {
     toast.success("Resource updated!");
     setEditingResource(null);
     queryClient.invalidateQueries({ queryKey: ["all-resources"] });
+    queryClient.invalidateQueries({ queryKey: ["resources"] });
   };
 
   const handleDeleteResource = async (id: string) => {
@@ -1393,6 +1405,7 @@ const SuperAdminDashboard = () => {
     if (error) { toast.error("Failed to delete resource."); return; }
     toast.success("Resource deleted.");
     queryClient.invalidateQueries({ queryKey: ["all-resources"] });
+    queryClient.invalidateQueries({ queryKey: ["resources"] });
   };
 
   const getFileType = (mimeType: string) => {
