@@ -53,3 +53,12 @@ BEGIN
     RETURN true;
 END;
 $$;
+
+-- Ensure user_id in profiles is unique so we can reference it
+ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_user_id_key;
+ALTER TABLE public.profiles ADD CONSTRAINT profiles_user_id_key UNIQUE (user_id);
+
+-- Fix for Audit Logs foreign key constraint
+-- To allow .select("*, profiles(...)") in Supabase, we MUST reference the public profiles table.
+ALTER TABLE public.audit_logs DROP CONSTRAINT IF EXISTS audit_logs_user_id_fkey;
+ALTER TABLE public.audit_logs ADD CONSTRAINT audit_logs_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(user_id) ON DELETE CASCADE;

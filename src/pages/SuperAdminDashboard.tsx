@@ -52,6 +52,13 @@ const SuperAdminDashboard = () => {
   const [inviterChurchFilter, setInviterChurchFilter] = useState("all");
   const [attendeePage, setAttendeePage] = useState(1);
   const itemsPerPage = 20;
+
+  const [auditPage, setAuditPage] = useState(1);
+  const itemsPerAuditPage = 15;
+  const paginatedAudit = useMemo(() => {
+    return auditLogs.slice((auditPage - 1) * itemsPerAuditPage, auditPage * itemsPerAuditPage);
+  }, [auditLogs, auditPage]);
+  const auditTotalPages = Math.ceil(auditLogs.length / itemsPerAuditPage);
   const [selectedAttendees, setSelectedAttendees] = useState<Set<string>>(new Set());
 
   const [editingChurch, setEditingChurch] = useState<any>(null);
@@ -173,7 +180,19 @@ const SuperAdminDashboard = () => {
         .from("audit_logs")
         .select("*, profiles(full_name)")
         .order("created_at", { ascending: false })
-        .limit(100);
+        .limit(500);
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: liveParticipants = [] } = useQuery({
+    queryKey: ["live-participants"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("live_participants")
+        .select("*")
+        .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
     },
@@ -518,41 +537,41 @@ const SuperAdminDashboard = () => {
   const exportLiveAnalytics = () => {
     // Build CSV: first a summary, then chat rows
     const rows: string[] = [];
-    rows.push(['Metric','Value'].join(','));
+    rows.push(['Metric', 'Value'].join(','));
     rows.push(['Active Viewers', String(liveViewers)].join(','));
     rows.push(['Total Joined', String(totalJoins)].join(','));
     rows.push(['Total Left', String(totalLeaves)].join(','));
     rows.push(['Unique Viewers', String(uniqueViewerIds.size)].join(','));
-    rows.push(['',''].join(','));
+    rows.push(['', ''].join(','));
     rows.push('Chats');
-    rows.push(['id','user_name','created_at','message','is_deleted'].join(','));
+    rows.push(['id', 'user_name', 'created_at', 'message', 'is_deleted'].join(','));
     for (const c of liveChats) {
       const safeMsg = String(c.message || '').replace(/\n|\r|,/g, ' ');
-      rows.push([c.id, (c.user_name || '').replace(/,/g,''), c.created_at, safeMsg, String(!!c.is_deleted)].join(','));
+      rows.push([c.id, (c.user_name || '').replace(/,/g, ''), c.created_at, safeMsg, String(!!c.is_deleted)].join(','));
     }
-    rows.push(['',''].join(','));
+    rows.push(['', ''].join(','));
     rows.push('Presence Events');
-    rows.push(['id','viewer_key','event','metadata','created_at'].join(','));
+    rows.push(['id', 'viewer_key', 'event', 'metadata', 'created_at'].join(','));
     try {
       // fetch persisted events
       (async () => {
         const { data: events } = await supabase.from('live_presence_events').select('*').order('created_at', { ascending: true }).limit(5000).throwOnError();
         for (const e of events || []) {
-          rows.push([e.id, (e.viewer_key || '').replace(/,/g,''), e.event, JSON.stringify(e.metadata || {}).replace(/,/g,' '), e.created_at].join(','));
+          rows.push([e.id, (e.viewer_key || '').replace(/,/g, ''), e.event, JSON.stringify(e.metadata || {}).replace(/,/g, ' '), e.created_at].join(','));
         }
-        rows.push(['',''].join(','));
+        rows.push(['', ''].join(','));
         rows.push('Presence Samples');
-        rows.push(['id','count','recorded_at'].join(','));
+        rows.push(['id', 'count', 'recorded_at'].join(','));
         const { data: samples } = await supabase.from('live_presence_samples').select('*').order('recorded_at', { ascending: true }).limit(5000).throwOnError();
         for (const s of samples || []) {
           rows.push([s.id, String(s.count), s.recorded_at].join(','));
         }
-        rows.push(['',''].join(','));
+        rows.push(['', ''].join(','));
         rows.push('Participants');
-        rows.push(['id','viewer_key','name','contact','location','program_id','joined_at'].join(','));
+        rows.push(['id', 'viewer_key', 'name', 'contact', 'location', 'program_id', 'joined_at'].join(','));
         const { data: participants } = await supabase.from('live_participants').select('*').order('joined_at', { ascending: true }).limit(5000).throwOnError();
         for (const p of participants || []) {
-          rows.push([p.id, (p.viewer_key||''), (p.name||'').replace(/,/g,''), (p.contact||'').replace(/,/g,''), (p.location||'').replace(/,/g,''), p.program_id || '', p.joined_at].join(','));
+          rows.push([p.id, (p.viewer_key || ''), (p.name || '').replace(/,/g, ''), (p.contact || '').replace(/,/g, ''), (p.location || '').replace(/,/g, ''), p.program_id || '', p.joined_at].join(','));
         }
         const csv2 = rows.join('\n');
         const blob2 = new Blob([csv2], { type: 'text/csv;charset=utf-8;' });
@@ -795,7 +814,7 @@ const SuperAdminDashboard = () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     await supabase.from("audit_logs").insert({
-      admin_id: user.id, // Ensure your policies and defaults handle this securely
+      user_id: user.id, // Ensure your policies and defaults handle this securely
       action,
       target_type: targetType,
       target_id: targetId,
@@ -833,7 +852,7 @@ const SuperAdminDashboard = () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
       await supabase.from("audit_logs").insert({
-        admin_id: user.id,
+        user_id: user.id,
         action: "bulk_confirm_attendees",
         target_type: "attendee",
         details: { count: selectedAttendees.size, ids: Array.from(selectedAttendees) }
@@ -2207,6 +2226,7 @@ const SuperAdminDashboard = () => {
                 { label: "Export Inviters", desc: "All inviter records", onClick: () => exportCSV(inviters as any, "all-inviters") },
                 { label: "Export Churches", desc: "All church data", onClick: () => exportCSV(churches as any, "churches") },
                 { label: "Export Admins", desc: "All admin accounts", onClick: () => exportCSV(admins as any, "admins") },
+                { label: "Export Live Viewers", desc: "Online participants", onClick: () => exportCSV(liveParticipants as any, "live-participants") },
               ].map(item => (
                 <Card key={item.label} className="border-border/50 cursor-pointer hover:shadow-lg transition-shadow" onClick={item.onClick}>
                   <CardContent className="p-6 text-center">
@@ -2358,10 +2378,10 @@ const SuperAdminDashboard = () => {
                 </div>
                 <div className="flex items-center gap-2 bg-gold/10 px-4 py-2 rounded-lg border border-gold/20">
                   <span className="w-3 h-3 bg-red-500 rounded-full animate-pulse"></span>
-                    <div className="text-left">
-                      <div className="font-bold text-gold-light">{liveViewers} Active Viewers</div>
-                      <div className="text-xs text-muted-foreground">Total joined: {totalJoins} • Left: {totalLeaves} • Unique: {uniqueViewerIds.size}</div>
-                    </div>
+                  <div className="text-left">
+                    <div className="font-bold text-gold-light">{liveViewers} Active Viewers</div>
+                    <div className="text-xs text-muted-foreground">Total joined: {totalJoins} • Left: {totalLeaves} • Unique: {uniqueViewerIds.size}</div>
+                  </div>
                 </div>
               </div>
 
@@ -2424,6 +2444,36 @@ const SuperAdminDashboard = () => {
                         <Badge className={liveStreamSettings?.is_active ? "bg-green-500" : "bg-destructive"}>
                           {liveStreamSettings?.is_active ? "Broadcasting" : "Offline"}
                         </Badge>
+                      </div>
+                    </CardContent>
+                  </Card>
+                  <Card className="bg-card/40 backdrop-blur-xl border-border/50 h-[320px] flex flex-col">
+                    <CardHeader className="flex flex-row items-center justify-between pb-2">
+                      <CardTitle className="text-lg">Online Viewers</CardTitle>
+                      <Badge className="bg-gold/20 text-gold-light">{liveParticipants.length}</Badge>
+                    </CardHeader>
+                    <CardContent className="flex-1 overflow-y-auto pb-4 custom-scrollbar">
+                      <div className="space-y-3">
+                        {liveParticipants.length === 0 ? (
+                          <p className="text-sm text-muted-foreground">No online viewers registered yet.</p>
+                        ) : (
+                          liveParticipants.map((p: any) => (
+                            <div key={p.viewer_key} className="flex justify-between items-start border-b border-border/40 pb-2">
+                              <div>
+                                <p className="font-bold text-sm text-foreground">{p.name}</p>
+                                <p className="text-xs text-muted-foreground font-mono">{p.contact || "N/A"}</p>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-[11px] text-muted-foreground flex items-center gap-1 justify-end">
+                                  <MapPin className="w-3 h-3" /> {p.location || "Unknown"}
+                                </p>
+                                <p className="text-[10px] text-muted-foreground/50 mt-1">
+                                  {new Date(p.created_at).toLocaleTimeString()}
+                                </p>
+                              </div>
+                            </div>
+                          ))
+                        )}
                       </div>
                     </CardContent>
                   </Card>
@@ -2682,7 +2732,7 @@ const SuperAdminDashboard = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {auditLogs.map((log: any) => (
+                      {paginatedAudit.map((log: any) => (
                         <TableRow key={log.id}>
                           <TableCell className="text-sm whitespace-nowrap">
                             <span className="font-medium text-muted-foreground">
@@ -2717,6 +2767,13 @@ const SuperAdminDashboard = () => {
                       )}
                     </TableBody>
                   </Table>
+                  {auditTotalPages > 1 && (
+                    <div className="flex items-center justify-between p-4 border-t border-border/50 bg-card/30">
+                      <Button variant="outline" size="sm" onClick={() => setAuditPage(p => Math.max(1, p - 1))} disabled={auditPage === 1}>Previous</Button>
+                      <span className="text-sm text-muted-foreground font-medium">Page {auditPage} of {auditTotalPages}</span>
+                      <Button variant="outline" size="sm" onClick={() => setAuditPage(p => Math.min(auditTotalPages, p + 1))} disabled={auditPage === auditTotalPages}>Next</Button>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>

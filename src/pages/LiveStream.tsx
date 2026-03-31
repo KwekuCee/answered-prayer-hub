@@ -2,8 +2,9 @@ import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import Navbar from "@/components/Navbar";
-import { Loader2, Users, Send, MessageCircle } from "lucide-react";
-import ParticipantForm from "@/components/ParticipantForm";
+import { Loader2, Users, Send, MessageCircle, MapPin, X } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Link } from "react-router-dom";
@@ -50,6 +51,69 @@ const LiveStream = () => {
         }
         sessionIdRef.current = sid;
     }
+
+    // Modal state for forcing users to enter details before watching
+    const [showOnboarding, setShowOnboarding] = useState(false);
+    const [onboardingForm, setOnboardingForm] = useState({
+        name: localStorage.getItem("chatName") || "",
+        contact: localStorage.getItem("chatContact") || ""
+    });
+    const [onboardingLoading, setOnboardingLoading] = useState(false);
+    const [userIpData, setUserIpData] = useState<{ ip?: string, city?: string, country_name?: string }>({});
+
+    // Check if user is allowed to watch
+    useEffect(() => {
+        if (!localStorage.getItem("liveStreamJoined")) {
+            setShowOnboarding(true);
+
+            // Silently fetch IP-based location
+            fetch('https://ipapi.co/json/')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.ip) setUserIpData(data);
+                })
+                .catch(err => console.debug("IP fetch failed", err));
+        }
+    }, []);
+
+    const handleJoinStream = async (e: React.FormEvent) => {
+        e.preventDefault();
+        const name = onboardingForm.name.trim();
+        const contact = onboardingForm.contact.trim();
+
+        if (!name || !contact) {
+            toast.error("Please provide both Name and Contact details.");
+            return;
+        }
+
+        setOnboardingLoading(true);
+        try {
+            const finalLocation = userIpData.city && userIpData.country_name
+                ? `${userIpData.city}, ${userIpData.country_name} (${userIpData.ip || ''})`
+                : "Unknown Location";
+
+            const payload = {
+                viewer_key: sessionIdRef.current,
+                name: name,
+                contact: contact,
+                location: finalLocation
+            };
+
+            await supabase.from('live_participants').upsert(payload, { onConflict: 'viewer_key' });
+
+            localStorage.setItem("chatName", name);
+            localStorage.setItem("chatContact", contact);
+            localStorage.setItem("liveStreamJoined", "true");
+            setUserName(name);
+            setShowOnboarding(false);
+            toast.success("Welcome to the live stream!");
+        } catch (err: any) {
+            toast.error("Failed to join. Please try again.");
+            console.error(err);
+        } finally {
+            setOnboardingLoading(false);
+        }
+    };
 
     // Track watcher presence
     useEffect(() => {
@@ -287,15 +351,11 @@ const LiveStream = () => {
 
                         {/* Chat Input */}
                         <form onSubmit={handleSendMessage} className="p-3 border-t border-border/50 bg-card space-y-3 shrink-0">
-                            {/* Quick participant form toggle */}
-                            <ParticipantForm viewers={viewers} viewerKey={localStorage.getItem('viewer_key') || ''} onParticipantSaved={(name) => setUserName(name)} />
-                            <Input
-                                placeholder="Chat as... (Name)"
-                                className="h-8 text-xs bg-background border-border shadow-inner"
-                                value={userName}
-                                onChange={(e) => setUserName(e.target.value)}
-                                maxLength={25}
-                            />
+                            <div className="flex items-center justify-between px-1">
+                                <span className="text-xs text-muted-foreground">
+                                    Chatting as <strong className="text-gold-light">{userName}</strong>
+                                </span>
+                            </div>
                             <div className="flex gap-2 relative">
                                 <Input
                                     placeholder="Say something..."
@@ -313,6 +373,59 @@ const LiveStream = () => {
 
                 </div>
             </main>
+
+            {/* Pre-watch Onboarding Modal */}
+            <Dialog open={showOnboarding} onOpenChange={() => { }}>
+                <DialogContent className="sm:max-w-[425px] [&>button]:hidden bg-card/95 backdrop-blur-xl border-gold/20 shadow-2xl relative">
+                    <Link to="/" className="absolute right-4 top-4 rounded-sm opacity-70 transition-opacity hover:opacity-100 z-50 text-foreground hover:bg-muted p-1 border border-border/50">
+                        <X className="h-4 w-4" />
+                        <span className="sr-only">Close and return to Homepage</span>
+                    </Link>
+                    <DialogHeader className="text-center pt-4">
+                        <DialogTitle className="font-display text-2xl mb-2 text-foreground">Welcome to Live Service</DialogTitle>
+                        <DialogDescription className="text-base text-foreground/80">
+                            Please sign the digital attendance board to watch and participate in today's service!
+                        </DialogDescription>
+                    </DialogHeader>
+                    <form onSubmit={handleJoinStream} className="space-y-6 pt-4">
+                        <div className="space-y-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="name" className="text-sm font-semibold text-foreground/90">Full Name <span className="text-red-500">*</span></Label>
+                                <Input
+                                    id="name"
+                                    placeholder="Enter your full name"
+                                    value={onboardingForm.name}
+                                    onChange={(e) => setOnboardingForm({ ...onboardingForm, name: e.target.value })}
+                                    required
+                                    className="bg-background border-border h-11"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="contact" className="text-sm font-semibold text-foreground/90">Phone number or Email <span className="text-red-500">*</span></Label>
+                                <Input
+                                    id="contact"
+                                    placeholder="e.g. +2348000000000"
+                                    value={onboardingForm.contact}
+                                    onChange={(e) => setOnboardingForm({ ...onboardingForm, contact: e.target.value })}
+                                    required
+                                    className="bg-background border-border h-11"
+                                />
+                            </div>
+                            <div className="bg-navy-light/40 border border-gold/10 rounded-lg p-3 flex items-start gap-3 mt-4">
+                                <MapPin className="w-5 h-5 text-gold shrink-0 mt-0.5" />
+                                <p className="text-xs text-muted-foreground leading-relaxed">
+                                    For security and analytics, your approximate location ({userIpData.city || 'detecting...'}) will be recorded.
+                                </p>
+                            </div>
+                        </div>
+                        <DialogFooter className="sm:justify-stretch">
+                            <Button type="submit" disabled={onboardingLoading} className="w-full bg-gradient-gold text-accent-foreground font-bold shadow-gold text-base h-11">
+                                {onboardingLoading ? <Loader2 className="w-5 h-5 animate-spin mx-auto" /> : "Watch Now"}
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 };
