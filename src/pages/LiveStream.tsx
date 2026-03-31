@@ -376,7 +376,7 @@ const LiveStream = () => {
 
             {/* Pre-watch Onboarding Modal */}
             <Dialog open={showOnboarding} onOpenChange={() => { }}>
-                <DialogContent className="sm:max-w-[425px] [&>button]:hidden bg-card/95 backdrop-blur-xl border-gold/20 shadow-2xl relative">
+                <DialogContent className="sm:max-w-[425px] [&>button]:hidden bg-card/95 backdrop-blur-xl border-gold/20 shadow-2xl">
                     <Link to="/" className="absolute right-4 top-4 rounded-sm opacity-70 transition-opacity hover:opacity-100 z-50 text-foreground hover:bg-muted p-1 border border-border/50">
                         <X className="h-4 w-4" />
                         <span className="sr-only">Close and return to Homepage</span>
