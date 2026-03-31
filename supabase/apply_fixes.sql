@@ -5,26 +5,14 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public
 AS $$
-DECLARE
-    is_caller_super_admin boolean;
-    is_target_super_admin boolean;
 BEGIN
-    SELECT EXISTS (
-        SELECT 1 FROM public.user_roles 
-        WHERE user_id = auth.uid() AND role = 'super_admin'
-    ) INTO is_caller_super_admin;
-
-    IF NOT is_caller_super_admin THEN
+    IF NOT public.has_role(auth.uid(), 'super_admin') THEN
         RAISE EXCEPTION 'Unauthorized: Only super admins can delete users';
     END IF;
 
-    SELECT EXISTS (
-        SELECT 1 FROM public.user_roles 
-        WHERE user_id = target_user_id AND role = 'super_admin'
-    ) INTO is_target_super_admin;
-
-    IF is_target_super_admin THEN
-        RAISE EXCEPTION 'Forbidden: Cannot delete a super admin account';
+    -- Prevent a user from deleting themselves
+    IF auth.uid() = target_user_id THEN
+        RAISE EXCEPTION 'Forbidden: Cannot delete yourself via this function';
     END IF;
 
     DELETE FROM auth.users WHERE id = target_user_id;

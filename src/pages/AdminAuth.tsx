@@ -18,7 +18,7 @@ const AdminAuth = () => {
   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
   const [regForm, setRegForm] = useState({
     fullName: "", username: "", email: "", phone: "",
-    churchName: "", password: "", verifyPassword: "", authCode: "",
+    password: "", verifyPassword: "", authCode: "",
   });
   const [loading, setLoading] = useState(false);
 
@@ -70,26 +70,6 @@ const AdminAuth = () => {
 
     setLoading(true);
     try {
-      // Find or create church
-      const { data: existingChurch } = await supabase
-        .from("churches")
-        .select("id")
-        .ilike("name", regForm.churchName.trim())
-        .maybeSingle();
-
-      let churchId: string;
-      if (existingChurch) {
-        churchId = existingChurch.id;
-      } else {
-        const { data: newChurch, error: cErr } = await supabase
-          .from("churches")
-          .insert({ name: regForm.churchName.trim() })
-          .select("id")
-          .single();
-        if (cErr) throw cErr;
-        churchId = newChurch.id;
-      }
-
       // Sign up
       const { data: authData, error: authErr } = await supabase.auth.signUp({
         email: regForm.email.trim(),
@@ -105,10 +85,9 @@ const AdminAuth = () => {
       if (authErr) throw authErr;
 
       if (authData.user) {
-        // Update profile with phone and church
+        // Update profile with phone only for now
         await supabase.from("profiles").update({
           phone: regForm.phone.trim(),
-          church_id: churchId,
         }).eq("user_id", authData.user.id);
 
         // Add church_admin role
@@ -116,10 +95,16 @@ const AdminAuth = () => {
           user_id: authData.user.id,
           role: "church_admin" as const,
         });
+
+        if (authData.session) {
+          toast.success("Account created successfully!");
+          navigate("/verify-email");
+          return;
+        }
       }
 
       toast.success("Admin account created! Please check your email to verify your account, then log in.");
-      setRegForm({ fullName: "", username: "", email: "", phone: "", churchName: "", password: "", verifyPassword: "", authCode: "" });
+      setRegForm({ fullName: "", username: "", email: "", phone: "", password: "", verifyPassword: "", authCode: "" });
     } catch (err: any) {
       toast.error(err.message || "Registration failed.");
     } finally {
@@ -199,10 +184,6 @@ const AdminAuth = () => {
                       <Label className="text-primary-foreground/80 text-xs">Phone</Label>
                       <Input value={regForm.phone} onChange={e => setRegForm(p => ({ ...p, phone: e.target.value }))} className="bg-navy-light/50 border-gold/20 text-primary-foreground placeholder:text-primary-foreground/30 h-9" required />
                     </div>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-primary-foreground/80 text-xs">Church Name</Label>
-                    <Input value={regForm.churchName} onChange={e => setRegForm(p => ({ ...p, churchName: e.target.value }))} className="bg-navy-light/50 border-gold/20 text-primary-foreground placeholder:text-primary-foreground/30 h-9" required />
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
