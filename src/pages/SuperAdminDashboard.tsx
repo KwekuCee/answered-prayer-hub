@@ -53,12 +53,6 @@ const SuperAdminDashboard = () => {
   const [attendeePage, setAttendeePage] = useState(1);
   const itemsPerPage = 20;
 
-  const [auditPage, setAuditPage] = useState(1);
-  const itemsPerAuditPage = 15;
-  const paginatedAudit = useMemo(() => {
-    return auditLogs.slice((auditPage - 1) * itemsPerAuditPage, auditPage * itemsPerAuditPage);
-  }, [auditLogs, auditPage]);
-  const auditTotalPages = Math.ceil(auditLogs.length / itemsPerAuditPage);
   const [selectedAttendees, setSelectedAttendees] = useState<Set<string>>(new Set());
 
   const [editingChurch, setEditingChurch] = useState<any>(null);
@@ -185,6 +179,13 @@ const SuperAdminDashboard = () => {
       return data;
     },
   });
+
+  const [auditPage, setAuditPage] = useState(1);
+  const itemsPerAuditPage = 15;
+  const paginatedAudit = useMemo(() => {
+    return auditLogs.slice((auditPage - 1) * itemsPerAuditPage, auditPage * itemsPerAuditPage);
+  }, [auditLogs, auditPage]);
+  const auditTotalPages = Math.ceil(auditLogs.length / itemsPerAuditPage);
 
   const { data: liveParticipants = [] } = useQuery({
     queryKey: ["live-participants"],
