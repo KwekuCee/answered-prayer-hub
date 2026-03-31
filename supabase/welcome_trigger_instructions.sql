@@ -1,0 +1,30 @@
+-- =========================================================================
+-- Answered Prayer Hub: Database Webhook Trigger (Edge Function)
+-- =========================================================================
+
+-- In Supabase, the best way to execute an Edge Function on a row insert 
+-- is simply using the Database Webhooks UI.
+-- 
+-- Instructions for the User:
+-- 1. Go to your Supabase Dashboard
+-- 2. Click "Database" -> "Webhooks" (under Database section)
+-- 3. Click "Create Webhook"
+-- 4. Set the following:
+--    - Name: "Send Welcome Email"
+--    - Table: "members"
+--    - Events: "Insert"
+--    - Type: "Supabase Edge Function"
+--    - Edge Function: Select "welcome-member"
+--    - HTTP Method: POST
+-- 5. Click Save.
+
+-- =========================================================================
+-- Deployment instructions for the Edge Function (Since you don't have CLI):
+-- You will need to spin this up from the dashboard!
+-- 1. Go to Edge Functions in Supabase
+-- 2. Create a new Edge Function named "welcome-member"
+-- 3. Copy-paste the code from "supabase/functions/welcome-member/index.ts"
+-- 4. Go to "Secrets" and add a new secret:
+--    - Key: RESEND_API_KEY
+--    - Value: <Your Resend API Key>
+-- =========================================================================
