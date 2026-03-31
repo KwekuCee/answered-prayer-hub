@@ -14,6 +14,7 @@ import QrScanner from "./pages/QrScanner";
 import Donate from "./pages/Donate";
 import Resources from "./pages/Resources";
 import ShareTestimony from "./pages/ShareTestimony";
+import VerifyEmail from "./pages/VerifyEmail";
 
 
 import BackToTop from "./components/BackToTop";
@@ -38,6 +39,7 @@ const App = () => (
           <Route path="/admin" element={<AdminAuth />} />
           <Route path="/church-admin" element={<ChurchAdminDashboard />} />
           <Route path="/super-admin" element={<SuperAdminDashboard />} />
+          <Route path="/verify-email" element={<VerifyEmail />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

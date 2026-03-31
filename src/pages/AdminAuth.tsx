@@ -95,7 +95,7 @@ const AdminAuth = () => {
         email: regForm.email.trim(),
         password: regForm.password,
         options: {
-          emailRedirectTo: window.location.origin,
+          emailRedirectTo: `${window.location.origin}/verify-email`,
           data: {
             full_name: regForm.fullName.trim(),
             username: regForm.username.trim(),

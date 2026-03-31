@@ -933,30 +933,23 @@ const SuperAdminDashboard = () => {
     const shouldDelete = window.confirm("Delete this church? This will delete all associated attendees and inviters. THIS CANNOT BE UNDONE.");
     if (!shouldDelete) return;
 
-    // Remove church assignment from any admins
-    await supabase.from("profiles").update({ church_id: null }).eq("church_id", churchId);
-
-    // Delete associated attendees
-    await supabase.from("members").delete().eq("church_id", churchId);
-
-    // Delete associated inviters
-    await supabase.from("inviters").delete().eq("church_id", churchId);
-
-    // Finally, delete the church
-    const { error } = await supabase.from("churches").delete().eq("id", churchId);
-
-    if (error) {
-      console.error(error);
-      toast.error(error.message || "Failed to delete church.");
-      return;
+    try {
+      const { error } = await supabase.rpc("delete_church_secure", { target_church_id: churchId });
+      if (error) {
+        console.error(error);
+        toast.error(error.message || "Failed to delete church.");
+        return;
+      }
+      toast.success("Church deleted.");
+      await logAction("delete_church", "church", churchId);
+      queryClient.invalidateQueries({ queryKey: ["all-churches"] });
+      queryClient.invalidateQueries({ queryKey: ["all-attendees"] });
+      queryClient.invalidateQueries({ queryKey: ["all-inviters"] });
+      queryClient.invalidateQueries({ queryKey: ["all-admins"] });
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || "An unexpected error occurred.");
     }
-
-    toast.success("Church deleted.");
-    await logAction("delete_church", "church", churchId);
-    queryClient.invalidateQueries({ queryKey: ["all-churches"] });
-    queryClient.invalidateQueries({ queryKey: ["all-attendees"] });
-    queryClient.invalidateQueries({ queryKey: ["all-inviters"] });
-    queryClient.invalidateQueries({ queryKey: ["all-admins"] });
   };
 
   const handleSaveAdmin = async () => {
