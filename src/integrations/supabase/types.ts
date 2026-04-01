@@ -20,6 +20,8 @@ export type Database = {
           created_at: string
           details: string | null
           id: string
+          target_id: string | null
+          target_type: string | null
           user_id: string | null
         }
         Insert: {
@@ -27,6 +29,8 @@ export type Database = {
           created_at?: string
           details?: string | null
           id?: string
+          target_id?: string | null
+          target_type?: string | null
           user_id?: string | null
         }
         Update: {
@@ -34,9 +38,19 @@ export type Database = {
           created_at?: string
           details?: string | null
           id?: string
+          target_id?: string | null
+          target_type?: string | null
           user_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "audit_logs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       bus_points: {
         Row: {
