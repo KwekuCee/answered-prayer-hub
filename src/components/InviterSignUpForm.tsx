@@ -48,7 +48,7 @@ const InviterSignUpForm = () => {
     setLoading(true);
     try {
       const { error } = await supabase.from("inviters").insert({
-          program_id: activeProgram?.id || null,
+        program_id: activeProgram?.id || null,
         full_name: form.fullName.trim(),
         email: form.email.trim(),
         phone: form.phone.trim(),

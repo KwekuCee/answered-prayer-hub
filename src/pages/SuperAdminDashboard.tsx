@@ -1190,9 +1190,22 @@ const SuperAdminDashboard = () => {
 
     setIsSendingEmail(true);
     try {
-      const { data, error } = await supabase.functions.invoke('resend_email', {
-        body: {
-          to: emailRecipients,
+      // 1. Direct Frontend Fetch to Resend (No Edge Functions or hidden pg_net queues!)
+      const resendApiKey = import.meta.env.VITE_RESEND_API_KEY;
+
+      if (!resendApiKey) {
+        throw new Error("Missing VITE_RESEND_API_KEY in your .env file! Please add it and restart the server.");
+      }
+
+      const response = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${resendApiKey}`,
+        },
+        body: JSON.stringify({
+          from: "100% Answered Prayer <onboarding@resend.dev>",
+          to: emailRecipients, // Resend accepts up to 50 emails per batch payload
           subject: emailSubject,
           html: `
             <!DOCTYPE html>
@@ -1205,28 +1218,15 @@ const SuperAdminDashboard = () => {
                 <tr>
                   <td align="center">
                     <table width="100%" style="max-width: 600px; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);" border="0" cellspacing="0" cellpadding="0">
-                      <!-- Header -->
                       <tr>
                         <td style="background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%); padding: 40px 30px; text-align: center;">
-                          <h1 style="color: #D4AF37; margin: 0; font-size: 28px; font-weight: 700; letter-spacing: 0.5px;">100% Answered Prayer</h1>
+                          <img src="https://answered-prayer-hub.web.app/logo.png" alt="100% Answered Prayer" style="max-height: 80px; width: auto; margin: 0 auto; display: block;" onerror="this.src='https://placehold.co/100x100/1e1b4b/D4AF37?text=AP'" />
                         </td>
                       </tr>
-                      <!-- Body -->
                       <tr>
                         <td style="padding: 40px 30px;">
                           <h2 style="color: #111827; margin: 0 0 20px 0; font-size: 22px; font-weight: 600;">${emailSubject}</h2>
                           <div style="color: #4b5563; font-size: 16px; line-height: 1.6; white-space: pre-wrap;">${emailBody}</div>
-                        </td>
-                      </tr>
-                      <!-- Footer -->
-                      <tr>
-                        <td style="background-color: #f9fafb; padding: 30px; text-align: center; border-top: 1px solid #e5e7eb;">
-                          <p style="color: #6b7280; font-size: 14px; margin: 0 0 10px 0;">
-                            This is an automated message from the 100% Answered Prayer Administration.
-                          </p>
-                          <p style="color: #9ca3af; font-size: 12px; margin: 0;">
-                            &copy; ${new Date().getFullYear()} 100% Answered Prayer. All rights reserved.
-                          </p>
                         </td>
                       </tr>
                     </table>
@@ -1235,30 +1235,21 @@ const SuperAdminDashboard = () => {
               </table>
             </body>
             </html>
-          `
-        }
+          `,
+        }),
       });
 
-      if (error) {
-        // Supabase functions return a generic Error object for non-2xx codes, but we attached the real data message in the 400 response.
-        // Let's see if we can extract context.
-        let errorMessage = error.message;
-        if (error.context && error.context.json) {
-          try {
-            const errData = await error.context.json();
-            errorMessage = errData.error || errData.message || JSON.stringify(errData);
-          } catch (e) {
-            // ignore
-          }
-        }
-        throw new Error(errorMessage);
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || data.error?.message || JSON.stringify(data));
       }
 
-      toast.success(`Email sent successfully to ${emailRecipients.length} recipients!`);
+      toast.success(`Bulk Email dispatched successfully to ${emailRecipients.length} recipients!`);
       await logAction("send_bulk_email", "system", "multiple", { count: emailRecipients.length, subject: emailSubject });
       setIsEmailModalOpen(false);
     } catch (err: any) {
-      toast.error(`Failed to send email: ${err.message}`);
+      toast.error(`Failed to dispatch RPC bulk mail: ${err.message}`);
     } finally {
       setIsSendingEmail(false);
     }

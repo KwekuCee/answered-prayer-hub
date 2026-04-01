@@ -6,7 +6,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
-import { QRCodeSVG } from "qrcode.react";
+import { QRCodeCanvas } from "qrcode.react";
+import { Download } from "lucide-react";
 
 const RegistrationForm = () => {
   const { data: inviters = [] } = useQuery({
@@ -88,13 +89,36 @@ const RegistrationForm = () => {
         console.error("Inviter email notification failed:", emailError);
       }
 
-      // Also send the Welcome Email to the attendee if they provided an email
+      // 1. Direct synchronous frontend welcome email dispatch to capture real-time validation errors
       if (form.email.trim()) {
-        const { error: welcomeError } = await supabase.functions.invoke("welcome_email", {
-          body: { record: { email: form.email.trim(), full_name: form.fullName.trim() }, table: 'members' }
-        });
-        if (welcomeError) {
-          console.error("Welcome email failed:", welcomeError);
+        const resendApiKey = import.meta.env.VITE_RESEND_API_KEY;
+        if (!resendApiKey) {
+          console.error("Missing VITE_RESEND_API_KEY in .env");
+        } else {
+          try {
+            const welcomeResponse = await fetch("https://api.resend.com/emails", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${resendApiKey}` },
+              body: JSON.stringify({
+                from: "100% Answered Prayer <onboarding@resend.dev>",
+                to: [form.email.trim()], // Array with exactly 1 email
+                subject: "Welcome to 100% Answered Prayer!",
+                html: `
+                  <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; padding: 40px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); font-family: sans-serif; text-align: center; color: #0a1128;">
+                    <div style="margin-bottom: 30px;">
+                        <img src="https://answered-prayer-hub.web.app/logo.png" alt="100% Answered Prayer" style="max-height: 100px; width: auto; border-radius: 12px; margin: 0 auto; display: block;" onerror="this.src='https://placehold.co/100x100/0a1128/bf953f?text=AP'" />
+                    </div>
+                    <h1 style="color: #bf953f; font-size: 28px;">Welcome, ${form.fullName.trim()}!</h1>
+                    <p style="font-size: 16px; color: #334155; line-height: 1.6; margin-bottom: 30px;">We are absolutely thrilled to have you with us.</p>
+                  </div>
+                `
+              })
+            });
+            const d = await welcomeResponse.json();
+            if (!welcomeResponse.ok) console.error("Resend API rejected welcome email:", d);
+          } catch (fetchErr) {
+            console.error("Network failed calling Resend:", fetchErr);
+          }
         }
       }
 
@@ -105,6 +129,20 @@ const RegistrationForm = () => {
       toast.error(err.message || "Registration failed.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const downloadQRCode = () => {
+    const canvas = document.getElementById("qr-gen") as HTMLCanvasElement;
+    if (canvas) {
+      const pngUrl = canvas.toDataURL("image/png").replace("image/png", "image/octet-stream");
+      let downloadLink = document.createElement("a");
+      downloadLink.href = pngUrl;
+      const safeName = registeredMember?.name.replace(/[^a-zA-Z0-9]/g, "_") || "Attendee";
+      downloadLink.download = `${safeName}_Ticket.png`;
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+      document.body.removeChild(downloadLink);
     }
   };
 
@@ -119,10 +157,13 @@ const RegistrationForm = () => {
           Welcome, <strong>{registeredMember.name}</strong>. Please save or screenshot this QR Code. You will need to show it at the event entrance for quick check-in.
         </p>
         <div className="bg-white p-4 rounded-xl inline-block shadow-lg mx-auto">
-          <QRCodeSVG value={registeredMember.id} size={200} level="M" />
+          <QRCodeCanvas id="qr-gen" value={registeredMember.id} size={200} level="M" />
         </div>
-        <div>
-          <Button variant="outline" onClick={() => setRegisteredMember(null)} className="mt-4">
+        <div className="flex flex-col sm:flex-row gap-3 justify-center items-center mt-4">
+          <Button onClick={downloadQRCode} className="bg-gold hover:bg-gold-light text-navy font-bold flex items-center gap-2">
+            <Download className="w-4 h-4" /> Download QR Code Ticket
+          </Button>
+          <Button variant="outline" onClick={() => setRegisteredMember(null)}>
             Register Another Attendee
           </Button>
         </div>
