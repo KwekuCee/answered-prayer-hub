@@ -856,7 +856,7 @@ const SuperAdminDashboard = () => {
         user_id: user.id,
         action: "bulk_confirm_attendees",
         target_type: "attendee",
-        details: { count: selectedAttendees.size, ids: Array.from(selectedAttendees) }
+        details: JSON.stringify({ count: selectedAttendees.size, ids: Array.from(selectedAttendees) })
       });
       queryClient.invalidateQueries({ queryKey: ["audit-logs"] });
     }
