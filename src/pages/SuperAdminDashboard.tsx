@@ -1190,18 +1190,12 @@ const SuperAdminDashboard = () => {
 
     setIsSendingEmail(true);
     try {
-      // 1. Direct Frontend Fetch to Resend (No Edge Functions or hidden pg_net queues!)
-      const resendApiKey = import.meta.env.VITE_RESEND_API_KEY;
+      // 1. Direct Frontend Fetch to our Secure Vercel Backend Proxy
 
-      if (!resendApiKey) {
-        throw new Error("Missing VITE_RESEND_API_KEY in your .env file! Please add it and restart the server.");
-      }
-
-      const response = await fetch("https://api.resend.com/emails", {
+      const response = await fetch("/api/resend", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${resendApiKey}`,
         },
         body: JSON.stringify({
           from: "100% Answered Prayer <onboarding@resend.dev>",
