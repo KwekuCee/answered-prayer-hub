@@ -815,11 +815,11 @@ const SuperAdminDashboard = () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     await supabase.from("audit_logs").insert({
-      user_id: user.id, // Ensure your policies and defaults handle this securely
+      user_id: user.id,
       action,
       target_type: targetType,
       target_id: targetId,
-      details
+      details: details ? (typeof details === 'string' ? details : JSON.stringify(details)) : null
     });
     queryClient.invalidateQueries({ queryKey: ["audit-logs"] });
   };
