@@ -1520,7 +1520,7 @@ const SuperAdminDashboard = () => {
                 ))}
               </SelectContent>
             </Select>
-            <NotificationsMenu logs={auditLogs} isLoading={!auditLogs.length && authLoading} />
+            <NotificationsMenu logs={auditLogs} isLoading={auditLogsLoading} />
           </div>
         </header>
 
