@@ -96,7 +96,7 @@ const RegistrationForm = () => {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              from: "100% Answered Prayer <onboarding@resend.dev>",
+              from: "Answered Prayer Hub",
               to: [form.email.trim()], // Array with exactly 1 email
               subject: "Welcome to 100% Answered Prayer!",
               html: `
@@ -114,9 +114,9 @@ const RegistrationForm = () => {
           let d;
           try { d = JSON.parse(rawWelcome); } catch (ex) { d = rawWelcome; }
 
-          if (!welcomeResponse.ok) console.error("Resend API rejected welcome email via proxy:", d);
+          if (!welcomeResponse.ok) console.error("Gmail SMTP rejected welcome email via proxy:", d);
         } catch (fetchErr) {
-          console.error("Network proxy failed calling Resend:", fetchErr);
+          console.error("Network proxy failed calling Gmail SMTP:", fetchErr);
         }
       }
 

@@ -1198,8 +1198,8 @@ const SuperAdminDashboard = () => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          from: "100% Answered Prayer <onboarding@resend.dev>",
-          to: emailRecipients, // Resend accepts up to 50 emails per batch payload
+          from: "Answered Prayer Hub",
+          to: emailRecipients, // Handled automatically by our Gmail SMTP proxy
           subject: emailSubject,
           html: `
             <!DOCTYPE html>

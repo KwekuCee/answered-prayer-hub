@@ -1,50 +1,50 @@
-export const config = {
-    runtime: 'edge',
-};
+import nodemailer from 'nodemailer';
 
-export default async function handler(req: Request) {
+export default async function handler(req: any, res: any) {
+    // CORS Headers for secure cross-origin invocation
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'OPTIONS, POST');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+    // Handle preflight OPTIONS request
     if (req.method === 'OPTIONS') {
-        return new Response('ok', { headers: { 'Access-Control-Allow-Origin': '*' } });
+        return res.status(200).end();
+    }
+
+    if (req.method !== 'POST') {
+        return res.status(405).json({ error: 'Method Not Allowed' });
     }
 
     try {
-        const { to, subject, html } = await req.json();
+        const { to, subject, html } = req.body;
 
         if (!to || !subject || !html) {
-            return new Response(JSON.stringify({ error: 'Missing parameters' }), { status: 400 });
+            return res.status(400).json({ error: 'Missing parameters' });
         }
 
-        const resendApiKey = process.env.VITE_RESEND_API_KEY || process.env.RESEND_API_KEY;
+        const user = process.env.VITE_GMAIL_USER || process.env.GMAIL_USER;
+        const pass = process.env.VITE_GMAIL_APP_PASSWORD || process.env.GMAIL_APP_PASSWORD;
 
-        if (!resendApiKey) {
-            return new Response(JSON.stringify({ error: 'Server is missing Resend API Key.' }), { status: 500 });
+        if (!user || !pass) {
+            return res.status(500).json({ error: 'Server is missing Gmail SMTP Credentials. Please add VITE_GMAIL_USER and VITE_GMAIL_APP_PASSWORD to your .env or Vercel Environment Variables.' });
         }
 
-        const res = await fetch('https://api.resend.com/emails', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${resendApiKey}`,
-            },
-            body: JSON.stringify({
-                from: '100% Answered Prayer <onboarding@resend.dev>',
-                to: Array.isArray(to) ? to : [to],
-                subject: subject,
-                html: html,
-            }),
+        const transporter = nodemailer.createTransport({
+            service: 'gmail',
+            auth: { user, pass }
         });
 
-        const data = await res.json();
+        const mailOptions = {
+            from: `"100% Answered Prayer" <${user}>`,
+            to: Array.isArray(to) ? to : [to],
+            subject: subject,
+            html: html,
+        };
 
-        if (!res.ok) {
-            return new Response(JSON.stringify(data), { status: 400 });
-        }
+        const info = await transporter.sendMail(mailOptions);
 
-        return new Response(JSON.stringify(data), {
-            status: 200,
-            headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
-        });
+        return res.status(200).json({ status: 'success', info });
     } catch (error: any) {
-        return new Response(JSON.stringify({ error: error.message }), { status: 500 });
+        return res.status(500).json({ error: error.message });
     }
 }
