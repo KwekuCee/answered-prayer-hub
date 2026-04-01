@@ -1192,7 +1192,7 @@ const SuperAdminDashboard = () => {
     try {
       // 1. Direct Frontend Fetch to our Secure Vercel Backend Proxy
 
-      const response = await fetch("/api/resend", {
+      const response = await fetch("/api/send_prayer_mail", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1233,7 +1233,13 @@ const SuperAdminDashboard = () => {
         }),
       });
 
-      const data = await response.json();
+      let rawResponse = await response.text();
+      let data;
+      try {
+        data = JSON.parse(rawResponse);
+      } catch (e) {
+        throw new Error(`Server returned non-JSON format: ${rawResponse.substring(0, 100)}...`);
+      }
 
       if (!response.ok) {
         throw new Error(data.message || data.error?.message || JSON.stringify(data));

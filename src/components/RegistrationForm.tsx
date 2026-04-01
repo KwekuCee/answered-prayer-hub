@@ -92,7 +92,7 @@ const RegistrationForm = () => {
       // 1. Direct synchronous frontend welcome email dispatch via Secure Vercel Proxy
       if (form.email.trim()) {
         try {
-          const welcomeResponse = await fetch("/api/resend", {
+          const welcomeResponse = await fetch("/api/send_prayer_mail", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -110,7 +110,10 @@ const RegistrationForm = () => {
               `
             })
           });
-          const d = await welcomeResponse.json();
+          const rawWelcome = await welcomeResponse.text();
+          let d;
+          try { d = JSON.parse(rawWelcome); } catch (ex) { d = rawWelcome; }
+
           if (!welcomeResponse.ok) console.error("Resend API rejected welcome email via proxy:", d);
         } catch (fetchErr) {
           console.error("Network proxy failed calling Resend:", fetchErr);
