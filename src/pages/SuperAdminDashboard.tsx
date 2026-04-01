@@ -886,10 +886,10 @@ const SuperAdminDashboard = () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
       await supabase.from("audit_logs").insert({
-        admin_id: user.id,
+        user_id: user.id,
         action: "bulk_delete_attendees",
         target_type: "attendee",
-        details: { count: selectedAttendees.size }
+        details: JSON.stringify({ count: selectedAttendees.size })
       });
       queryClient.invalidateQueries({ queryKey: ["audit-logs"] });
     }
