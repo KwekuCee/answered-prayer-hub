@@ -172,7 +172,7 @@ const SuperAdminDashboard = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("audit_logs")
-        .select("*, profiles(full_name)")
+        .select("*, profiles!audit_logs_user_id_fkey(full_name, email)")
         .order("created_at", { ascending: false })
         .limit(500);
       if (error) throw error;
