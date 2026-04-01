@@ -167,16 +167,29 @@ const SuperAdminDashboard = () => {
     },
   });
 
-  const { data: auditLogs = [] } = useQuery({
+  const { data: auditLogs = [], isLoading: auditLogsLoading } = useQuery({
     queryKey: ["audit-logs"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("audit_logs")
-        .select("*, profiles!audit_logs_user_id_fkey(full_name, email)")
+        .select("*")
         .order("created_at", { ascending: false })
         .limit(500);
       if (error) throw error;
-      return data;
+      // Enrich with profile names
+      const userIds = [...new Set((data || []).map((l: any) => l.user_id).filter(Boolean))];
+      let profileMap: Record<string, { full_name: string; email: string }> = {};
+      if (userIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("user_id, full_name, email")
+          .in("user_id", userIds);
+        (profiles || []).forEach((p: any) => { profileMap[p.user_id] = p; });
+      }
+      return (data || []).map((log: any) => ({
+        ...log,
+        profiles: profileMap[log.user_id] || null,
+      }));
     },
   });
 
@@ -1507,7 +1520,7 @@ const SuperAdminDashboard = () => {
                 ))}
               </SelectContent>
             </Select>
-            <NotificationsMenu logs={auditLogs} isLoading={!auditLogs.length && authLoading} />
+            <NotificationsMenu logs={auditLogs} isLoading={auditLogsLoading} />
           </div>
         </header>
 
