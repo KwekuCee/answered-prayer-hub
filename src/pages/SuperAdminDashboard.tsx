@@ -172,7 +172,7 @@ const SuperAdminDashboard = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("audit_logs")
-        .select("*, profiles(full_name)")
+        .select("*, profiles!audit_logs_user_id_fkey(full_name, email)")
         .order("created_at", { ascending: false })
         .limit(500);
       if (error) throw error;
@@ -815,11 +815,11 @@ const SuperAdminDashboard = () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     await supabase.from("audit_logs").insert({
-      user_id: user.id, // Ensure your policies and defaults handle this securely
+      user_id: user.id,
       action,
       target_type: targetType,
       target_id: targetId,
-      details
+      details: details ? (typeof details === 'string' ? details : JSON.stringify(details)) : null
     });
     queryClient.invalidateQueries({ queryKey: ["audit-logs"] });
   };
@@ -856,7 +856,7 @@ const SuperAdminDashboard = () => {
         user_id: user.id,
         action: "bulk_confirm_attendees",
         target_type: "attendee",
-        details: { count: selectedAttendees.size, ids: Array.from(selectedAttendees) }
+        details: JSON.stringify({ count: selectedAttendees.size, ids: Array.from(selectedAttendees) })
       });
       queryClient.invalidateQueries({ queryKey: ["audit-logs"] });
     }
@@ -886,10 +886,10 @@ const SuperAdminDashboard = () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
       await supabase.from("audit_logs").insert({
-        admin_id: user.id,
+        user_id: user.id,
         action: "bulk_delete_attendees",
         target_type: "attendee",
-        details: { count: selectedAttendees.size }
+        details: JSON.stringify({ count: selectedAttendees.size })
       });
       queryClient.invalidateQueries({ queryKey: ["audit-logs"] });
     }

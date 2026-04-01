@@ -13,12 +13,14 @@ import { Badge } from "./ui/badge";
 interface AuditLog {
     id: string;
     action: string;
-    target_type: string;
+    target_type?: string;
+    target_id?: string;
+    details?: string | null;
     created_at: string;
-    profiles: {
+    profiles?: {
         full_name: string;
-        email: string;
-    };
+        email?: string;
+    } | null;
 }
 
 interface NotificationsMenuProps {
@@ -30,47 +32,30 @@ export const NotificationsMenu = ({ logs, isLoading }: NotificationsMenuProps) =
     const [unreadCount, setUnreadCount] = useState(0);
 
     useEffect(() => {
-        // Simple mock unread logic: any log from the last 12 hours is "unread"
         const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
         const recentLogs = logs.filter(log => new Date(log.created_at) > twelveHoursAgo);
         setUnreadCount(recentLogs.length);
     }, [logs]);
 
     const getLogIcon = (action: string) => {
-        switch (action) {
-            case "member_confirmed":
-            case "bulk_member_confirm":
-                return <CheckCircle className="h-4 w-4 text-emerald-500" />;
-            case "member_deleted":
-            case "bulk_member_delete":
-            case "inviter_deleted":
-                return <Trash className="h-4 w-4 text-rose-500" />;
-            case "login":
-                return <LogIn className="h-4 w-4 text-blue-500" />;
-            case "send_bulk_email":
-                return <Mail className="h-4 w-4 text-indigo-500" />;
-            case "role_update":
-            case "church_reassign":
-                return <Shield className="h-4 w-4 text-amber-500" />;
-            default:
-                if (action.includes("create") || action.includes("add")) {
-                    return <PlusCircle className="h-4 w-4 text-emerald-500" />;
-                }
-                if (action.includes("update") || action.includes("edit")) {
-                    return <PenTool className="h-4 w-4 text-blue-500" />;
-                }
-                return <User className="h-4 w-4 text-muted-foreground" />;
-        }
+        if (action.includes("confirm")) return <CheckCircle className="h-4 w-4 text-emerald-500" />;
+        if (action.includes("delete") || action.includes("remove")) return <Trash className="h-4 w-4 text-rose-500" />;
+        if (action.includes("login")) return <LogIn className="h-4 w-4 text-blue-500" />;
+        if (action.includes("email") || action.includes("mail")) return <Mail className="h-4 w-4 text-indigo-500" />;
+        if (action.includes("role") || action.includes("assign")) return <Shield className="h-4 w-4 text-amber-500" />;
+        if (action.includes("create") || action.includes("add")) return <PlusCircle className="h-4 w-4 text-emerald-500" />;
+        if (action.includes("update") || action.includes("edit")) return <PenTool className="h-4 w-4 text-blue-500" />;
+        return <User className="h-4 w-4 text-muted-foreground" />;
     };
 
     const getLogText = (log: AuditLog) => {
-        const adminName = log.profiles?.full_name || "System/Admin";
-        const type = log.target_type.replace("_", " ");
+        const adminName = log.profiles?.full_name || "System";
         const action = log.action.replace(/_/g, " ");
+        const target = log.target_type ? ` on ${log.target_type.replace(/_/g, " ")}` : "";
 
         return (
             <span>
-                <span className="font-semibold text-foreground">{adminName}</span> performed <strong>{action}</strong> on {type}.
+                <span className="font-semibold text-foreground">{adminName}</span> performed <strong>{action}</strong>{target}
             </span>
         );
     };
