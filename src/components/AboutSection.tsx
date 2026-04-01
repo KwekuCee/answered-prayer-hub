@@ -14,8 +14,8 @@ export const AboutSection = () => {
 
                 <div className="bg-card/40 backdrop-blur-xl border border-border/50 shadow-2xl rounded-3xl p-8 md:p-12 text-left mt-10">
                     <p className="text-lg md:text-xl text-muted-foreground font-body leading-relaxed mb-6">
-                        <strong>100% Answered Prayer</strong> is a Spirit-inspired strategic prayer movement, 
-                        dedicated to teaching believers and leading them in prayer to receive answers. 
+                        <strong>100% Answered Prayer</strong> is a Spirit-inspired strategic prayer movement,
+                        dedicated to teaching believers and leading them in prayer to receive answers.
                         God asked us to pray because he wants to answer every prayer.
                     </p>
                     <p className="text-lg md:text-xl text-muted-foreground font-body leading-relaxed mb-6">
@@ -24,7 +24,7 @@ export const AboutSection = () => {
                     </p>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12 text-center">
                         <a
-                            href="https://pcdl.co"
+                            href="/resources"
                             target="_blank"
                             rel="noopener noreferrer"
                             className="block p-8 rounded-2xl bg-gradient-to-br from-purple-500/10 to-violet-500/10 border border-purple-500/20 transition-all hover:shadow-lg duration-300"
