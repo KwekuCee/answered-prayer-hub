@@ -26,10 +26,14 @@ const Resources = () => {
                 .eq("is_public", true)
                 .order("created_at", { ascending: false });
             if (error) {
+                if (error.code === 'PGRST205' || error.message?.includes('schema cache')) {
+                    console.warn("Resources table not found in schema cache. Returning empty array.");
+                    return [];
+                }
                 console.error("Database error:", error);
                 throw error;
             }
-            return data;
+            return data || [];
         },
     });
 

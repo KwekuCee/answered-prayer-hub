@@ -2,11 +2,8 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-
-// Import the supabase client like this:
-// import { supabase } from "@/integrations/supabase/client";
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://placeholder.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBsYWNlaG9sZGVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE2MDAwMDAwMDAsImV4cCI6MTkyMDAwMDAwMH0.placeholder";
 
 const rawSupabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
@@ -16,10 +13,7 @@ const rawSupabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KE
   }
 });
 
-// Guard writes when there is no active program.
-// This proxy intercepts `from(table).insert/update/delete` calls and checks
-// if an active program exists. If none exists, the operation is rejected
-// with a lightweight error to prevent accidental writes when the system is "off".
+// Robust Supabase client proxy handling offline/missing database gracefully
 export const supabase: any = new Proxy(rawSupabase, {
   get(target, prop, receiver) {
     const orig = (target as any)[prop];
@@ -32,33 +26,60 @@ export const supabase: any = new Proxy(rawSupabase, {
         return new Proxy(builder, {
           get(bTarget, bProp) {
             const name = String(bProp);
-            // For mutation methods, we call the original method to get the resulting
-            // Postgrest builder, but we do NOT execute the request yet. Instead we
-            // return that builder (so chaining like `.eq()` works). We then wrap
-            // the resulting builder's `then` so when it's awaited/executed we run
-            // the active-program check first.
-            if (['insert', 'update', 'delete'].includes(name)) {
+
+            // Intercept query execution / thenable
+            if (name === 'then') {
+              return function (resolve: any, reject: any) {
+                try {
+                  return (bTarget as any).then(
+                    (res: any) => resolve(res),
+                    (err: any) => {
+                      if (err?.message?.includes('Failed to fetch') || err instanceof TypeError) {
+                        console.warn(`[Supabase Offline] Query on ${tableName} failed due to network/URL issue.`);
+                        return resolve({ data: null, error: { message: 'Database offline or not configured' } });
+                      }
+                      return reject(err);
+                    }
+                  );
+                } catch (err: any) {
+                  if (err?.message?.includes('Failed to fetch') || err instanceof TypeError) {
+                    return resolve({ data: null, error: { message: 'Database offline or not configured' } });
+                  }
+                  return reject(err);
+                }
+              };
+            }
+
+            if (['insert', 'update', 'delete', 'select'].includes(name)) {
               return (...args: any[]) => {
                 const resultBuilder = (bTarget as any)[name](...args);
                 return new Proxy(resultBuilder, {
                   get(rbTarget, rbProp) {
                     if (rbProp === 'then') {
-                      // When awaited, this function will be called. Perform the active
-                      // program check before delegating to the real then.
                       return function (resolve: any, reject: any) {
                         (async () => {
                           try {
-                            if (bypassTables.has(tableName)) {
-                              return (rbTarget as any).then(resolve, reject);
+                            if (['insert', 'update', 'delete'].includes(name) && !bypassTables.has(tableName)) {
+                              const { data: active } = await rawSupabase.from('programs').select('id').eq('is_active', true).limit(1).maybeSingle().catch(() => ({ data: null }));
+                              if (!active) {
+                                return resolve({ data: null, error: { message: 'No active program. Database writes are currently disabled.' } });
+                              }
                             }
-                            const { data: active } = await rawSupabase.from('programs').select('id').eq('is_active', true).limit(1).maybeSingle();
-                            if (!active) {
-                              // Resolve with an object shaped like a supabase response
-                              return resolve({ data: null, error: { message: 'No active program. Database writes are currently disabled.' } });
+                            return (rbTarget as any).then(
+                              (res: any) => resolve(res),
+                              (err: any) => {
+                                if (err?.message?.includes('Failed to fetch') || err instanceof TypeError) {
+                                  console.warn(`[Supabase Offline] Operation on ${tableName} failed.`);
+                                  return resolve({ data: null, error: { message: 'Database offline or not configured' } });
+                                }
+                                return reject(err);
+                              }
+                            );
+                          } catch (err: any) {
+                            if (err?.message?.includes('Failed to fetch') || err instanceof TypeError) {
+                              return resolve({ data: null, error: { message: 'Database offline or not configured' } });
                             }
-                            return (rbTarget as any).then(resolve, reject);
-                          } catch (err) {
-                            return resolve({ data: null, error: { message: 'Write check failed. Database writes are blocked.' } });
+                            return resolve({ data: null, error: { message: err?.message || 'Database offline' } });
                           }
                         })();
                       };

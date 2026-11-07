@@ -1,0 +1,7 @@
+{
+  "name": "Answered Prayer Hub",
+  "description": "Official App of the Answered Prayer Hub - 100% Answered Prayer movement, registration, resources, live stream, and admin dashboards.",
+  "capabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
