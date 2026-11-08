@@ -1,10 +1,20 @@
-import { Facebook, Instagram, Youtube } from "lucide-react";
+import { Facebook, Instagram, Youtube, Video } from "lucide-react";
 
 export const SocialMediaSection = () => {
     const socials = [
-        { name: "Facebook", icon: Facebook, href: "https://facebook.com", color: "hover:text-blue-600" },
-        { name: "Instagram", icon: Instagram, href: "https://instagram.com", color: "hover:text-pink-600" },
-        { name: "YouTube", icon: Youtube, href: "https://youtube.com", color: "hover:text-red-600" },
+        { name: "Facebook", icon: Facebook, href: "https://facebook.com", color: "hover:text-blue-500" },
+        { name: "Instagram", icon: Instagram, href: "https://instagram.com", color: "hover:text-pink-500" },
+        { name: "YouTube", icon: Youtube, href: "https://youtube.com", color: "hover:text-red-500" },
+        { 
+            name: "TikTok", 
+            icon: () => (
+                <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5"></path>
+                </svg>
+            ), 
+            href: "https://tiktok.com", 
+            color: "hover:text-foreground" 
+        },
     ];
 
     return (
@@ -14,7 +24,7 @@ export const SocialMediaSection = () => {
                     Connect With Us
                 </h2>
                 <p className="text-muted-foreground font-body mb-10">
-                    Stay updated with testimonies, teachings, and camp meeting schedules across our platforms.
+                    Stay updated with announcements, live updates, and worship moments across our social platforms.
                 </p>
 
                 <div className="flex flex-wrap justify-center gap-6 md:gap-10 mt-8">

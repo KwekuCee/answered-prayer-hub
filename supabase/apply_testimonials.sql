@@ -31,4 +31,4 @@ INSERT INTO public.testimonials (author_name, church_name, content, is_approved)
 ('Sarah J.', 'Grace Chapel', 'My family was completely restored after praying together at the hub!', true),
 ('David M.', 'Faith Ministries', 'I found my dream job after 2 years of searching. God is so good!', true),
 ('Elena R.', 'Hope Community', 'We witnessed a miraculous healing for my mother! The doctors were shocked.', true),
-('Michael T.', 'Victory Church', 'My massive debt was completely cancelled, 100% answered prayer.', true);
+('Michael T.', 'Victory Church', 'My massive debt was completely cancelled, 100% Korle Bu Stands in Worship.', true);

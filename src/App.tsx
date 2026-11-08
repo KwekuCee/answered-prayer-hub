@@ -27,7 +27,7 @@ const queryClient = new QueryClient();
 const PageLoader = () => (
   <div className="h-screen w-full flex flex-col items-center justify-center bg-background">
     <Loader2 className="w-10 h-10 animate-spin text-gold" />
-    <p className="mt-4 text-foreground/60 font-display animate-pulse">Loading Answered Prayer Hub...</p>
+    <p className="mt-4 text-foreground/60 font-display animate-pulse">Loading Korle Bu Stands in Worship...</p>
   </div>
 );
 

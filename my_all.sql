@@ -1,5 +1,5 @@
 -- =============================================================
--- my_all.sql — Complete database schema for 100% Answered Prayer
+-- my_all.sql — Complete database schema for 100% Korle Bu Stands in Worship
 -- Run this against a fresh Supabase/Postgres database to set up
 -- all tables, enums, functions, triggers, and RLS policies.
 -- =============================================================

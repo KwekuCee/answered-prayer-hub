@@ -1,5 +1,5 @@
 -- Complete Consolidated Supabase SQL Schema
--- Includes all tables, enums, triggers, and RLS policies for the Answered Prayer Hub system
+-- Includes all tables, enums, triggers, and RLS policies for the Korle Bu Stands in Worship system
 
 -- 1. Create app roles enum
 CREATE TYPE public.app_role AS ENUM ('super_admin', 'church_admin');

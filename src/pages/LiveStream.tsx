@@ -400,7 +400,7 @@ const LiveStream = () => {
                             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
                                 <div>
                                     <h1 className="text-2xl md:text-3xl font-display font-bold text-foreground leading-tight">
-                                        100% Answered Prayer <span className="text-gold">Live Stream</span>
+                                        Korle Bu Stands in Worship <span className="text-gold">Live Stream</span>
                                     </h1>
                                 </div>
                                 <div className="flex gap-3 shrink-0">

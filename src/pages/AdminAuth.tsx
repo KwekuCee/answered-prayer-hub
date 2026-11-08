@@ -120,9 +120,9 @@ const AdminAuth = () => {
         </Link>
 
         <div className="text-center mb-8">
-          <img src={logo} alt="100% Answered Prayer" className="w-48 mx-auto mb-4" />
+          <img src={logo} alt="Korle Bu Stands in Worship" className="w-48 mx-auto mb-4" />
           <h2 className="text-xl font-display font-bold text-primary-foreground mb-1">Admin Access</h2>
-          <p className="text-primary-foreground/60 font-body text-sm">Manage the 100% Answered Prayer program</p>
+          <p className="text-primary-foreground/60 font-body text-sm">Manage the Korle Bu Stands in Worship program</p>
         </div>
 
         <Tabs defaultValue="login">

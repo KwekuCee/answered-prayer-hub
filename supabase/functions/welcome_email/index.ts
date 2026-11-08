@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
-const resendApiKey = Deno.env.get('RESEND_API_KEY') || 're_CXAZknhd_8qgEoB5kjNGpUdavc62H3H1v';
+const resendApiKey = Deno.env.get('RESEND_API_KEY') || '';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -29,7 +29,7 @@ serve(async (req) => {
     const name = record.full_name || 'Valued Member';
     const roleString = isInviter ? 'an Inviter' : 'a Member';
 
-    const subject = `Welcome to 100% Answered Prayer!`;
+    const subject = `Welcome to Korle Bu Stands in Worship!`;
 
     const html = `
             <!DOCTYPE html>
@@ -45,7 +45,7 @@ serve(async (req) => {
                       <!-- Header -->
                       <tr>
                         <td style="background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%); padding: 40px 30px; text-align: center;">
-                          <h1 style="color: #D4AF37; margin: 0; font-size: 28px; font-weight: 700; letter-spacing: 0.5px;">100% Answered Prayer</h1>
+                          <h1 style="color: #D4AF37; margin: 0; font-size: 28px; font-weight: 700; letter-spacing: 0.5px;">Korle Bu Stands in Worship</h1>
                         </td>
                       </tr>
                       <!-- Body -->
@@ -63,10 +63,10 @@ serve(async (req) => {
                       <tr>
                         <td style="background-color: #f9fafb; padding: 30px; text-align: center; border-top: 1px solid #e5e7eb;">
                           <p style="color: #6b7280; font-size: 14px; margin: 0 0 10px 0;">
-                            This is an automated message from the 100% Answered Prayer Administration.
+                            This is an automated message from the Korle Bu Stands in Worship Administration.
                           </p>
                           <p style="color: #9ca3af; font-size: 12px; margin: 0;">
-                            &copy; ${new Date().getFullYear()} 100% Answered Prayer. All rights reserved.
+                            &copy; ${new Date().getFullYear()} Korle Bu Stands in Worship. All rights reserved.
                           </p>
                         </td>
                       </tr>
@@ -85,7 +85,7 @@ serve(async (req) => {
         Authorization: `Bearer ${resendApiKey}`,
       },
       body: JSON.stringify({
-        from: '100% Answered Prayer <onboarding@resend.dev>',
+        from: 'Korle Bu Stands in Worship <onboarding@resend.dev>',
         reply_to: 'korlebuchristembassy@gmail.com',
         to: [record.email],
         subject: subject,

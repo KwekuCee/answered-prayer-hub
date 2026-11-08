@@ -96,13 +96,13 @@ const RegistrationForm = () => {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              from: "Answered Prayer Hub",
+              from: "Korle Bu Stands in Worship",
               to: [form.email.trim()], // Array with exactly 1 email
-              subject: "Welcome to 100% Answered Prayer!",
+              subject: "Welcome to Korle Bu Stands in Worship!",
               html: `
                 <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; padding: 40px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); font-family: sans-serif; text-align: center; color: #0a1128;">
                   <div style="margin-bottom: 30px;">
-                      <img src="https://answered-prayer-hub.web.app/logo.png" alt="100% Answered Prayer" style="max-height: 100px; width: auto; border-radius: 12px; margin: 0 auto; display: block;" onerror="this.src='https://placehold.co/100x100/0a1128/bf953f?text=AP'" />
+                      <img src="https://answered-prayer-hub.web.app/logo.png" alt="Korle Bu Stands in Worship" style="max-height: 100px; width: auto; border-radius: 12px; margin: 0 auto; display: block;" onerror="this.src='https://placehold.co/100x100/0a1128/bf953f?text=KB'" />
                   </div>
                   <h1 style="color: #bf953f; font-size: 28px;">Welcome, ${form.fullName.trim()}!</h1>
                   <p style="font-size: 16px; color: #334155; line-height: 1.6; margin-bottom: 30px;">We are absolutely thrilled to have you with us.</p>

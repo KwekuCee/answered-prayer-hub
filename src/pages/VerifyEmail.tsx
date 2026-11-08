@@ -133,7 +133,7 @@ const VerifyEmail = () => {
 
                 <div className="w-full max-w-md relative z-10 animate-fade-up">
                     <div className="text-center mb-8">
-                        <img src={logo} alt="100% Answered Prayer" className="w-48 mx-auto mb-6" />
+                        <img src={logo} alt="Korle Bu Stands in Worship" className="w-48 mx-auto mb-6" />
                         <h1 className="text-3xl md:text-4xl font-display font-bold text-foreground">
                             Account <span className="bg-gradient-gold bg-clip-text text-transparent">Setup</span>
                         </h1>
@@ -212,7 +212,7 @@ const VerifyEmail = () => {
 
             <footer className="py-8 border-t border-border/50 text-center bg-background/50 backdrop-blur-sm z-10 mt-auto">
                 <p className="text-sm text-muted-foreground font-body font-medium">
-                    © {new Date().getFullYear()} 100% Answered Prayer. All rights reserved.
+                    © {new Date().getFullYear()} Korle Bu Stands in Worship. All rights reserved.
                 </p>
             </footer>
         </div>

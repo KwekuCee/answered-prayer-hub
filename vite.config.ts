@@ -13,6 +13,10 @@ export default defineConfig(({ mode }) => ({
       overlay: false,
     },
   },
+  preview: {
+    host: "0.0.0.0",
+    port: 3000,
+  },
   plugins: [
     react(),
     mode === "development" && componentTagger(),
@@ -20,9 +24,9 @@ export default defineConfig(({ mode }) => ({
       registerType: "autoUpdate",
       includeAssets: ["favicon.ico", "apple-touch-icon.png", "mask-icon.svg"],
       manifest: {
-        name: "Answered Prayer Hub",
+        name: "Korle Bu Stands in Worship",
         short_name: "Prayer Hub",
-        description: "Official App of the Answered Prayer Hub",
+        description: "Official App of the Korle Bu Stands in Worship",
         theme_color: "#ffffff",
         icons: [
           {

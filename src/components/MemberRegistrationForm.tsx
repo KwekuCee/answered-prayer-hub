@@ -71,7 +71,7 @@ const MemberRegistrationForm = () => {
         console.error("Inviter email notification failed:", emailError);
       }
 
-      toast.success("Registration successful! Welcome to 100% Answered Prayer.");
+      toast.success("Registration successful! Welcome to Korle Bu Stands in Worship.");
       setForm({ fullName: "", email: "", phone: "", occupation: "", location: "", dateOfBirth: "", inviterId: "" });
     } catch (err: any) {
       toast.error(err.message || "Registration failed.");

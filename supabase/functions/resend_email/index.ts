@@ -4,7 +4,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
-const resendApiKey = Deno.env.get('RESEND_API_KEY') || 're_CXAZknhd_8qgEoB5kjNGpUdavc62H3H1v';
+const resendApiKey = Deno.env.get('RESEND_API_KEY') || '';
 
 const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
@@ -33,7 +33,7 @@ serve(async (req) => {
                 Authorization: `Bearer ${resendApiKey}`,
             },
             body: JSON.stringify({
-                from: '100% Answered Prayer <onboarding@resend.dev>',
+                from: 'Korle Bu Stands in Worship <onboarding@resend.dev>',
                 reply_to: 'korlebuchristembassy@gmail.com',
                 to: Array.isArray(to) ? to : [to],
                 subject: subject,

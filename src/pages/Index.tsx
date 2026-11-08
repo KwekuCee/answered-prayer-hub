@@ -1,7 +1,9 @@
 import Navbar from "@/components/Navbar";
 import HeroSection from "@/components/HeroSection";
 import AboutSection from "@/components/AboutSection";
+import LaunchOutlineSection from "@/components/LaunchOutlineSection";
 import LocationSection from "@/components/LocationSection";
+import WorshipStickySection from "@/components/WorshipStickySection";
 import SocialMediaSection from "@/components/SocialMediaSection";
 import PrayerPointsSection from "@/components/PrayerPointsSection";
 import BusPointsSection from "@/components/BusPointsSection";
@@ -14,7 +16,9 @@ const Index = () => {
       <HeroSection />
 
       <AboutSection />
+      <LaunchOutlineSection />
       <LocationSection />
+      <WorshipStickySection />
       <PrayerPointsSection />
       <BusPointsSection />
 
@@ -25,7 +29,7 @@ const Index = () => {
             Real <span className="bg-gradient-gold bg-clip-text text-transparent">Testimonies</span>
           </h2>
           <p className="text-muted-foreground font-body text-lg">
-            Read inspiring stories of 100% answered prayers from our global community.
+            Read inspiring stories of answered prayers from our global community.
           </p>
         </div>
       </section>
@@ -39,7 +43,7 @@ const Index = () => {
       {/* Footer */}
       <footer className="py-10 border-t border-border text-center bg-background">
         <p className="text-sm text-muted-foreground font-body font-medium">
-          © {new Date().getFullYear()} 100% Answered Prayer. All rights reserved. | Developed by <a href="https://primehaven.tech" target="_blank" rel="noopener noreferrer" className="text-gold hover:text-gold-light hover:underline transition-colors font-semibold">Prime Haven</a>
+          © {new Date().getFullYear()} Korle Bu Stands in Worship. All rights reserved. | Developed by <a href="https://primehaven.tech" target="_blank" rel="noopener noreferrer" className="text-gold hover:text-gold-light hover:underline transition-colors font-semibold">Prime Haven</a>
         </p>
       </footer>
     </div>

@@ -27,13 +27,13 @@ serve(async (req) => {
             },
             body: JSON.stringify({
                 // IMPORTANT: Replace with the actual verified domain you set up in Resend
-                from: '100% Answered Prayer <onboarding@resend.dev>',
+                from: 'Korle Bu Stands in Worship <onboarding@resend.dev>',
                 to: [email],
-                subject: 'Welcome to 100% Answered Prayer!',
+                subject: 'Welcome to Korle Bu Stands in Worship!',
                 html: `
           <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; padding: 40px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); font-family: sans-serif; text-align: center; color: #0a1128;">
             <div style="margin-bottom: 30px;">
-                <img src="https://answered-prayer-hub.web.app/logo.png" alt="100% Answered Prayer" style="max-height: 100px; width: auto; border-radius: 12px; margin: 0 auto; display: block;" onerror="this.src='https://placehold.co/100x100/0a1128/bf953f?text=AP'" />
+                <img src="https://answered-prayer-hub.web.app/logo.png" alt="Korle Bu Stands in Worship" style="max-height: 100px; width: auto; border-radius: 12px; margin: 0 auto; display: block;" onerror="this.src='https://placehold.co/100x100/0a1128/bf953f?text=AP'" />
             </div>
             <h1 style="color: #bf953f; font-size: 28px;">Welcome, ${full_name}!</h1>
             <p style="font-size: 16px; color: #334155; line-height: 1.6; margin-bottom: 10px;">We are absolutely thrilled to have you with us.</p>
@@ -42,7 +42,7 @@ serve(async (req) => {
                 Join the Next Service
             </a>
             <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 30px 0;" />
-            <p style="color: #64748b; font-size: 13px; margin: 0;"><strong>The Answered Prayer Hub</strong><br>A Place of Divine Encounters</p>
+            <p style="color: #64748b; font-size: 13px; margin: 0;"><strong>The Korle Bu Stands in Worship</strong><br>A Place of Divine Encounters</p>
           </div>
         `,
             }),

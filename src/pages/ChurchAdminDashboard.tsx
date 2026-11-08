@@ -505,7 +505,7 @@ const ChurchAdminDashboard = () => {
     <div className="min-h-screen bg-background flex">
       <aside className={`${sidebarOpen ? "w-64" : "w-0 overflow-hidden"} bg-gradient-navy text-primary-foreground transition-all duration-300 flex flex-col fixed inset-y-0 left-0 z-40`}>
         <div className="p-5 border-b border-gold/10">
-          <img src={logo} alt="100% Answered Prayer" className="w-28 mb-2" />
+          <img src={logo} alt="Korle Bu Stands in Worship" className="w-28 mb-2" />
           <p className="text-xs text-primary-foreground/50 font-body truncate">{churchName || "Church Admin"}</p>
         </div>
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">

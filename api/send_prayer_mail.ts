@@ -35,7 +35,7 @@ export default async function handler(req: any, res: any) {
         });
 
         const mailOptions = {
-            from: `"100% Answered Prayer" <${user}>`,
+            from: `"Korle Bu Stands in Worship" <${user}>`,
             to: Array.isArray(to) ? to : [to],
             subject: subject,
             html: html,

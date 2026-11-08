@@ -9,18 +9,18 @@ export const AboutSection = () => {
 
             <div className="max-w-5xl mx-auto relative z-10 text-center animate-fade-up">
                 <h2 className="text-3xl md:text-5xl font-display font-bold text-foreground mb-6">
-                    What is <span className="bg-gradient-gold bg-clip-text text-transparent">100% Answered Prayer</span>?
+                    What is <span className="bg-gradient-gold bg-clip-text text-transparent">Korle Bu Stands in Worship</span>?
                 </h2>
 
                 <div className="bg-card/40 backdrop-blur-xl border border-border/50 shadow-2xl rounded-3xl p-8 md:p-12 text-left mt-10">
                     <p className="text-lg md:text-xl text-muted-foreground font-body leading-relaxed mb-6">
-                        <strong>100% Answered Prayer</strong> is a Spirit-inspired strategic prayer movement,
-                        dedicated to teaching believers and leading them in prayer to receive answers.
-                        God asked us to pray because he wants to answer every prayer.
+                        <strong>Korle Bu Stands in Worship</strong> is a Spirit-inspired strategic worship and prayer movement,
+                        dedicated to lifting up holy hands and leading believers in powerful worship to experience divine transformation.
+                        God inhabits the praises of His people.
                     </p>
                     <p className="text-lg md:text-xl text-muted-foreground font-body leading-relaxed mb-6">
-                        Our mission is to equip you with the knowledge, faith, and practical steps needed to turn your requests into testimonies.
-                        Every Edition of <strong>100% Answered Prayer</strong> has been a catalogue of miracles and testimonies for many. Join us for the next Edition; <strong>YOUR CHANCE HAS COME!</strong>
+                        Our mission is to ignite hearts with faith, passion, and profound worship encounters.
+                        Every Edition of <strong>Korle Bu Stands in Worship</strong> has been a catalogue of miracles and testimonies for many. Join us for the next Edition; <strong>YOUR CHANCE HAS COME!</strong>
                     </p>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12 text-center">
                         <a
@@ -38,7 +38,7 @@ export const AboutSection = () => {
                             rel="noopener noreferrer"
                             className="block p-8 rounded-2xl bg-gradient-to-br from-teal-500/10 to-emerald-500/10 border border-teal-500/20 transition-all hover:shadow-lg duration-300"
                         >
-                            <h3 className="text-2xl font-display font-bold text-foreground mb-2">Join any of our Prayer Groups</h3>
+                            <h3 className="text-2xl font-display font-bold text-foreground mb-2">Join any of our Worship Groups</h3>
                         </a>
 
                         <Link

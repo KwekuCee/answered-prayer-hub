@@ -1215,7 +1215,7 @@ const SuperAdminDashboard = () => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          from: "Answered Prayer Hub",
+          from: "Korle Bu Stands in Worship",
           to: emailRecipients, // Handled automatically by our Gmail SMTP proxy
           subject: emailSubject,
           html: `
@@ -1231,7 +1231,7 @@ const SuperAdminDashboard = () => {
                     <table width="100%" style="max-width: 600px; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);" border="0" cellspacing="0" cellpadding="0">
                       <tr>
                         <td style="background: linear-gradient(135deg, #1e1b4b 0%, #312e81 100%); padding: 40px 30px; text-align: center;">
-                          <img src="https://answered-prayer-hub.web.app/logo.png" alt="100% Answered Prayer" style="max-height: 80px; width: auto; margin: 0 auto; display: block;" onerror="this.src='https://placehold.co/100x100/1e1b4b/D4AF37?text=AP'" />
+                          <img src="https://answered-prayer-hub.web.app/logo.png" alt="Korle Bu Stands in Worship" style="max-height: 80px; width: auto; margin: 0 auto; display: block;" onerror="this.src='https://placehold.co/100x100/1e1b4b/D4AF37?text=AP'" />
                         </td>
                       </tr>
                       <tr>
@@ -1479,7 +1479,7 @@ const SuperAdminDashboard = () => {
     <div className="min-h-screen bg-background flex">
       <aside className={`${sidebarOpen ? "w-64" : "w-0 overflow-hidden"} bg-gradient-navy text-primary-foreground transition-all duration-300 flex flex-col fixed inset-y-0 left-0 z-40`}>
         <div className="p-5 border-b border-gold/10">
-          <img src={logo} alt="100% Answered Prayer" className="w-28 mb-2" />
+          <img src={logo} alt="Korle Bu Stands in Worship" className="w-28 mb-2" />
           <p className="text-xs text-primary-foreground/50 font-body mt-1">Super Admin</p>
         </div>
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
@@ -2336,7 +2336,7 @@ const SuperAdminDashboard = () => {
                     <div className="space-y-2">
                       <Label>Program Name</Label>
                       <Input
-                        placeholder="e.g. 100% Answered Prayer - April 2026"
+                        placeholder="e.g. Korle Bu Stands in Worship - April 2026"
                         value={editingProgram ? editingProgram.name : newProgram.name}
                         onChange={e => editingProgram ? setEditingProgram({ ...editingProgram, name: e.target.value }) : setNewProgram({ ...newProgram, name: e.target.value })}
                       />
@@ -3110,7 +3110,7 @@ const SuperAdminDashboard = () => {
               <Input
                 value={emailSubject}
                 onChange={e => setEmailSubject(e.target.value)}
-                placeholder="e.g. Welcome to Answered Prayer Hub!"
+                placeholder="e.g. Welcome to Korle Bu Stands in Worship!"
               />
             </div>
             <div className="space-y-2">

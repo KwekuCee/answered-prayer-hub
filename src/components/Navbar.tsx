@@ -64,7 +64,7 @@ export const Navbar = () => {
                 <div className="flex justify-between items-center h-20">
                     <div className="flex-shrink-0 flex items-center gap-3">
                         <a href="/" className="flex items-center gap-2">
-                            <img src={logo} alt="100% Answered Prayer" className="h-16 md:h-20 w-auto object-contain" />
+                            <img src={logo} alt="Korle Bu Stands in Worship" className="h-16 md:h-20 w-auto object-contain" />
                         </a>
                     </div>
 

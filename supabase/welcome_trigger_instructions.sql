@@ -1,5 +1,5 @@
 -- =========================================================================
--- Answered Prayer Hub: Database Webhook Trigger (Edge Function)
+-- Korle Bu Stands in Worship: Database Webhook Trigger (Edge Function)
 -- =========================================================================
 
 -- In Supabase, the best way to execute an Edge Function on a row insert 

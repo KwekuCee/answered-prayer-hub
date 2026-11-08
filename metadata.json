@@ -1,6 +1,6 @@
 {
-  "name": "Answered Prayer Hub",
-  "description": "Official App of the Answered Prayer Hub - 100% Answered Prayer movement, registration, resources, live stream, and admin dashboards.",
+  "name": "Korle Bu Stands in Worship",
+  "description": "Official App of Korle Bu Stands in Worship - Registration, resources, live stream, and admin dashboards.",
   "capabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
   ]

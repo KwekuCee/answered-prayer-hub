@@ -1,5 +1,5 @@
 -- =========================================================================
--- Answered Prayer Hub: Phase 6 Admin CRUD Fixes
+-- Korle Bu Stands in Worship: Phase 6 Admin CRUD Fixes
 -- =========================================================================
 
 -- EXPLANATION:

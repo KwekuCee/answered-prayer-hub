@@ -63,7 +63,7 @@ export const LocationSection = () => {
                         <div className="bg-card/60 backdrop-blur-xl border border-border/50 shadow-xl rounded-2xl p-8 hover:shadow-gold/20 transition-all duration-500 transform hover:-translate-y-1">
                             <h3 className="text-2xl font-display font-bold text-foreground mb-2">Prayer Ground</h3>
                             <p className="text-muted-foreground font-body mb-4">
-                                100% Answered Prayer Grounds, <br />
+                                Korle Bu Stands in Worship Grounds, <br />
                                 {locationName}
                             </p>
                             {mapIframeSrc && (
@@ -128,7 +128,7 @@ export const LocationSection = () => {
                 <div className="mt-10 max-w-6xl mx-auto">
                     <div className="mid-image-container">
                         <img src="/mid.png" alt="Mid" className="mid-image" />
-                        <img src={logo} alt="100% Answered Prayer" className="floating-logo w-48 md:w-72" />
+                        <img src={logo} alt="Korle Bu Stands in Worship" className="floating-logo w-48 md:w-72" />
                     </div>
                 </div>
             </div>

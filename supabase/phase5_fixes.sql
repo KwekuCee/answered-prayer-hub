@@ -1,5 +1,5 @@
 -- =========================================================================
--- Answered Prayer Hub: Phase 5 Upgrades
+-- Korle Bu Stands in Worship: Phase 5 Upgrades
 -- =========================================================================
 
 -- 1. Ensure `program_id` is tracked dynamically for all Registrations

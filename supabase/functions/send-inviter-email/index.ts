@@ -18,7 +18,7 @@ serve(async (req) => {
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     if (!SUPABASE_SERVICE_ROLE_KEY) throw new Error("SUPABASE_SERVICE_ROLE_KEY is not configured");
 
-    const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") || "re_CXAZknhd_8qgEoB5kjNGpUdavc62H3H1v";
+    const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") || "";
 
     const RESEND_FROM_EMAIL = Deno.env.get("RESEND_FROM_EMAIL") || "onboarding@resend.dev";
 
@@ -73,7 +73,7 @@ serve(async (req) => {
         <h2 style="margin: 0 0 12px;">New member registered</h2>
         <p style="margin: 0 0 12px;">Hello ${inviter.full_name},</p>
         <p style="margin: 0 0 12px;"><strong>${member.full_name}</strong> just registered through your invitation.</p>
-        <p style="margin: 0;">Thank you for helping grow the 100% Answered Prayer movement.</p>
+        <p style="margin: 0;">Thank you for helping grow the Korle Bu Stands in Worship movement.</p>
       </div>
     `;
 

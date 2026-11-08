@@ -41,7 +41,7 @@ const Register = () => {
                             <Card className="border border-border/50 bg-card/80 backdrop-blur-xl shadow-2xl rounded-3xl overflow-hidden">
                                 <CardHeader className="bg-gradient-to-b from-card/90 to-transparent border-b border-border/20 pb-8 pt-8 px-6 md:px-8">
                                     <CardTitle className="font-display text-2xl md:text-3xl">Attendee Registration</CardTitle>
-                                    <CardDescription className="font-body text-base mt-2">Fill in your details to reserve your place at 100% Answered Prayer.</CardDescription>
+                                    <CardDescription className="font-body text-base mt-2">Fill in your details to reserve your place at Korle Bu Stands in Worship.</CardDescription>
                                 </CardHeader>
                                 <CardContent className="p-6 md:p-8">
                                     <RegistrationForm />
@@ -66,7 +66,7 @@ const Register = () => {
 
             <footer className="py-8 border-t border-border/50 text-center bg-background/50 backdrop-blur-sm z-10 mt-auto">
                 <p className="text-sm text-muted-foreground font-body font-medium">
-                    © {new Date().getFullYear()} 100% Answered Prayer. All rights reserved. | Developed by <a href="https://primehaven.tech" target="_blank" rel="noopener noreferrer" className="text-gold hover:text-gold-light hover:underline transition-colors font-semibold">Prime Haven</a>
+                    © {new Date().getFullYear()} Korle Bu Stands in Worship. All rights reserved. | Developed by <a href="https://primehaven.tech" target="_blank" rel="noopener noreferrer" className="text-gold hover:text-gold-light hover:underline transition-colors font-semibold">Prime Haven</a>
                 </p>
             </footer>
         </div>
