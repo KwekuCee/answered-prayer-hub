@@ -13,9 +13,12 @@ const InviterSignUpForm = () => {
   const { data: churches = [] } = useQuery({
     queryKey: ["churches-list"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("churches").select("id, name").order("name");
-      if (error) throw error;
-      return data;
+      try {
+        const { data } = await supabase.from("churches").select("id, name").order("name");
+        return data || [];
+      } catch {
+        return [];
+      }
     },
   });
 
@@ -27,9 +30,12 @@ const InviterSignUpForm = () => {
   const { data: activeProgram } = useQuery({
     queryKey: ["active-program"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("programs").select("id").eq("is_active", true).maybeSingle();
-      if (error && error.code !== "PGRST116") console.error(error);
-      return data;
+      try {
+        const { data } = await supabase.from("programs").select("id").eq("is_active", true).maybeSingle();
+        return data || null;
+      } catch {
+        return null;
+      }
     },
   });
 

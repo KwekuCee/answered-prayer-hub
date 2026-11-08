@@ -11,12 +11,15 @@ const MemberRegistrationForm = () => {
   const { data: inviters = [] } = useQuery({
     queryKey: ["inviters"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("inviters")
-        .select("id, full_name, church_id, invite_count, churches(name)")
-        .order("full_name");
-      if (error) throw error;
-      return data;
+      try {
+        const { data } = await supabase
+          .from("inviters")
+          .select("id, full_name, church_id, invite_count, churches(name)")
+          .order("full_name");
+        return data || [];
+      } catch {
+        return [];
+      }
     },
   });
 

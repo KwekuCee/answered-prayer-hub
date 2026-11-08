@@ -3,10 +3,10 @@ import { Menu, X, Sun, Moon } from "lucide-react";
 import logo from "@/assets/logo.png";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { Link } from "react-router-dom";
 
 export const Navbar = () => {
     const [isOpen, setIsOpen] = useState(false);
-    const [scrolled, setScrolled] = useState(false);
     const [isDark, setIsDark] = useState<boolean>(() => {
         try {
             const stored = localStorage.getItem('theme');
@@ -27,129 +27,121 @@ export const Navbar = () => {
         }
     }, [isDark]);
 
-    useEffect(() => {
-        const handleScroll = () => setScrolled(window.scrollY > 20);
-        window.addEventListener("scroll", handleScroll);
-        return () => window.removeEventListener("scroll", handleScroll);
-    }, []);
-
     const { data: liveStreamSettings } = useQuery({
         queryKey: ["live-stream"],
         queryFn: async () => {
-            const { data, error } = await supabase.from("live_stream_settings").select("is_active").order("updated_at", { ascending: false }).limit(1);
-            if (error) console.error(error);
-            return data?.[0] || { is_active: true };
+            try {
+                const { data } = await supabase.from("live_stream_settings").select("is_active").order("updated_at", { ascending: false }).limit(1);
+                return data?.[0] || { is_active: true };
+            } catch {
+                return { is_active: true };
+            }
         },
     });
-
-    
 
     const links = [
         { label: "Home", href: "/" },
         { label: "About", href: "/#about" },
         { label: "Location", href: "/#location" },
-        { label: "Prayer Wall", href: "/#prayer-wall" },
         { label: "Prayer", href: "/#prayer" },
-        { label: "Bus Routes", href: "/#bus" },
+        { label: "Buses", href: "/#bus" },
         { label: "Testimonies", href: "/#testimonies" },
         { label: "Resources", href: "/resources" },
         { label: "Give", href: "/donate" },
     ];
 
     return (
-        <nav
-            className={`fixed top-0 w-full z-50 transition-all duration-300 ${scrolled ? "bg-background/80 backdrop-blur-md shadow-md border-b border-border/50" : "bg-transparent"
-                }`}
-        >
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="flex justify-between items-center h-20">
-                    <div className="flex-shrink-0 flex items-center gap-3">
-                        <a href="/" className="flex items-center gap-2">
-                            <img src={logo} alt="Korle Bu Stands in Worship" className="h-16 md:h-20 w-auto object-contain" />
-                        </a>
-                    </div>
+        <nav className="fixed top-4 left-1/2 -translate-x-1/2 w-[94%] max-w-6xl z-50 transition-all duration-300">
+            {/* Complete Floating Rounded Rectangle Navbar Container */}
+            <div className="bg-black/85 dark:bg-black/90 backdrop-blur-xl border border-gold/30 rounded-full px-5 py-2.5 shadow-[0_10px_35px_rgba(0,0,0,0.6)] flex items-center justify-between">
+                
+                {/* Logo Brand */}
+                <Link to="/" className="flex items-center gap-2 shrink-0">
+                    <img src={logo} alt="Korle Bu Stands in Worship" className="h-10 md:h-12 w-auto object-contain drop-shadow" />
+                </Link>
 
-                    {/* Desktop Menu */}
-                    <div className="hidden md:flex space-x-8 items-center">
-                        <button
-                            aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-                            onClick={() => setIsDark(d => !d)}
-                            className="text-muted-foreground hover:text-foreground transition-colors"
-                        >
-                            {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-                        </button>
-                        {links.map((link) => (
-                            <a
-                                key={link.label}
-                                href={link.href}
-                                className="text-muted-foreground hover:text-foreground font-body text-sm font-semibold transition-colors"
-                                onClick={(e) => {
-                                    if (link.href.startsWith("/#")) {
-                                        const id = link.href.split("/")[1];
-                                        if (window.location.pathname === "/") {
-                                            e.preventDefault();
-                                            document.querySelector(id)?.scrollIntoView({ behavior: "smooth" });
-                                        }
+                {/* Condensed Desktop Links */}
+                <div className="hidden lg:flex items-center space-x-6">
+                    {links.map((link) => (
+                        <a
+                            key={link.label}
+                            href={link.href}
+                            className="text-zinc-300 hover:text-gold font-body text-xs font-semibold uppercase tracking-wider transition-colors"
+                            onClick={(e) => {
+                                if (link.href.startsWith("/#")) {
+                                    const id = link.href.split("/")[1];
+                                    if (window.location.pathname === "/") {
+                                        e.preventDefault();
+                                        document.querySelector(id)?.scrollIntoView({ behavior: "smooth" });
                                     }
-                                }}
-                            >
-                                {link.label}
-                            </a>
-                        ))}
-                        <a
-                            href="/live"
-                            className="text-muted-foreground hover:text-foreground font-body text-sm font-semibold transition-colors flex items-center gap-1.5"
+                                }
+                            }}
                         >
-                            Live Stream {liveStreamSettings?.is_active && <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />}
+                            {link.label}
                         </a>
-                        <a
-                            href="/register"
-                            className="px-5 py-2.5 bg-gradient-gold text-accent-foreground font-semibold font-body text-sm rounded-lg shadow-gold hover:-translate-y-0.5 transition-transform"
-                        >
-                            Get Started
-                        </a>
-                    </div>
+                    ))}
+                </div>
 
-                    {/* Mobile Menu Button */}
-                    <div className="md:hidden flex items-center gap-4">
-                        <button
-                            aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-                            onClick={() => setIsDark(d => !d)}
-                            className="text-muted-foreground hover:text-foreground transition-colors"
-                        >
-                            {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-                        </button>
-                        <a
-                            href="/live"
-                            className="text-muted-foreground font-body text-xs font-semibold flex items-center gap-1"
-                        >
-                            Live {liveStreamSettings?.is_active && <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />}
-                        </a>
-                        <a
-                            href="/register"
-                            className="px-4 py-2 bg-gradient-gold text-accent-foreground font-semibold font-body text-xs rounded-lg shadow-gold"
-                        >
-                            Get Started
-                        </a>
-                        <button
-                            onClick={() => setIsOpen(!isOpen)}
-                            className="text-foreground focus:outline-none"
-                        >
-                            {isOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-                        </button>
-                    </div>
+                {/* Right Action Controls */}
+                <div className="hidden md:flex items-center gap-3">
+                    <button
+                        aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+                        onClick={() => setIsDark(d => !d)}
+                        className="p-2 rounded-full text-zinc-300 hover:text-gold hover:bg-gold/10 transition-colors"
+                    >
+                        {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+                    </button>
+
+                    <Link
+                        to="/live"
+                        className="text-zinc-300 hover:text-gold font-body text-xs font-semibold uppercase tracking-wider transition-colors flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-zinc-900 border border-border/50"
+                    >
+                        Live {liveStreamSettings?.is_active && <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />}
+                    </Link>
+
+                    <Link
+                        to="/register"
+                        className="px-4 py-2 bg-gradient-gold text-navy font-bold font-body text-xs rounded-full shadow-gold hover:opacity-90 transition-all"
+                    >
+                        Register
+                    </Link>
+                </div>
+
+                {/* Mobile Menu & Theme Toggle */}
+                <div className="lg:hidden flex items-center gap-2">
+                    <button
+                        aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+                        onClick={() => setIsDark(d => !d)}
+                        className="p-1.5 rounded-full text-zinc-300 hover:text-gold"
+                    >
+                        {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+                    </button>
+
+                    <Link
+                        to="/register"
+                        className="px-3 py-1.5 bg-gradient-gold text-navy font-bold font-body text-xs rounded-full shadow-gold"
+                    >
+                        Register
+                    </Link>
+
+                    <button
+                        onClick={() => setIsOpen(!isOpen)}
+                        className="p-2 text-zinc-200 hover:text-gold focus:outline-none"
+                    >
+                        {isOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+                    </button>
                 </div>
             </div>
 
-            {/* Mobile Menu */}
+            {/* Mobile Navigation Dropdown */}
             {isOpen && (
-                <div className="md:hidden bg-background/95 backdrop-blur-md border-b border-border shadow-lg absolute w-full">
-                    <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
+                <div className="lg:hidden mt-2 bg-black/95 backdrop-blur-2xl border border-gold/30 rounded-3xl p-5 shadow-2xl space-y-2 animate-fade-down">
+                    <div className="grid grid-cols-2 gap-2">
                         {links.map((link) => (
                             <a
                                 key={link.label}
                                 href={link.href}
-                                className="block px-3 py-2 text-base font-semibold font-body text-foreground hover:bg-gold/10 hover:text-gold rounded-md"
+                                className="px-3 py-2 text-xs font-semibold font-body text-zinc-200 hover:bg-gold/10 hover:text-gold rounded-xl transition-colors"
                                 onClick={(e) => {
                                     setIsOpen(false);
                                     if (link.href.startsWith("/#")) {
@@ -165,10 +157,16 @@ export const Navbar = () => {
                             </a>
                         ))}
                     </div>
+                    <div className="pt-2 border-t border-zinc-800 flex items-center justify-between text-xs text-zinc-400">
+                        <Link to="/live" onClick={() => setIsOpen(false)} className="text-gold font-semibold flex items-center gap-1.5">
+                            Watch Live Stream {liveStreamSettings?.is_active && <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />}
+                        </Link>
+                        <Link to="/admin" onClick={() => setIsOpen(false)} className="text-zinc-300 hover:text-gold">
+                            Admin Login &rarr;
+                        </Link>
+                    </div>
                 </div>
             )}
-
-            
         </nav>
     );
 };

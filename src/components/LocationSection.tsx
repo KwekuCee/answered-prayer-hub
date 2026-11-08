@@ -28,17 +28,16 @@ export const LocationSection = () => {
     const { data: activeProgram, isLoading } = useQuery({
         queryKey: ["active-program"],
         queryFn: async () => {
-            const { data, error } = await supabase
-                .from("programs")
-                .select("*")
-                .eq("is_active", true)
-                .maybeSingle();
-
-            if (error) {
-                console.error("Error fetching active program:", error);
+            try {
+                const { data } = await supabase
+                    .from("programs")
+                    .select("*")
+                    .eq("is_active", true)
+                    .maybeSingle();
+                return data || null;
+            } catch {
                 return null;
             }
-            return data;
         },
     });
 

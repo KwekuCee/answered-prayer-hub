@@ -23,13 +23,16 @@ export const BusPointsSection = () => {
     const { data: activeProgram } = useQuery({
         queryKey: ["active-program"],
         queryFn: async () => {
-            const { data, error } = await supabase
-                .from("programs")
-                .select("id")
-                .eq("is_active", true)
-                .maybeSingle();
-            if (error) throw error;
-            return data;
+            try {
+                const { data } = await supabase
+                    .from("programs")
+                    .select("id")
+                    .eq("is_active", true)
+                    .maybeSingle();
+                return data || null;
+            } catch {
+                return null;
+            }
         },
     });
 
@@ -37,17 +40,21 @@ export const BusPointsSection = () => {
         queryKey: ["busPoints", activeProgram?.id],
         enabled: !!activeProgram?.id, // Only fetch if we have an active program
         queryFn: async () => {
-            const { data, error } = await supabase
-                .from("bus_points")
-                .select("*")
-                .eq("program_id", activeProgram!.id)
-                .order("name");
+            try {
+                const { data, error } = await supabase
+                    .from("bus_points")
+                    .select("*")
+                    .eq("program_id", activeProgram!.id)
+                    .order("name");
 
-            if (error) {
-                console.error("Error fetching bus points:", error);
+                if (error) {
+                    console.warn("Could not fetch bus points:", error);
+                    return [];
+                }
+                return data || [];
+            } catch {
                 return [];
             }
-            return data || [];
         },
     });
 

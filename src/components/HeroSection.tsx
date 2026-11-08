@@ -79,10 +79,10 @@ const HeroSection = () => {
             Register for KSW2026
           </Link>
           <Link
-            to="/live"
+            to="/admin"
             className="px-8 py-3.5 rounded-xl border border-gold/40 bg-black/60 backdrop-blur-md text-foreground font-bold font-body hover:bg-gold/10 hover:-translate-y-1 transition-all duration-300"
           >
-            Watch Live Stream
+            Login
           </Link>
         </div>
       </div>

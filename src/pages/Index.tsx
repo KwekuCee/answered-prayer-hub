@@ -4,10 +4,9 @@ import AboutSection from "@/components/AboutSection";
 import LaunchOutlineSection from "@/components/LaunchOutlineSection";
 import LocationSection from "@/components/LocationSection";
 import WorshipStickySection from "@/components/WorshipStickySection";
-import PrayerWall from "@/components/PrayerWall";
 import PrayerPointsSection from "@/components/PrayerPointsSection";
 import BusPointsSection from "@/components/BusPointsSection";
-import { TestimonialMarquee } from "@/components/TestimonialMarquee";
+import TestimonyGrid from "@/components/TestimonyGrid";
 import SocialMediaSection from "@/components/SocialMediaSection";
 
 const Index = () => {
@@ -21,31 +20,16 @@ const Index = () => {
       <LocationSection />
       <WorshipStickySection />
       
-      {/* Community Prayer Wall */}
-      <PrayerWall />
-
+      {/* Confidential Prayer Points Submission */}
       <PrayerPointsSection />
+
+      {/* Free Bus Services */}
       <BusPointsSection />
 
-      {/* Testimonies Section */}
-      <section id="testimonies" className="pt-24 pb-12 px-4 relative overflow-hidden bg-background">
-        <div className="max-w-3xl mx-auto relative z-10 text-center animate-fade-up">
-          <h2 className="text-3xl md:text-5xl font-display font-bold text-foreground mb-4">
-            Real <span className="bg-gradient-gold bg-clip-text text-transparent">Testimonies</span>
-          </h2>
-          <p className="text-muted-foreground font-body text-lg">
-            Read inspiring stories of answered prayers from our global community. Available online and offline.
-          </p>
-        </div>
-      </section>
-
-      <div className="pb-16 bg-background">
-        <TestimonialMarquee />
-      </div>
+      {/* Approved Testimonies Grid */}
+      <TestimonyGrid />
 
       <SocialMediaSection />
-
-
 
       {/* Footer */}
       <footer className="py-10 border-t border-border text-center bg-background">

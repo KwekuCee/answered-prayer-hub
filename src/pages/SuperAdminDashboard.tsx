@@ -232,12 +232,8 @@ const SuperAdminDashboard = () => {
         .select("*")
         .order("created_at", { ascending: false });
       if (error) {
-        if (error.code === 'PGRST205' || error.message?.includes('schema cache')) {
-          console.warn("Resources table not found in schema cache. Returning empty array.");
-          return [];
-        }
-        console.error("Error fetching resources:", error);
-        throw error;
+        console.warn("Resources table note:", error);
+        return [];
       }
       return data || [];
     },
@@ -245,8 +241,7 @@ const SuperAdminDashboard = () => {
 
   useEffect(() => {
     if (resourcesError && resourcesError.code !== 'PGRST205' && !resourcesError.message?.includes('schema cache')) {
-      console.error("Resources query error:", resourcesError);
-      toast.error("Failed to load resources");
+      console.warn("Resources query note:", resourcesError);
     }
   }, [resourcesError]);
 

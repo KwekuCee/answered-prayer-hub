@@ -13,12 +13,15 @@ const RegistrationForm = () => {
   const { data: inviters = [] } = useQuery({
     queryKey: ["inviters"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("inviters")
-        .select("id, full_name, church_id, invite_count, churches(name)")
-        .order("full_name");
-      if (error) throw error;
-      return data;
+      try {
+        const { data } = await supabase
+          .from("inviters")
+          .select("id, full_name, church_id, invite_count, churches(name)")
+          .order("full_name");
+        return data || [];
+      } catch {
+        return [];
+      }
     },
   });
 
@@ -32,9 +35,12 @@ const RegistrationForm = () => {
   const { data: activeProgram } = useQuery({
     queryKey: ["active-program"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("programs").select("id").eq("is_active", true).maybeSingle();
-      if (error && error.code !== "PGRST116") console.error(error);
-      return data;
+      try {
+        const { data } = await supabase.from("programs").select("id").eq("is_active", true).maybeSingle();
+        return data || null;
+      } catch {
+        return null;
+      }
     },
   });
 

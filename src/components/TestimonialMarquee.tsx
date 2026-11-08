@@ -1,33 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { CheckCircle2, ChevronLeft, ChevronRight, WifiOff } from "lucide-react";
+import { CheckCircle2, ChevronLeft, ChevronRight } from "lucide-react";
 import useEmblaCarousel from "embla-carousel-react";
 import Autoplay from "embla-carousel-autoplay";
-import { useCallback, useEffect } from "react";
+import { useCallback } from "react";
 import { Button } from "./ui/button";
-
-const DEFAULT_OFFLINE_TESTIMONIALS = [
-    {
-        author_name: "Bro. Emmanuel T.",
-        church_name: "Christ Embassy Korle Bu",
-        content: "During the prayer session, divine healing swept through my body. The chronic spine pain that plagued me for 3 years disappeared completely!",
-    },
-    {
-        author_name: "Sis. Grace A.",
-        church_name: "Accra Central Zone",
-        content: "I had been praying for open doors in my medical internship. Two days after joining the prayers, I was called and given my first-choice placement!",
-    },
-    {
-        author_name: "Deaconess Rita K.",
-        church_name: "Korle Bu Fellowship",
-        content: "The atmospheric worship unlocked peace in my family that I hadn't felt in years. God is truly doing wonders at Korle Bu Stands in Worship!",
-    },
-    {
-        author_name: "Dr. Kofi A.",
-        church_name: "Korle Bu Enclave",
-        content: "A financial breakthrough that seemed impossible came through in less than 24 hours. Glory to God for answered prayers!",
-    }
-];
 
 export const TestimonialMarquee = () => {
     const { data: testimonials = [] } = useQuery({
@@ -41,37 +18,32 @@ export const TestimonialMarquee = () => {
                     .order("created_at", { ascending: false });
 
                 if (error) {
-                    console.warn("Supabase query failed, falling back to local cached testimonies:", error);
                     const local = localStorage.getItem("ksw_cached_testimonials");
-                    if (local) return JSON.parse(local);
-                    return DEFAULT_OFFLINE_TESTIMONIALS;
+                    return local ? JSON.parse(local) : [];
                 }
 
                 if (data && data.length > 0) {
                     try {
                         localStorage.setItem("ksw_cached_testimonials", JSON.stringify(data));
-                    } catch (e) {
-                        // ignore quota issues
+                    } catch {
+                        // ignore
                     }
                     return data;
                 }
 
-                // If remote returns empty or offline
                 const local = localStorage.getItem("ksw_cached_testimonials");
-                if (local) return JSON.parse(local);
-                return DEFAULT_OFFLINE_TESTIMONIALS;
-            } catch (err) {
+                return local ? JSON.parse(local) : [];
+            } catch {
                 const local = localStorage.getItem("ksw_cached_testimonials");
-                if (local) return JSON.parse(local);
-                return DEFAULT_OFFLINE_TESTIMONIALS;
+                return local ? JSON.parse(local) : [];
             }
         },
         initialData: () => {
             try {
                 const local = localStorage.getItem("ksw_cached_testimonials");
-                return local ? JSON.parse(local) : DEFAULT_OFFLINE_TESTIMONIALS;
+                return local ? JSON.parse(local) : [];
             } catch {
-                return DEFAULT_OFFLINE_TESTIMONIALS;
+                return [];
             }
         }
     });

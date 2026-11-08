@@ -15,14 +15,9 @@ const LiveStream = () => {
         queryKey: ["live-stream-settings"],
         queryFn: async () => {
             try {
-                const { data, error } = await supabase.from("live_stream_settings").select("*").order("updated_at", { ascending: false }).limit(1);
-                if (error) {
-                    console.error("Failed to fetch live stream settings:", error);
-                    return null;
-                }
+                const { data } = await supabase.from("live_stream_settings").select("*").order("updated_at", { ascending: false }).limit(1);
                 return data?.[0] || null;
-            } catch (err) {
-                console.error("Live stream settings fetch error:", err);
+            } catch {
                 return null;
             }
         },
