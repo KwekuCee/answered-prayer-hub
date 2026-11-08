@@ -7,6 +7,7 @@ import React, { Suspense } from "react";
 import { Loader2 } from "lucide-react";
 
 import BackToTop from "./components/BackToTop";
+import OfflineIndicator from "./components/OfflineIndicator";
 
 // Lazy loading the pages to split the massive Javascript bundle
 const Index = React.lazy(() => import("./pages/Index"));
@@ -37,6 +38,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BackToTop />
+      <OfflineIndicator />
       <BrowserRouter>
         <Suspense fallback={<PageLoader />}>
           <Routes>

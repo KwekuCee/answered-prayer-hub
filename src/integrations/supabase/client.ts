@@ -21,7 +21,7 @@ export const supabase: any = new Proxy(rawSupabase, {
       return function (tableName: string) {
         const builder = orig.call(target, tableName);
         const bypassTables = new Set([
-          'programs', 'audit_logs', 'user_roles', 'profiles', 'live_stream_settings', 'churches'
+          'programs', 'audit_logs', 'user_roles', 'profiles', 'live_stream_settings', 'churches', 'prayer_wall', 'testimonials'
         ]);
         return new Proxy(builder, {
           get(bTarget, bProp) {

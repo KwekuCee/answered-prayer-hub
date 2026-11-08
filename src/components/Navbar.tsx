@@ -48,6 +48,7 @@ export const Navbar = () => {
         { label: "Home", href: "/" },
         { label: "About", href: "/#about" },
         { label: "Location", href: "/#location" },
+        { label: "Prayer Wall", href: "/#prayer-wall" },
         { label: "Prayer", href: "/#prayer" },
         { label: "Bus Routes", href: "/#bus" },
         { label: "Testimonies", href: "/#testimonies" },

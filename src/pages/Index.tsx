@@ -4,10 +4,11 @@ import AboutSection from "@/components/AboutSection";
 import LaunchOutlineSection from "@/components/LaunchOutlineSection";
 import LocationSection from "@/components/LocationSection";
 import WorshipStickySection from "@/components/WorshipStickySection";
-import SocialMediaSection from "@/components/SocialMediaSection";
+import PrayerWall from "@/components/PrayerWall";
 import PrayerPointsSection from "@/components/PrayerPointsSection";
 import BusPointsSection from "@/components/BusPointsSection";
 import { TestimonialMarquee } from "@/components/TestimonialMarquee";
+import SocialMediaSection from "@/components/SocialMediaSection";
 
 const Index = () => {
   return (
@@ -19,6 +20,10 @@ const Index = () => {
       <LaunchOutlineSection />
       <LocationSection />
       <WorshipStickySection />
+      
+      {/* Community Prayer Wall */}
+      <PrayerWall />
+
       <PrayerPointsSection />
       <BusPointsSection />
 
@@ -29,7 +34,7 @@ const Index = () => {
             Real <span className="bg-gradient-gold bg-clip-text text-transparent">Testimonies</span>
           </h2>
           <p className="text-muted-foreground font-body text-lg">
-            Read inspiring stories of answered prayers from our global community.
+            Read inspiring stories of answered prayers from our global community. Available online and offline.
           </p>
         </div>
       </section>
@@ -39,6 +44,8 @@ const Index = () => {
       </div>
 
       <SocialMediaSection />
+
+
 
       {/* Footer */}
       <footer className="py-10 border-t border-border text-center bg-background">
