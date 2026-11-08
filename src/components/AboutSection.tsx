@@ -14,14 +14,13 @@ export const AboutSection = () => {
 
                 <div className="bg-card/40 backdrop-blur-xl border border-border/50 shadow-2xl rounded-3xl p-8 md:p-12 text-left mt-10">
                     <p className="text-lg md:text-xl text-muted-foreground font-body leading-relaxed mb-6">
-                        <strong>Korle Bu Stands in Worship</strong> is a Spirit-inspired strategic worship and prayer movement,
-                        dedicated to lifting up holy hands and leading believers in powerful worship to experience divine transformation.
-                        God inhabits the praises of His people.
+                        <strong>KORLE BU STANDS IN WORSHIP 2026</strong>  is a community-wide worship
+                        gathering birthed by the inspiration of the Holy Spirit and strategically
+                        designed to bring together people from within the Korle Bu enclave and across
+                        the city of Accra for a divine encounter with our Lord Jesus Christ in worship
+                        and praise.
                     </p>
-                    <p className="text-lg md:text-xl text-muted-foreground font-body leading-relaxed mb-6">
-                        Our mission is to ignite hearts with faith, passion, and profound worship encounters.
-                        Every Edition of <strong>Korle Bu Stands in Worship</strong> has been a catalogue of miracles and testimonies for many. Join us for the next Edition; <strong>YOUR CHANCE HAS COME!</strong>
-                    </p>
+
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12 text-center">
                         <a
                             href="/resources"
