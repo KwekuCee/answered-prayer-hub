@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
+import { Eye, EyeOff } from "lucide-react";
 
 const AUTH_CODE = "100PRAYER";
 
@@ -25,6 +26,7 @@ const InviterSignUpForm = () => {
   const [form, setForm] = useState({
     fullName: "", email: "", phone: "", churchId: "", authCode: "",
   });
+  const [showAuthCode, setShowAuthCode] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const { data: activeProgram } = useQuery({
@@ -38,7 +40,6 @@ const InviterSignUpForm = () => {
       }
     },
   });
-
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -100,7 +101,25 @@ const InviterSignUpForm = () => {
       </div>
       <div className="space-y-2">
         <Label htmlFor="inv-code">Authentication Code *</Label>
-        <Input id="inv-code" type="password" value={form.authCode} onChange={e => setForm(p => ({ ...p, authCode: e.target.value }))} placeholder="Enter the auth code" required />
+        <div className="relative">
+          <Input
+            id="inv-code"
+            type={showAuthCode ? "text" : "password"}
+            value={form.authCode}
+            onChange={e => setForm(p => ({ ...p, authCode: e.target.value }))}
+            placeholder="Enter the auth code"
+            className="pr-10"
+            required
+          />
+          <button
+            type="button"
+            onClick={() => setShowAuthCode(!showAuthCode)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1"
+            title={showAuthCode ? "Hide code" : "Show code"}
+          >
+            {showAuthCode ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+          </button>
+        </div>
       </div>
       <Button type="submit" disabled={loading} className="w-full bg-gradient-gold text-accent-foreground font-semibold shadow-gold hover:opacity-90 transition-opacity h-12 text-base">
         {loading ? "Signing Up..." : "Sign Up as Inviter"}

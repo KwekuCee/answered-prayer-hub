@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { ArrowLeft, LogIn, UserPlus, ShieldAlert } from "lucide-react";
+import { ArrowLeft, LogIn, UserPlus, ShieldAlert, Eye, EyeOff } from "lucide-react";
 import { Link } from "react-router-dom";
 import logo from "@/assets/logo.png";
 
@@ -21,6 +21,12 @@ const AdminAuth = () => {
     password: "", verifyPassword: "", authCode: "",
   });
   const [loading, setLoading] = useState(false);
+
+  // Peek password toggles
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [showRegPassword, setShowRegPassword] = useState(false);
+  const [showRegVerifyPassword, setShowRegVerifyPassword] = useState(false);
+  const [showAuthCode, setShowAuthCode] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -152,7 +158,24 @@ const AdminAuth = () => {
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold text-zinc-300">Password</Label>
-                    <Input type="password" value={loginForm.password} onChange={e => setLoginForm(p => ({ ...p, password: e.target.value }))} placeholder="••••••••" className="bg-zinc-900/80 border-border/60 focus:border-gold h-11 text-foreground text-sm" required />
+                    <div className="relative">
+                      <Input
+                        type={showLoginPassword ? "text" : "password"}
+                        value={loginForm.password}
+                        onChange={e => setLoginForm(p => ({ ...p, password: e.target.value }))}
+                        placeholder="••••••••"
+                        className="bg-zinc-900/80 border-border/60 focus:border-gold h-11 text-foreground text-sm pr-10"
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowLoginPassword(!showLoginPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-gold transition-colors p-1"
+                        title={showLoginPassword ? "Hide password" : "Show password"}
+                      >
+                        {showLoginPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
                   </div>
                   <Button type="submit" disabled={loading} className="w-full bg-gradient-gold text-navy font-bold h-12 rounded-2xl shadow-gold hover:shadow-gold/80 transition-all mt-2">
                     {loading ? "Signing In..." : "Sign In To Dashboard"}
@@ -191,18 +214,67 @@ const AdminAuth = () => {
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
                       <Label className="text-xs font-semibold text-zinc-300">Password</Label>
-                      <Input type="password" value={regForm.password} onChange={e => setRegForm(p => ({ ...p, password: e.target.value }))} className="bg-zinc-900/80 border-border/60 focus:border-gold h-10 text-foreground text-xs" required />
+                      <div className="relative">
+                        <Input
+                          type={showRegPassword ? "text" : "password"}
+                          value={regForm.password}
+                          onChange={e => setRegForm(p => ({ ...p, password: e.target.value }))}
+                          className="bg-zinc-900/80 border-border/60 focus:border-gold h-10 text-foreground text-xs pr-8"
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowRegPassword(!showRegPassword)}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-gold transition-colors p-0.5"
+                          title={showRegPassword ? "Hide password" : "Show password"}
+                        >
+                          {showRegPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs font-semibold text-zinc-300">Verify Password</Label>
-                      <Input type="password" value={regForm.verifyPassword} onChange={e => setRegForm(p => ({ ...p, verifyPassword: e.target.value }))} className="bg-zinc-900/80 border-border/60 focus:border-gold h-10 text-foreground text-xs" required />
+                      <div className="relative">
+                        <Input
+                          type={showRegVerifyPassword ? "text" : "password"}
+                          value={regForm.verifyPassword}
+                          onChange={e => setRegForm(p => ({ ...p, verifyPassword: e.target.value }))}
+                          className="bg-zinc-900/80 border-border/60 focus:border-gold h-10 text-foreground text-xs pr-8"
+                          required
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowRegVerifyPassword(!showRegVerifyPassword)}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-gold transition-colors p-0.5"
+                          title={showRegVerifyPassword ? "Hide password" : "Show password"}
+                        >
+                          {showRegVerifyPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                        </button>
+                      </div>
                     </div>
                   </div>
                   <div className="space-y-1">
                     <Label className="text-xs font-semibold text-zinc-300 flex items-center gap-1">
                       <ShieldAlert className="w-3.5 h-3.5 text-gold" /> Admin Authentication Code
                     </Label>
-                    <Input type="password" value={regForm.authCode} onChange={e => setRegForm(p => ({ ...p, authCode: e.target.value }))} placeholder="Enter security code" className="bg-zinc-900/80 border-border/60 focus:border-gold h-10 text-foreground text-xs" required />
+                    <div className="relative">
+                      <Input
+                        type={showAuthCode ? "text" : "password"}
+                        value={regForm.authCode}
+                        onChange={e => setRegForm(p => ({ ...p, authCode: e.target.value }))}
+                        placeholder="Enter security code"
+                        className="bg-zinc-900/80 border-border/60 focus:border-gold h-10 text-foreground text-xs pr-8"
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowAuthCode(!showAuthCode)}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-gold transition-colors p-0.5"
+                        title={showAuthCode ? "Hide code" : "Show code"}
+                      >
+                        {showAuthCode ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
                   </div>
                   <Button type="submit" disabled={loading} className="w-full bg-gradient-gold text-navy font-bold h-11 rounded-2xl shadow-gold hover:shadow-gold/80 transition-all mt-1">
                     {loading ? "Creating..." : "Create Admin Account"}
