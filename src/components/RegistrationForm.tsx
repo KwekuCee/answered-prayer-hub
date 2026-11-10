@@ -16,8 +16,23 @@ const RegistrationForm = () => {
       try {
         const { data } = await supabase
           .from("inviters")
-          .select("id, full_name, church_id, invite_count, churches(name)")
+          .select("id, full_name, church_id, invite_count, churches(id, name, is_external, privacy_mode)")
           .order("full_name");
+        return data || [];
+      } catch {
+        return [];
+      }
+    },
+  });
+
+  const { data: churches = [] } = useQuery({
+    queryKey: ["churches-list"],
+    queryFn: async () => {
+      try {
+        const { data } = await supabase
+          .from("churches")
+          .select("id, name, is_external, privacy_mode")
+          .order("name");
         return data || [];
       } catch {
         return [];
@@ -27,7 +42,7 @@ const RegistrationForm = () => {
 
   const [form, setForm] = useState({
     fullName: "", email: "", phone: "", occupation: "",
-    location: "", dateOfBirth: "", inviterId: "",
+    location: "", dateOfBirth: "", inviterId: "", churchId: "",
   });
   const [loading, setLoading] = useState(false);
   const [registeredMember, setRegisteredMember] = useState<{ id: string; name: string } | null>(null);
@@ -44,7 +59,6 @@ const RegistrationForm = () => {
     },
   });
 
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.fullName.trim() || !form.phone.trim()) {
@@ -52,7 +66,7 @@ const RegistrationForm = () => {
       return;
     }
     if (!form.inviterId) {
-      toast.error("Please select who invited you.");
+      toast.error("Please select who invited you or choose self-registration.");
       return;
     }
 
@@ -61,9 +75,17 @@ const RegistrationForm = () => {
       const isSelf = form.inviterId === "self";
       const inviter = isSelf ? null : inviters.find(i => i.id === form.inviterId);
 
-      if (!isSelf && !inviter?.church_id) {
-        throw new Error("Selected inviter is missing church information.");
+      // Determine church ID: either from inviter or from direct church selection if self
+      let resolvedChurchId = inviter?.church_id || form.churchId || null;
+      if (!resolvedChurchId && isSelf && churches.length > 0) {
+        resolvedChurchId = churches[0].id;
       }
+
+      // Check if church has privacy protection
+      const associatedChurch = churches.find(c => c.id === resolvedChurchId);
+      const isPrivacyProtected = Boolean(associatedChurch?.is_external && associatedChurch?.privacy_mode === "masked");
+      const shortId = Math.random().toString(36).substring(2, 7).toUpperCase();
+      const maskedId = isPrivacyProtected ? `M-${associatedChurch?.name.substring(0, 3).toUpperCase()}-${shortId}` : null;
 
       const { data: insertedMember, error } = await supabase
         .from("members")
@@ -75,8 +97,12 @@ const RegistrationForm = () => {
           location: form.location.trim() || null,
           date_of_birth: form.dateOfBirth || null,
           inviter_id: isSelf ? null : form.inviterId,
-          church_id: isSelf ? null : inviter?.church_id,
+          church_id: resolvedChurchId,
           program_id: activeProgram?.id || null,
+          category: "general",
+          is_privacy_protected: isPrivacyProtected,
+          masked_identifier: maskedId,
+          confirmed: true,
         })
         .select("id")
         .single();
@@ -204,19 +230,40 @@ const RegistrationForm = () => {
         </div>
       </div>
 
-      <div className="space-y-2">
-        <Label>Who Invited You? *</Label>
-        <Select value={form.inviterId} onValueChange={v => setForm(p => ({ ...p, inviterId: v }))}>
-          <SelectTrigger><SelectValue placeholder="Select your inviter" /></SelectTrigger>
-          <SelectContent className="max-h-[300px]">
-            <SelectItem value="self" className="font-bold text-gold">Self Invite / Not Invited</SelectItem>
-            {inviters.map(inv => (
-              <SelectItem key={inv.id} value={inv.id}>
-                {inv.full_name} ({(inv.churches as any)?.name || "Unknown"})
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div className="space-y-4">
+        <div className="space-y-2">
+          <Label>Who Invited You? *</Label>
+          <Select value={form.inviterId} onValueChange={v => setForm(p => ({ ...p, inviterId: v }))}>
+            <SelectTrigger><SelectValue placeholder="Select your inviter" /></SelectTrigger>
+            <SelectContent className="max-h-[300px]">
+              <SelectItem value="self" className="font-bold text-gold">Direct Self Registration (Select Your Church Below)</SelectItem>
+              {inviters.map(inv => (
+                <SelectItem key={inv.id} value={inv.id}>
+                  {inv.full_name} ({(inv.churches as any)?.name || "Unknown"})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {form.inviterId === "self" && (
+          <div className="space-y-2 p-4 rounded-2xl bg-zinc-950/60 border border-gold/30 animate-fade-down">
+            <Label className="text-xs font-semibold uppercase tracking-wider text-gold">Your Church / Fellowship</Label>
+            <Select value={form.churchId} onValueChange={v => setForm(p => ({ ...p, churchId: v }))}>
+              <SelectTrigger className="bg-background/80"><SelectValue placeholder="Choose your church from the list" /></SelectTrigger>
+              <SelectContent className="max-h-[300px]">
+                {churches.map(c => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.name} {c.is_external ? "✦ (External Church - Privacy Protected)" : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-muted-foreground">
+              If your church is an external partner, your personal information is kept confidential from public or central lists.
+            </p>
+          </div>
+        )}
       </div>
 
       <Button type="submit" disabled={loading} className="w-full bg-gradient-gold text-accent-foreground font-semibold shadow-gold hover:opacity-90 transition-opacity h-12 text-base">

@@ -46,6 +46,7 @@ const SuperAdminDashboard = () => {
   const [inviterSearch, setInviterSearch] = useState("");
   const [attendeeSearch, setAttendeeSearch] = useState("");
   const [attendeeFilter, setAttendeeFilter] = useState<AttendeeFilter>("all");
+  const [attendeeCategoryFilter, setAttendeeCategoryFilter] = useState<string>("all");
   const [attendeeChurchFilter, setAttendeeChurchFilter] = useState("all");
   const [inviterChurchFilter, setInviterChurchFilter] = useState("all");
 
@@ -137,7 +138,7 @@ const SuperAdminDashboard = () => {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("members")
-        .select("*, inviters(full_name), churches(name)")
+        .select("*, inviters(full_name), churches(id, name, is_external, privacy_mode)")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data;
@@ -577,7 +578,8 @@ const SuperAdminDashboard = () => {
       const matchesSearch =
         m.full_name.toLowerCase().includes(attendeeSearch.toLowerCase()) ||
         ((m.inviters as any)?.full_name || "").toLowerCase().includes(attendeeSearch.toLowerCase()) ||
-        ((m.churches as any)?.name || "").toLowerCase().includes(attendeeSearch.toLowerCase());
+        ((m.churches as any)?.name || "").toLowerCase().includes(attendeeSearch.toLowerCase()) ||
+        (m.dignitary_office || "").toLowerCase().includes(attendeeSearch.toLowerCase());
 
       const matchesStatus =
         attendeeFilter === "all" ||
@@ -587,9 +589,16 @@ const SuperAdminDashboard = () => {
       const matchesChurch =
         attendeeChurchFilter === "all" || m.church_id === attendeeChurchFilter;
 
-      return matchesSearch && matchesStatus && matchesChurch;
+      const matchesCategory =
+        attendeeCategoryFilter === "all" ||
+        (attendeeCategoryFilter === "dignitary" && m.category === "dignitary") ||
+        (attendeeCategoryFilter === "choir_member" && m.category === "choir_member") ||
+        (attendeeCategoryFilter === "general" && (!m.category || m.category === "general")) ||
+        (attendeeCategoryFilter === "external" && (m.churches as any)?.is_external);
+
+      return matchesSearch && matchesStatus && matchesChurch && matchesCategory;
     });
-  }, [programAttendees, attendeeSearch, attendeeFilter, attendeeChurchFilter]);
+  }, [programAttendees, attendeeSearch, attendeeFilter, attendeeChurchFilter, attendeeCategoryFilter]);
 
   const paginatedAttendees = useMemo(() => {
     const start = (attendeePage - 1) * itemsPerPage;
@@ -1228,10 +1237,10 @@ const SuperAdminDashboard = () => {
               {/* Metrics Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
                 {[
-                  { label: "Total Registrations", value: totalAttendeesCount, icon: Users, sub: "Across all participating churches" },
+                  { label: "Total Registrations", value: totalAttendeesCount, icon: Users, sub: "Combined verified headcount" },
                   { label: "Confirmed Attendance", value: totalConfirmed, icon: CheckCircle2, sub: "Verified & confirmed attendees" },
-                  { label: "Pending Verification", value: totalPending, icon: Clock, sub: "Awaiting confirmation" },
-                  { label: "Participating Churches", value: churches.length, icon: Church, sub: "Active church centers" },
+                  { label: "External Partner Churches", value: churches.filter(c => c.is_external).length, icon: Church, sub: `${churches.length} total church centers` },
+                  { label: "VIP Dignitaries & Protocol", value: programAttendees.filter(m => m.category === "dignitary").length, icon: Trophy, sub: "Government, royal & clergy VIPs" },
                 ].map((stat) => (
                   <Card key={stat.label} className="bg-card/80 backdrop-blur-xl border-border/60 hover:border-gold/40 hover:shadow-gold/15 transition-all rounded-3xl p-6 group">
                     <CardContent className="p-0 space-y-3">
@@ -1380,6 +1389,9 @@ const SuperAdminDashboard = () => {
                     <TableHeader className="bg-zinc-900/90 border-b border-border/60">
                       <TableRow>
                         <TableHead className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">Church Center Name</TableHead>
+                        <TableHead className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">Network Type</TableHead>
+                        <TableHead className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">Pastor / Contact</TableHead>
+                        <TableHead className="font-semibold text-xs uppercase tracking-wider text-muted-foreground text-center">Headcount</TableHead>
                         <TableHead className="font-semibold text-xs uppercase tracking-wider text-muted-foreground text-center">Target Goal</TableHead>
                         <TableHead className="font-semibold text-xs uppercase tracking-wider text-muted-foreground text-center">Actions</TableHead>
                       </TableRow>
@@ -1387,7 +1399,36 @@ const SuperAdminDashboard = () => {
                     <TableBody>
                       {paginatedChurches.map((c) => (
                         <TableRow key={c.id} className="hover:bg-zinc-900/50 border-b border-border/40">
-                          <TableCell className="font-semibold text-foreground text-sm">{c.name}</TableCell>
+                          <TableCell className="font-semibold text-foreground text-sm">
+                            <div className="flex items-center gap-2">
+                              <span>{c.name}</span>
+                              {c.location && <span className="text-xs text-muted-foreground">({c.location})</span>}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {c.is_external ? (
+                              <Badge variant="outline" className="border-emerald-500/40 text-emerald-400 bg-emerald-500/10 text-xs font-semibold">
+                                External Partner ({c.privacy_mode || "masked"})
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="border-gold/40 text-gold bg-gold/10 text-xs font-semibold">
+                                Christ Embassy
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-xs">
+                            {c.pastor_name ? (
+                              <div>
+                                <span className="font-medium text-foreground">{c.pastor_name}</span>
+                                {c.pastor_phone && <p className="text-muted-foreground font-mono">{c.pastor_phone}</p>}
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-center font-mono font-bold text-foreground text-sm">
+                            {c.confirmed || 0}
+                          </TableCell>
                           <TableCell className="text-center font-mono font-bold text-gold text-sm">{c.target || 100}</TableCell>
                           <TableCell className="text-center">
                             <div className="flex items-center justify-center gap-2">
@@ -1404,7 +1445,7 @@ const SuperAdminDashboard = () => {
 
                       {filteredChurches.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={3} className="text-center py-12 text-muted-foreground">
+                          <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
                             No church centers found.
                           </TableCell>
                         </TableRow>
@@ -1564,10 +1605,17 @@ const SuperAdminDashboard = () => {
                     </SelectContent>
                   </Select>
 
-                  <div className="flex items-center gap-1.5">
-                    <Button variant={attendeeFilter === "all" ? "default" : "outline"} size="sm" onClick={() => { setAttendeeFilter("all"); setAttendeePage(1); }} className="rounded-xl text-xs">All</Button>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <Button variant={attendeeFilter === "all" ? "default" : "outline"} size="sm" onClick={() => { setAttendeeFilter("all"); setAttendeePage(1); }} className="rounded-xl text-xs">All Status</Button>
                     <Button variant={attendeeFilter === "confirmed" ? "default" : "outline"} size="sm" onClick={() => { setAttendeeFilter("confirmed"); setAttendeePage(1); }} className="rounded-xl text-xs">Confirmed</Button>
                     <Button variant={attendeeFilter === "pending" ? "default" : "outline"} size="sm" onClick={() => { setAttendeeFilter("pending"); setAttendeePage(1); }} className="rounded-xl text-xs">Pending</Button>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 flex-wrap pt-1 md:pt-0">
+                    <Button variant={attendeeCategoryFilter === "all" ? "default" : "outline"} size="sm" onClick={() => { setAttendeeCategoryFilter("all"); setAttendeePage(1); }} className="rounded-xl text-xs border-gold/30">All Types</Button>
+                    <Button variant={attendeeCategoryFilter === "dignitary" ? "default" : "outline"} size="sm" onClick={() => { setAttendeeCategoryFilter("dignitary"); setAttendeePage(1); }} className="rounded-xl text-xs border-gold/40 text-gold">VIP Dignitaries</Button>
+                    <Button variant={attendeeCategoryFilter === "choir_member" ? "default" : "outline"} size="sm" onClick={() => { setAttendeeCategoryFilter("choir_member"); setAttendeePage(1); }} className="rounded-xl text-xs border-indigo-500/40 text-indigo-400">Special Choirs</Button>
+                    <Button variant={attendeeCategoryFilter === "external" ? "default" : "outline"} size="sm" onClick={() => { setAttendeeCategoryFilter("external"); setAttendeePage(1); }} className="rounded-xl text-xs border-emerald-500/40 text-emerald-400">External Churches</Button>
                   </div>
                 </div>
 
@@ -1603,6 +1651,7 @@ const SuperAdminDashboard = () => {
                           />
                         </TableHead>
                         <TableHead className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">Attendee Name</TableHead>
+                        <TableHead className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">Category</TableHead>
                         <TableHead className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">Phone</TableHead>
                         <TableHead className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">Church Center</TableHead>
                         <TableHead className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">Invited By</TableHead>
@@ -1611,46 +1660,85 @@ const SuperAdminDashboard = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {paginatedAttendees.map((m) => (
-                        <TableRow key={m.id} className="hover:bg-zinc-900/50 border-b border-border/40">
-                          <TableCell>
-                            <Checkbox
-                              checked={selectedAttendees.has(m.id)}
-                              onCheckedChange={(c) => handleSelectOne(m.id, !!c)}
-                            />
-                          </TableCell>
-                          <TableCell className="font-semibold text-foreground text-sm">{m.full_name}</TableCell>
-                          <TableCell className="text-sm font-mono text-foreground">{m.phone || "—"}</TableCell>
-                          <TableCell className="text-sm text-muted-foreground">{(m.churches as any)?.name || "—"}</TableCell>
-                          <TableCell className="text-sm text-muted-foreground">{(m.inviters as any)?.full_name || "—"}</TableCell>
-                          <TableCell className="text-center">
-                            <Badge variant="outline" className={m.confirmed ? "border-emerald-500/40 text-emerald-400 bg-emerald-500/10" : "border-amber-500/40 text-amber-400 bg-amber-500/10"}>
-                              {m.confirmed ? "Confirmed" : "Pending"}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-center">
-                            <div className="flex items-center justify-center gap-1.5">
-                              <Button size="sm" variant="ghost" onClick={() => setViewingAttendee(m)} className="hover:text-gold rounded-lg" title="View Details">
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                              <Button size="sm" variant="ghost" onClick={() => setEditingAttendee({ ...m, inviter_id: m.inviter_id || "none" })} className="hover:text-gold rounded-lg">
-                                <Pencil className="h-4 w-4" />
-                              </Button>
-                              <Button size="sm" variant="ghost" onClick={() => handleDeleteAttendee(m.id)} className="hover:text-red-400 rounded-lg">
-                                <Trash2 className="h-4 w-4 text-red-400" />
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant={m.confirmed ? "outline" : "default"}
-                                onClick={() => handleConfirmSingle(m.id, m.confirmed)}
-                                className={!m.confirmed ? "bg-gradient-gold text-navy font-bold rounded-xl text-xs px-3" : "rounded-xl text-xs"}
-                              >
-                                {m.confirmed ? "Undo" : "Confirm"}
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                      {paginatedAttendees.map((m) => {
+                        const isProtected = m.is_privacy_protected || (m.churches as any)?.privacy_mode === "masked";
+                        const displayName = isProtected
+                          ? (m.masked_identifier || `Member #···${m.id.substring(0, 4)}`)
+                          : m.full_name;
+                        const displayPhone = isProtected ? "✦ Confidential (Pastor Protected)" : (m.phone || "—");
+
+                        return (
+                          <TableRow key={m.id} className="hover:bg-zinc-900/50 border-b border-border/40">
+                            <TableCell>
+                              <Checkbox
+                                checked={selectedAttendees.has(m.id)}
+                                onCheckedChange={(c) => handleSelectOne(m.id, !!c)}
+                              />
+                            </TableCell>
+                            <TableCell className="font-semibold text-foreground text-sm">
+                              <div className="flex items-center gap-2">
+                                <span>{displayName}</span>
+                                {isProtected && (
+                                  <Badge variant="outline" className="text-[10px] bg-zinc-900 border-zinc-700 text-muted-foreground">
+                                    Privacy Protected
+                                  </Badge>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              {m.category === "dignitary" && (
+                                <Badge className="bg-gold/20 text-gold border-gold/40 text-[11px] font-semibold">
+                                  VIP Dignitary
+                                </Badge>
+                              )}
+                              {m.category === "choir_member" && (
+                                <Badge className="bg-indigo-500/20 text-indigo-300 border-indigo-500/40 text-[11px] font-semibold">
+                                  Special Choir
+                                </Badge>
+                              )}
+                              {(!m.category || m.category === "general") && (
+                                <span className="text-xs text-muted-foreground">General</span>
+                              )}
+                            </TableCell>
+                            <TableCell className={`text-sm font-mono ${isProtected ? "text-muted-foreground italic text-xs" : "text-foreground"}`}>
+                              {displayPhone}
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground">
+                              <span>{(m.churches as any)?.name || "—"}</span>
+                              {(m.churches as any)?.is_external && (
+                                <span className="ml-1.5 text-[10px] text-emerald-400 font-semibold">(External)</span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-sm text-muted-foreground">{(m.inviters as any)?.full_name || "—"}</TableCell>
+                            <TableCell className="text-center">
+                              <Badge variant="outline" className={m.confirmed ? "border-emerald-500/40 text-emerald-400 bg-emerald-500/10" : "border-amber-500/40 text-amber-400 bg-amber-500/10"}>
+                                {m.confirmed ? "Confirmed" : "Pending"}
+                              </Badge>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              <div className="flex items-center justify-center gap-1.5">
+                                <Button size="sm" variant="ghost" onClick={() => setViewingAttendee(m)} className="hover:text-gold rounded-lg" title="View Details">
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                                <Button size="sm" variant="ghost" onClick={() => setEditingAttendee({ ...m, inviter_id: m.inviter_id || "none" })} className="hover:text-gold rounded-lg">
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                                <Button size="sm" variant="ghost" onClick={() => handleDeleteAttendee(m.id)} className="hover:text-red-400 rounded-lg">
+                                  <Trash2 className="h-4 w-4 text-red-400" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant={m.confirmed ? "outline" : "default"}
+                                  onClick={() => handleConfirmSingle(m.id, m.confirmed)}
+                                  className={!m.confirmed ? "bg-gradient-gold text-navy font-bold rounded-xl text-xs px-3" : "rounded-xl text-xs"}
+                                >
+                                  {m.confirmed ? "Undo" : "Confirm"}
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
 
                       {filteredAttendees.length === 0 && (
                         <TableRow>

@@ -607,10 +607,17 @@ const ChurchAdminDashboard = () => {
               {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
             <div>
-              <h1 className="font-display font-bold text-xl capitalize text-foreground flex items-center gap-2">
-                <Sparkles className="w-5 h-5 text-gold" />
-                {activeTab.replace("-", " ")}
-              </h1>
+              <div className="flex items-center gap-2">
+                <h1 className="font-display font-bold text-xl capitalize text-foreground flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-gold" />
+                  {activeTab.replace("-", " ")}
+                </h1>
+                {church?.is_external && (
+                  <Badge variant="outline" className="border-emerald-500/40 text-emerald-400 bg-emerald-500/10 text-xs font-semibold">
+                    External Church Network ({church.privacy_mode || "Masked"} Privacy)
+                  </Badge>
+                )}
+              </div>
               <p className="text-xs text-muted-foreground font-body">Management dashboard for {churchName}</p>
             </div>
           </div>

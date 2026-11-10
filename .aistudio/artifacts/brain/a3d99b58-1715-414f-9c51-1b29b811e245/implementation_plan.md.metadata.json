@@ -1,0 +1,6 @@
+{
+  "summary":  "Comprehensive architecture and implementation plan for external church onboarding, privacy-preserving registration with configurable masking/hashing, dignitary protocol registration, special choir delegation tracking, and full Supabase SQL migration schema.",
+  "updatedAt":  "2026-11-10T12:28:07.048857678Z",
+  "requestFeedback":  true,
+  "userFacing":  true
+}

@@ -15,7 +15,7 @@ const InviterSignUpForm = () => {
     queryKey: ["churches-list"],
     queryFn: async () => {
       try {
-        const { data } = await supabase.from("churches").select("id, name").order("name");
+        const { data } = await supabase.from("churches").select("id, name, is_external, auth_code").order("name");
         return data || [];
       } catch {
         return [];
@@ -47,8 +47,12 @@ const InviterSignUpForm = () => {
       toast.error("All fields are required.");
       return;
     }
-    if (form.authCode !== AUTH_CODE) {
-      toast.error("Invalid authentication code.");
+
+    const selectedChurch = churches.find(c => c.id === form.churchId);
+    const validCode = selectedChurch?.auth_code || AUTH_CODE;
+
+    if (form.authCode.trim() !== validCode && form.authCode.trim() !== AUTH_CODE) {
+      toast.error("Invalid authentication code for this church.");
       return;
     }
 
@@ -91,9 +95,11 @@ const InviterSignUpForm = () => {
           <Label>Church Name *</Label>
           <Select value={form.churchId} onValueChange={v => setForm(p => ({ ...p, churchId: v }))}>
             <SelectTrigger><SelectValue placeholder="Select your church" /></SelectTrigger>
-            <SelectContent>
+            <SelectContent className="max-h-[300px]">
               {churches.map(c => (
-                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                <SelectItem key={c.id} value={c.id}>
+                  {c.name} {c.is_external ? "✦ (External Church)" : ""}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>

@@ -81,26 +81,50 @@ export type Database = {
       }
       churches: {
         Row: {
+          auth_code: string | null
           confirmed: number
           created_at: string
+          delegation_notes: string | null
           id: string
+          is_external: boolean | null
+          location: string | null
           name: string
+          pastor_email: string | null
+          pastor_name: string | null
+          pastor_phone: string | null
+          privacy_mode: string | null
           target: number
           updated_at: string
         }
         Insert: {
+          auth_code?: string | null
           confirmed?: number
           created_at?: string
+          delegation_notes?: string | null
           id?: string
+          is_external?: boolean | null
+          location?: string | null
           name: string
+          pastor_email?: string | null
+          pastor_name?: string | null
+          pastor_phone?: string | null
+          privacy_mode?: string | null
           target?: number
           updated_at?: string
         }
         Update: {
+          auth_code?: string | null
           confirmed?: number
           created_at?: string
+          delegation_notes?: string | null
           id?: string
+          is_external?: boolean | null
+          location?: string | null
           name?: string
+          pastor_email?: string | null
+          pastor_name?: string | null
+          pastor_phone?: string | null
+          privacy_mode?: string | null
           target?: number
           updated_at?: string
         }
@@ -301,43 +325,70 @@ export type Database = {
       }
       members: {
         Row: {
-          church_id: string
+          category: string | null
+          choir_delegation_id: string | null
+          church_id: string | null
           confirmed: boolean
           created_at: string
           date_of_birth: string | null
+          dignitary_constituency: string | null
+          dignitary_office: string | null
+          dignitary_title: string | null
           email: string | null
           full_name: string
           id: string
           inviter_id: string | null
+          is_privacy_protected: boolean | null
           location: string | null
+          masked_identifier: string | null
           occupation: string | null
           phone: string
+          program_id: string | null
+          vip_tier: string | null
         }
         Insert: {
-          church_id: string
+          category?: string | null
+          choir_delegation_id?: string | null
+          church_id?: string | null
           confirmed?: boolean
           created_at?: string
           date_of_birth?: string | null
+          dignitary_constituency?: string | null
+          dignitary_office?: string | null
+          dignitary_title?: string | null
           email?: string | null
           full_name: string
           id?: string
           inviter_id?: string | null
+          is_privacy_protected?: boolean | null
           location?: string | null
+          masked_identifier?: string | null
           occupation?: string | null
           phone: string
+          program_id?: string | null
+          vip_tier?: string | null
         }
         Update: {
-          church_id?: string
+          category?: string | null
+          choir_delegation_id?: string | null
+          church_id?: string | null
           confirmed?: boolean
           created_at?: string
           date_of_birth?: string | null
+          dignitary_constituency?: string | null
+          dignitary_office?: string | null
+          dignitary_title?: string | null
           email?: string | null
           full_name?: string
           id?: string
           inviter_id?: string | null
+          is_privacy_protected?: boolean | null
           location?: string | null
+          masked_identifier?: string | null
           occupation?: string | null
           phone?: string
+          program_id?: string | null
+          vip_tier?: string | null
         }
         Relationships: [
           {
@@ -459,6 +510,130 @@ export type Database = {
           is_approved?: boolean
         }
         Relationships: []
+      }
+      special_choirs: {
+        Row: {
+          choir_name: string
+          church_id: string | null
+          church_name: string | null
+          confirmed_members: number
+          created_at: string
+          estimated_members: number
+          id: string
+          instrument_requirements: string | null
+          leader_email: string | null
+          leader_name: string
+          leader_phone: string
+          rehearsal_schedule: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          choir_name: string
+          church_id?: string | null
+          church_name?: string | null
+          confirmed_members?: number
+          created_at?: string
+          estimated_members?: number
+          id?: string
+          instrument_requirements?: string | null
+          leader_email?: string | null
+          leader_name: string
+          leader_phone: string
+          rehearsal_schedule?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          choir_name?: string
+          church_id?: string | null
+          church_name?: string | null
+          confirmed_members?: number
+          created_at?: string
+          estimated_members?: number
+          id?: string
+          instrument_requirements?: string | null
+          leader_email?: string | null
+          leader_name?: string
+          leader_phone?: string
+          rehearsal_schedule?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "special_choirs_church_id_fkey"
+            columns: ["church_id"]
+            isOneToOne: false
+            referencedRelation: "churches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dignitaries: {
+        Row: {
+          arrival_window: string | null
+          contact_email: string | null
+          contact_phone: string
+          created_at: string
+          full_name: string
+          id: string
+          member_id: string | null
+          office_or_portfolio: string
+          organization_or_constituency: string | null
+          protocol_officer_name: string | null
+          protocol_officer_phone: string | null
+          security_detail_count: number
+          special_seating_zone: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          arrival_window?: string | null
+          contact_email?: string | null
+          contact_phone: string
+          created_at?: string
+          full_name: string
+          id?: string
+          member_id?: string | null
+          office_or_portfolio: string
+          organization_or_constituency?: string | null
+          protocol_officer_name?: string | null
+          protocol_officer_phone?: string | null
+          security_detail_count?: number
+          special_seating_zone?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          arrival_window?: string | null
+          contact_email?: string | null
+          contact_phone?: string
+          created_at?: string
+          full_name?: string
+          id?: string
+          member_id?: string | null
+          office_or_portfolio?: string
+          organization_or_constituency?: string | null
+          protocol_officer_name?: string | null
+          protocol_officer_phone?: string | null
+          security_detail_count?: number
+          special_seating_zone?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dignitaries_member_id_fkey"
+            columns: ["member_id"]
+            isOneToOne: false
+            referencedRelation: "members"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
