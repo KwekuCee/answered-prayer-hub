@@ -16,7 +16,8 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import {
   LayoutDashboard, Church, Shield, UserCheck, Users, Trophy, Download,
-  LogOut, Menu, X, TrendingUp, Target, Medal, Pencil, Trash2, Activity, MapPin, MessageCircle, Eye, Mail, Bus, Calendar, Heart, PlusCircle, Search, ChevronLeft, ChevronRight, Sparkles, Video, CheckCircle2, ShieldAlert, FileText, Check
+  LogOut, Menu, X, TrendingUp, Target, Medal, Pencil, Trash2, Activity, MapPin, MessageCircle, Eye, Mail, Bus, Calendar, Heart, PlusCircle, Search, ChevronLeft, ChevronRight, Sparkles, Video, CheckCircle2, ShieldAlert, FileText, Check,
+  History, Clock,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LineChart, Line, PieChart, Pie, Legend } from "recharts";
 import logo from "@/assets/logo.png";
@@ -251,7 +252,7 @@ const SuperAdminDashboard = () => {
   });
 
   useEffect(() => {
-    if (resourcesError && resourcesError.code !== 'PGRST205' && !resourcesError.message?.includes('schema cache')) {
+    if (resourcesError && (resourcesError as { code?: string }).code !== 'PGRST205' && !resourcesError.message?.includes('schema cache')) {
       console.warn("Resources query note:", resourcesError);
     }
   }, [resourcesError]);

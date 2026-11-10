@@ -79,6 +79,7 @@ export default {
         sm: "calc(var(--radius) - 4px)",
       },
       keyframes: {
+        heroZoom: { from: { transform: "scale(1.15)" }, to: { transform: "scale(1)" } },
         "accordion-down": {
           from: { height: "0" },
           to: { height: "var(--radix-accordion-content-height)" },
