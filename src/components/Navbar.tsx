@@ -3,6 +3,7 @@ import { Menu, X, Sun, Moon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Link } from "react-router-dom";
+import logoWhite from "@/assets/logo-white.png";
 
 export const Navbar = () => {
     const [isOpen, setIsOpen] = useState(false);
@@ -51,39 +52,20 @@ export const Navbar = () => {
     return (
         <nav className="fixed top-4 left-1/2 -translate-x-1/2 w-[94%] max-w-6xl z-50 transition-all duration-300">
             {/* Complete Floating Rounded Rectangle Navbar Container */}
-            <div className="bg-black/85 dark:bg-black/90 backdrop-blur-xl border border-gold/30 rounded-full px-5 py-2.5 shadow-[0_10px_35px_rgba(0,0,0,0.6)] flex items-center justify-between">
+            <div className="relative bg-black/85 dark:bg-black/90 backdrop-blur-xl border border-gold/30 rounded-full px-5 py-2.5 shadow-[0_10px_35px_rgba(0,0,0,0.6)] flex items-center justify-between">
                 
-                {/* Right Action Controls */}
-                <div className="hidden md:flex items-center gap-3">
-                    <button
-                        aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-                        onClick={() => setIsDark(d => !d)}
-                        className="p-2 rounded-full text-zinc-300 hover:text-gold hover:bg-gold/10 transition-colors"
-                    >
-                        {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-                    </button>
+                {/* Left Side: White Logo */}
+                <Link to="/" className="flex items-center gap-2 shrink-0 z-10">
+                    <img src={logoWhite} alt="Korle Bu Stands in Worship" className="h-8 md:h-10 w-auto object-contain drop-shadow" />
+                </Link>
 
-                    <Link
-                        to="/register"
-                        className="px-4 py-2 bg-gradient-gold text-navy font-bold font-body text-xs rounded-full shadow-gold hover:opacity-90 transition-all"
-                    >
-                        Register
-                    </Link>
-                    <Link
-                        to="/admin"
-                        className="px-4 py-2 border border-gold/40 text-zinc-200 hover:text-gold font-bold font-body text-xs rounded-full transition-all"
-                    >
-                        Login
-                    </Link>
-                </div>
-
-                {/* Condensed Desktop Links */}
-                <div className="hidden lg:flex items-center space-x-6 ml-auto">
+                {/* Middle: Centered Menu Links (centered exactly on page) */}
+                <div className="hidden lg:flex items-center space-x-6 absolute left-1/2 -translate-x-1/2 z-0">
                     {links.map((link) => (
                         <a
                             key={link.label}
                             href={link.href}
-                            className="text-zinc-300 hover:text-gold font-body text-xs font-semibold uppercase tracking-wider transition-colors"
+                            className="text-zinc-300 hover:text-gold font-body text-xs font-semibold uppercase tracking-wider transition-colors whitespace-nowrap"
                             onClick={(e) => {
                                 if (link.href.startsWith("/#")) {
                                     const id = link.href.split("/")[1];
@@ -95,13 +77,39 @@ export const Navbar = () => {
                             }}
                         >
                             {link.label}
-                            {link.label === "Live" && liveStreamSettings?.is_active && <span className="ml-1.5 inline-block h-2 w-2 rounded-full bg-red-500 animate-pulse" />}
+                            {link.label === "Live" && liveStreamSettings?.is_active && (
+                                <span className="ml-1.5 inline-block h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+                            )}
                         </a>
                     ))}
                 </div>
 
+                {/* Right Side: Theme Icon, Register, Login */}
+                <div className="hidden md:flex items-center gap-3 shrink-0 ml-auto z-10">
+                    <button
+                        aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+                        onClick={() => setIsDark(d => !d)}
+                        className="p-2 rounded-full text-zinc-300 hover:text-gold hover:bg-gold/10 transition-colors"
+                    >
+                        {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+                    </button>
+
+                    <Link
+                        to="/register"
+                        className="px-4 py-2 bg-gradient-gold text-navy font-bold font-body text-xs rounded-full shadow-gold hover:opacity-90 transition-all whitespace-nowrap"
+                    >
+                        Register
+                    </Link>
+                    <Link
+                        to="/admin"
+                        className="px-4 py-2 border border-gold/40 text-zinc-200 hover:text-gold font-bold font-body text-xs rounded-full transition-all whitespace-nowrap"
+                    >
+                        Login
+                    </Link>
+                </div>
+
                 {/* Mobile Menu & Theme Toggle */}
-                <div className="lg:hidden flex items-center gap-2 ml-auto">
+                <div className="lg:hidden flex items-center gap-2 ml-auto z-10">
                     <button
                         aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
                         onClick={() => setIsDark(d => !d)}
@@ -165,3 +173,4 @@ export const Navbar = () => {
 };
 
 export default Navbar;
+
