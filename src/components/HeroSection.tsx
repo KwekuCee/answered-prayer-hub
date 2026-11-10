@@ -1,5 +1,5 @@
-import logoColor from "@/assets/logo-color.png";
-import logoWhite from "@/assets/logo-white.png";
+import logoColor from "@/assets/logo-color.webp";
+import logoWhite from "@/assets/logo-white.webp";
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -27,11 +27,23 @@ const HeroSection = () => {
 
       <div className="relative z-10 w-full max-w-7xl mx-auto px-6 pb-24 md:pb-28 hero-content">
         <div className="max-w-3xl space-y-6 animate-fade-up">
-          <img src={logoWhite} alt="Korle Bu Stands in Worship 2026" className="w-40 md:w-56 dark:block hidden" />
-          <img src={logoColor} alt="Korle Bu Stands in Worship 2026" className="w-40 md:w-56 dark:hidden block" />
+          <img 
+            src={logoWhite} 
+            alt="Korle Bu Stands in Worship 2026" 
+            loading="eager" 
+            decoding="async" 
+            className="w-44 md:w-60 dark:block hidden" 
+          />
+          <img 
+            src={logoColor} 
+            alt="Korle Bu Stands in Worship 2026" 
+            loading="eager" 
+            decoding="async" 
+            className="w-44 md:w-60 dark:hidden block" 
+          />
 
           <p className="text-gold uppercase tracking-[0.4em] text-xs md:text-sm font-semibold">
-            100% Answered Prayer
+            Divine Worship Encounter 2026
           </p>
           <h1 className="font-display font-bold text-foreground leading-[0.95] text-5xl sm:text-6xl md:text-8xl">
             Korle Bu <br />

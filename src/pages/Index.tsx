@@ -8,6 +8,7 @@ import PrayerPointsSection from "@/components/PrayerPointsSection";
 import BusPointsSection from "@/components/BusPointsSection";
 import TestimonyGrid from "@/components/TestimonyGrid";
 import SocialMediaSection from "@/components/SocialMediaSection";
+import ScrollRevealSection from "@/components/ScrollRevealSection";
 
 const Index = () => {
   return (
@@ -15,21 +16,39 @@ const Index = () => {
       <Navbar />
       <HeroSection />
 
-      <AboutSection />
-      <LaunchOutlineSection />
-      <LocationSection />
+      <ScrollRevealSection>
+        <AboutSection />
+      </ScrollRevealSection>
+
+      <ScrollRevealSection>
+        <LaunchOutlineSection />
+      </ScrollRevealSection>
+
+      <ScrollRevealSection>
+        <LocationSection />
+      </ScrollRevealSection>
+
+      {/* Anointed Worship Anthems Section with interactive scroll-linked wheel */}
       <WorshipStickySection />
       
       {/* Confidential Prayer Points Submission */}
-      <PrayerPointsSection />
+      <ScrollRevealSection>
+        <PrayerPointsSection />
+      </ScrollRevealSection>
 
       {/* Free Bus Services */}
-      <BusPointsSection />
+      <ScrollRevealSection>
+        <BusPointsSection />
+      </ScrollRevealSection>
 
       {/* Approved Testimonies Grid */}
-      <TestimonyGrid />
+      <ScrollRevealSection>
+        <TestimonyGrid />
+      </ScrollRevealSection>
 
-      <SocialMediaSection />
+      <ScrollRevealSection>
+        <SocialMediaSection />
+      </ScrollRevealSection>
 
       {/* Footer */}
       <footer className="py-10 border-t border-border text-center bg-background">

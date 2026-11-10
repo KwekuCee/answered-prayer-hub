@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { MapPin } from "lucide-react";
-import logo from "@/assets/logo.png";
+import logo from "@/assets/logo.webp";
 
 const normalizeMapIframeUrl = (value: string) => {
     if (!value) return "";
@@ -123,11 +123,23 @@ export const LocationSection = () => {
                         <div className="absolute inset-0 pointer-events-none border-[12px] border-background/20 z-20 mix-blend-overlay"></div>
                     </div>
                 </div>
-                {/* Mid image with floating logo overlay */}
+                {/* Mid image with floating logo overlay (Optimized WebP with lazy loading) */}
                 <div className="mt-10 max-w-6xl mx-auto">
                     <div className="mid-image-container">
-                        <img src="/mid.png" alt="Mid" className="mid-image" />
-                        <img src={logo} alt="Korle Bu Stands in Worship" className="floating-logo w-48 md:w-72" />
+                        <img 
+                            src="/mid.webp" 
+                            alt="Worship Gathering" 
+                            loading="lazy" 
+                            decoding="async" 
+                            className="mid-image" 
+                        />
+                        <img 
+                            src={logo} 
+                            alt="Korle Bu Stands in Worship" 
+                            loading="lazy" 
+                            decoding="async" 
+                            className="floating-logo w-48 md:w-72" 
+                        />
                     </div>
                 </div>
             </div>

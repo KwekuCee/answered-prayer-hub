@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Play, Pause, Music, Disc } from "lucide-react";
+import { Play, Pause, Music, Disc, Volume2, VolumeX } from "lucide-react";
 import { motion, useScroll, useTransform } from "framer-motion";
-import choristerCutout from "@/assets/images/chorister-cutout.png";
-import choristerImg from "@/assets/images/loveworld_chorister_1794092420351.jpg";
+import choristerCutout from "@/assets/images/chorister-cutout.webp";
+import choristerImg from "@/assets/images/loveworld_chorister.webp";
 
 const WORSHIP_SONGS = [
   {
@@ -11,7 +11,7 @@ const WORSHIP_SONGS = [
     artist: "Loveworld Music & Arts",
     album: "Korle Bu Stands in Worship 2026",
     duration: "4:45",
-    audioUrl: "https://actions.google.com/sounds/v1/ambiences/coffee_shop.ogg" 
+    audioUrl: "/audio/track-1-satisfied-in-love.wav" 
   },
   {
     id: 2,
@@ -19,7 +19,7 @@ const WORSHIP_SONGS = [
     artist: "Loveworld Singers",
     album: "Korle Bu Stands in Worship Live",
     duration: "5:20",
-    audioUrl: "https://actions.google.com/sounds/v1/weather/light_rain.ogg"
+    audioUrl: "/audio/track-2-the-great-i-am.wav"
   },
   {
     id: 3,
@@ -27,7 +27,7 @@ const WORSHIP_SONGS = [
     artist: "Loveworld Classics",
     album: "Worship & Glory",
     duration: "6:10",
-    audioUrl: "https://actions.google.com/sounds/v1/ambiences/daytime_forest_bonfire.ogg"
+    audioUrl: "/audio/track-3-you-are-great.wav"
   },
   {
     id: 4,
@@ -35,7 +35,7 @@ const WORSHIP_SONGS = [
     artist: "Korle Bu Mass Choir",
     album: "Stands in Worship Hymns",
     duration: "4:55",
-    audioUrl: "https://actions.google.com/sounds/v1/weather/wind_heavy.ogg"
+    audioUrl: "/audio/track-4-awesome-god.wav"
   },
   {
     id: 5,
@@ -43,13 +43,15 @@ const WORSHIP_SONGS = [
     artist: "Loveworld Worship Ministers",
     album: "Divine Encounter Anthem",
     duration: "5:12",
-    audioUrl: "https://actions.google.com/sounds/v1/ambiences/outdoor_ambience_train.ogg"
+    audioUrl: "/audio/track-5-holy-are-you-lord.wav"
   }
 ];
 
 export const WorshipStickySection = () => {
   const [activeSongIndex, setActiveSongIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+  const [isInSection, setIsInSection] = useState(false);
   const sectionRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -61,44 +63,54 @@ export const WorshipStickySection = () => {
   // Map scroll progress to active song index (0 to 4)
   const songIndexTransform = useTransform(scrollYProgress, [0, 0.9], [0, WORSHIP_SONGS.length - 1]);
 
-  useEffect(() => {
-    return songIndexTransform.onChange((latest) => {
-      const idx = Math.min(WORSHIP_SONGS.length - 1, Math.max(0, Math.round(latest)));
-      if (idx !== activeSongIndex) {
-        setActiveSongIndex(idx);
-        setIsPlaying(true);
-      }
-    });
-  }, [songIndexTransform, activeSongIndex]);
-
-  // Handle audio play/pause and auto-stop outside section bounds
+  // Monitor whether user is inside the section
   useEffect(() => {
     const handleScrollBounds = () => {
       if (!sectionRef.current) return;
       const rect = sectionRef.current.getBoundingClientRect();
-      const inView = rect.top <= 0 && rect.bottom >= window.innerHeight;
-      if (!inView && rect.top > 0) {
+      const inView = rect.top <= 80 && rect.bottom >= window.innerHeight * 0.2;
+      
+      setIsInSection(inView);
+      if (!inView) {
         setIsPlaying(false);
-      } else if (rect.bottom < 0) {
-        setIsPlaying(false);
+        if (audioRef.current) audioRef.current.pause();
       }
     };
 
     window.addEventListener("scroll", handleScrollBounds, { passive: true });
+    handleScrollBounds();
     return () => window.removeEventListener("scroll", handleScrollBounds);
   }, []);
 
+  // Update song on scroll and auto-play when active in section
+  useEffect(() => {
+    return songIndexTransform.on("change", (latest) => {
+      const idx = Math.min(WORSHIP_SONGS.length - 1, Math.max(0, Math.round(latest)));
+      setActiveSongIndex((prev) => {
+        if (prev !== idx) {
+          return idx;
+        }
+        return prev;
+      });
+
+      if (!isPlaying && isInSection) {
+        setIsPlaying(true);
+      }
+    });
+  }, [songIndexTransform, isPlaying, isInSection]);
+
+  // Handle audio playback when active song or playing state changes
   useEffect(() => {
     if (!audioRef.current) return;
-    if (isPlaying) {
+    if (isPlaying && isInSection) {
+      audioRef.current.currentTime = 0;
       audioRef.current.play().catch((err) => {
-        console.warn("Audio autoplay prevented or failed:", err);
-        setIsPlaying(false);
+        console.debug("Autoplay note:", err);
       });
     } else {
       audioRef.current.pause();
     }
-  }, [isPlaying, activeSongIndex]);
+  }, [isPlaying, activeSongIndex, isInSection]);
 
   const currentSong = WORSHIP_SONGS[activeSongIndex];
 
@@ -113,25 +125,54 @@ export const WorshipStickySection = () => {
   return (
     <section ref={sectionRef} style={{ height: `${(WORSHIP_SONGS.length + 1) * 100}vh` }} className="relative">
       <div className="sticky top-0 h-screen overflow-hidden">
-        {/* Full-section photo background */}
-        <img src={choristerImg} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover scale-110 blur-sm" />
-        <div className="absolute inset-0 bg-background/75" />
+        {/* Full-section photo background (WebP with lazy loading) */}
+        <img 
+          src={choristerImg} 
+          alt="" 
+          aria-hidden 
+          loading="lazy"
+          decoding="async"
+          className="absolute inset-0 w-full h-full object-cover scale-110 blur-sm" 
+        />
+        <div className="absolute inset-0 bg-background/80" />
         <div className="absolute inset-0 bg-gradient-to-r from-background via-background/40 to-background/90" />
 
         <div className="relative max-w-7xl mx-auto h-full grid grid-cols-1 lg:grid-cols-2 items-end lg:items-center px-4 pt-20">
-          {/* Singer cut-out */}
-          <div className="hidden lg:flex h-full items-end justify-center">
-            <img src={choristerCutout} alt="Loveworld chorister" className="max-h-[92%] w-auto object-contain drop-shadow-2xl" />
+          {/* Singer cut-out (WebP with lazy loading) */}
+          <div className="hidden lg:flex h-full items-end justify-center pointer-events-none">
+            <img 
+              src={choristerCutout} 
+              alt="Loveworld chorister" 
+              loading="lazy"
+              decoding="async"
+              className="max-h-[92%] w-auto object-contain drop-shadow-2xl" 
+            />
           </div>
 
           <div className="space-y-6 pb-10 lg:pb-0">
-            <div>
-              <div className="inline-flex items-center gap-2 text-gold text-xs uppercase tracking-[0.3em] font-semibold">
-                <Music className="w-4 h-4" /> Playlist
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="inline-flex items-center gap-2 text-gold text-xs uppercase tracking-[0.3em] font-semibold">
+                  <Music className="w-4 h-4" /> Live Scroll Worship Stream
+                </div>
+                <h2 className="text-4xl md:text-6xl font-display font-bold text-foreground mt-2">
+                  Anointed <span className="bg-gradient-gold bg-clip-text text-transparent italic">Worship Anthems</span>
+                </h2>
               </div>
-              <h2 className="text-4xl md:text-6xl font-display font-bold text-foreground mt-2">
-                Anointed <span className="bg-gradient-gold bg-clip-text text-transparent italic">Worship Anthems</span>
-              </h2>
+
+              <button
+                onClick={() => {
+                  if (audioRef.current) {
+                    audioRef.current.muted = !isMuted;
+                    setIsMuted(!isMuted);
+                  }
+                }}
+                className="p-3 rounded-full bg-zinc-900/80 border border-gold/30 text-gold hover:bg-gold/10 transition-colors"
+                title={isMuted ? "Unmute audio" : "Mute audio"}
+                aria-label={isMuted ? "Unmute audio" : "Mute audio"}
+              >
+                {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+              </button>
             </div>
 
             {/* Scroll wheel */}

@@ -3,7 +3,7 @@ import { Menu, X, Sun, Moon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Link } from "react-router-dom";
-import logoWhite from "@/assets/logo-white.png";
+import logoWhite from "@/assets/logo-white.webp";
 
 export const Navbar = () => {
     const [isOpen, setIsOpen] = useState(false);
@@ -54,9 +54,15 @@ export const Navbar = () => {
             {/* Complete Floating Rounded Rectangle Navbar Container */}
             <div className="relative bg-black/85 dark:bg-black/90 backdrop-blur-xl border border-gold/30 rounded-full px-5 py-2.5 shadow-[0_10px_35px_rgba(0,0,0,0.6)] flex items-center justify-between">
                 
-                {/* Left Side: White Logo */}
+                {/* Left Side: White Logo (increased size for prominence & WebP loaded) */}
                 <Link to="/" className="flex items-center gap-2 shrink-0 z-10">
-                    <img src={logoWhite} alt="Korle Bu Stands in Worship" className="h-8 md:h-10 w-auto object-contain drop-shadow" />
+                    <img 
+                        src={logoWhite} 
+                        alt="Korle Bu Stands in Worship" 
+                        loading="eager"
+                        decoding="async"
+                        className="h-10 md:h-13 w-auto object-contain drop-shadow transition-transform hover:scale-105" 
+                    />
                 </Link>
 
                 {/* Middle: Centered Menu Links (centered exactly on page) */}
