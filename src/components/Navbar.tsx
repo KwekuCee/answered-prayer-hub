@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import { Menu, X, Sun, Moon } from "lucide-react";
-import logo from "@/assets/logo.png";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Link } from "react-router-dom";
@@ -44,10 +43,9 @@ export const Navbar = () => {
         { label: "About", href: "/#about" },
         { label: "Location", href: "/#location" },
         { label: "Prayer", href: "/#prayer" },
-        { label: "Buses", href: "/#bus" },
-        { label: "Testimonies", href: "/#testimonies" },
         { label: "Resources", href: "/resources" },
         { label: "Give", href: "/donate" },
+        { label: "Live", href: "/live" },
     ];
 
     return (
@@ -55,13 +53,32 @@ export const Navbar = () => {
             {/* Complete Floating Rounded Rectangle Navbar Container */}
             <div className="bg-black/85 dark:bg-black/90 backdrop-blur-xl border border-gold/30 rounded-full px-5 py-2.5 shadow-[0_10px_35px_rgba(0,0,0,0.6)] flex items-center justify-between">
                 
-                {/* Logo Brand */}
-                <Link to="/" className="flex items-center gap-2 shrink-0">
-                    <img src={logo} alt="Korle Bu Stands in Worship" className="h-10 md:h-12 w-auto object-contain drop-shadow" />
-                </Link>
+                {/* Right Action Controls */}
+                <div className="hidden md:flex items-center gap-3">
+                    <button
+                        aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+                        onClick={() => setIsDark(d => !d)}
+                        className="p-2 rounded-full text-zinc-300 hover:text-gold hover:bg-gold/10 transition-colors"
+                    >
+                        {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+                    </button>
+
+                    <Link
+                        to="/register"
+                        className="px-4 py-2 bg-gradient-gold text-navy font-bold font-body text-xs rounded-full shadow-gold hover:opacity-90 transition-all"
+                    >
+                        Register
+                    </Link>
+                    <Link
+                        to="/admin"
+                        className="px-4 py-2 border border-gold/40 text-zinc-200 hover:text-gold font-bold font-body text-xs rounded-full transition-all"
+                    >
+                        Login
+                    </Link>
+                </div>
 
                 {/* Condensed Desktop Links */}
-                <div className="hidden lg:flex items-center space-x-6">
+                <div className="hidden lg:flex items-center space-x-6 ml-auto">
                     {links.map((link) => (
                         <a
                             key={link.label}
@@ -78,37 +95,13 @@ export const Navbar = () => {
                             }}
                         >
                             {link.label}
+                            {link.label === "Live" && liveStreamSettings?.is_active && <span className="ml-1.5 inline-block h-2 w-2 rounded-full bg-red-500 animate-pulse" />}
                         </a>
                     ))}
                 </div>
 
-                {/* Right Action Controls */}
-                <div className="hidden md:flex items-center gap-3">
-                    <button
-                        aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-                        onClick={() => setIsDark(d => !d)}
-                        className="p-2 rounded-full text-zinc-300 hover:text-gold hover:bg-gold/10 transition-colors"
-                    >
-                        {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-                    </button>
-
-                    <Link
-                        to="/live"
-                        className="text-zinc-300 hover:text-gold font-body text-xs font-semibold uppercase tracking-wider transition-colors flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-zinc-900 border border-border/50"
-                    >
-                        Live {liveStreamSettings?.is_active && <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />}
-                    </Link>
-
-                    <Link
-                        to="/register"
-                        className="px-4 py-2 bg-gradient-gold text-navy font-bold font-body text-xs rounded-full shadow-gold hover:opacity-90 transition-all"
-                    >
-                        Register
-                    </Link>
-                </div>
-
                 {/* Mobile Menu & Theme Toggle */}
-                <div className="lg:hidden flex items-center gap-2">
+                <div className="lg:hidden flex items-center gap-2 ml-auto">
                     <button
                         aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
                         onClick={() => setIsDark(d => !d)}
