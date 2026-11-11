@@ -154,7 +154,7 @@ const RegistrationForm = () => {
 
       toast.success("Registration successful! Save your QR Code.");
       setRegisteredMember({ id: insertedMember.id, name: form.fullName });
-      setForm({ fullName: "", email: "", phone: "", occupation: "", location: "", dateOfBirth: "", inviterId: "" });
+      setForm({ fullName: "", email: "", phone: "", occupation: "", location: "", dateOfBirth: "", inviterId: "", churchId: "" });
     } catch (err: any) {
       toast.error(err.message || "Registration failed.");
     } finally {
