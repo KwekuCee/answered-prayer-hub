@@ -61,7 +61,7 @@ export const Navbar = () => {
                         alt="Korle Bu Stands in Worship" 
                         loading="eager"
                         decoding="async"
-                        className="h-10 md:h-13 w-auto object-contain drop-shadow transition-transform hover:scale-105" 
+                        className="h-14 md:h-16 w-auto object-contain drop-shadow transition-transform hover:scale-105" 
                     />
                 </Link>
 
