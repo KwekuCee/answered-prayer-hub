@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { Menu, X, Sun, Moon } from "lucide-react";
+import { useState } from "react";
+import { Menu, X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Link } from "react-router-dom";
@@ -7,25 +7,6 @@ import logoWhite from "@/assets/logo-white.webp";
 
 export const Navbar = () => {
     const [isOpen, setIsOpen] = useState(false);
-    const [isDark, setIsDark] = useState<boolean>(() => {
-        try {
-            const stored = localStorage.getItem('theme');
-            if (stored) return stored === 'dark';
-            return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-        } catch {
-            return false;
-        }
-    });
-
-    useEffect(() => {
-        try {
-            if (isDark) document.documentElement.classList.add('dark');
-            else document.documentElement.classList.remove('dark');
-            localStorage.setItem('theme', isDark ? 'dark' : 'light');
-        } catch (e) {
-            console.debug('theme toggle error', e);
-        }
-    }, [isDark]);
 
     const { data: liveStreamSettings } = useQuery({
         queryKey: ["live-stream"],
@@ -90,16 +71,8 @@ export const Navbar = () => {
                     ))}
                 </div>
 
-                {/* Right Side: Theme Icon, Register, Login */}
+                {/* Right Side: Register, Login */}
                 <div className="hidden md:flex items-center gap-3 shrink-0 ml-auto z-10">
-                    <button
-                        aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-                        onClick={() => setIsDark(d => !d)}
-                        className="p-2 rounded-full text-zinc-300 hover:text-gold hover:bg-gold/10 transition-colors"
-                    >
-                        {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-                    </button>
-
                     <Link
                         to="/register"
                         className="px-4 py-2 bg-gradient-gold text-navy font-bold font-body text-xs rounded-full shadow-gold hover:opacity-90 transition-all whitespace-nowrap"
@@ -114,16 +87,8 @@ export const Navbar = () => {
                     </Link>
                 </div>
 
-                {/* Mobile Menu & Theme Toggle */}
+                {/* Mobile Menu */}
                 <div className="lg:hidden flex items-center gap-2 ml-auto z-10">
-                    <button
-                        aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-                        onClick={() => setIsDark(d => !d)}
-                        className="p-1.5 rounded-full text-zinc-300 hover:text-gold"
-                    >
-                        {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-                    </button>
-
                     <Link
                         to="/register"
                         className="px-3 py-1.5 bg-gradient-gold text-navy font-bold font-body text-xs rounded-full shadow-gold"
