@@ -17,7 +17,7 @@ const HeroSection = () => {
   });
 
   return (
-    <div className="relative h-screen min-h-[640px] flex items-end overflow-hidden bg-navy">
+    <div className="relative min-h-screen pt-32 md:pt-36 flex items-end overflow-hidden bg-navy">
       {/* Slow cinematic zoom on background */}
       <div className="absolute inset-0 hero-bg animate-[heroZoom_20s_ease-out_forwards]" />
       <div className="absolute inset-0 bg-gradient-to-b from-background/70 via-background/20 to-background" />

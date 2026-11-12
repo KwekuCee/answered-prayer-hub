@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Link } from "react-router-dom";
 import logoWhite from "@/assets/logo-white.webp";
+import { Button } from "@/components/ui/button";
 
 export const Navbar = () => {
     const [isOpen, setIsOpen] = useState(false);
@@ -31,9 +32,9 @@ export const Navbar = () => {
     ];
 
     return (
-        <nav className="fixed top-4 left-1/2 -translate-x-1/2 w-[94%] max-w-6xl z-50 transition-all duration-300">
+        <nav aria-label="Main navigation" className="fixed top-4 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] max-w-[60rem] z-50 transition-all duration-300">
             {/* Complete Floating Rounded Rectangle Navbar Container */}
-            <div className="relative bg-black/85 dark:bg-black/90 backdrop-blur-xl border border-gold/30 rounded-full px-5 py-2.5 shadow-[0_10px_35px_rgba(0,0,0,0.6)] flex items-center justify-between">
+            <div className="relative bg-background/90 backdrop-blur-xl border border-gold/30 rounded-full px-4 lg:px-5 py-2.5 shadow-gold flex items-center justify-between gap-4">
                 
                 {/* Left Side: White Logo (increased size for prominence & WebP loaded) */}
                 <Link to="/" className="flex items-center gap-2 shrink-0 z-10">
@@ -46,13 +47,13 @@ export const Navbar = () => {
                     />
                 </Link>
 
-                {/* Middle: Centered Menu Links (centered exactly on page) */}
-                <div className="hidden lg:flex items-center space-x-6 absolute left-1/2 -translate-x-1/2 z-0">
+                {/* Links share layout space with the logo and account controls. */}
+                <div className="hidden lg:flex items-center justify-center gap-4 flex-1 min-w-0">
                     {links.map((link) => (
                         <a
                             key={link.label}
                             href={link.href}
-                            className="text-zinc-300 hover:text-gold font-body text-xs font-semibold uppercase tracking-wider transition-colors whitespace-nowrap"
+                            className="text-foreground/80 hover:text-gold font-body text-xs font-semibold uppercase tracking-normal transition-colors whitespace-nowrap"
                             onClick={(e) => {
                                 if (link.href.startsWith("/#")) {
                                     const id = link.href.split("/")[1];
@@ -65,14 +66,14 @@ export const Navbar = () => {
                         >
                             {link.label}
                             {link.label === "Live" && liveStreamSettings?.is_active && (
-                                <span className="ml-1.5 inline-block h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+                                <span className="ml-1.5 inline-block h-2 w-2 rounded-full bg-destructive animate-pulse" />
                             )}
                         </a>
                     ))}
                 </div>
 
                 {/* Right Side: Register, Login */}
-                <div className="hidden md:flex items-center gap-3 shrink-0 ml-auto z-10">
+                <div className="hidden lg:flex items-center gap-2 shrink-0 z-10">
                     <Link
                         to="/register"
                         className="px-4 py-2 bg-gradient-gold text-navy font-bold font-body text-xs rounded-full shadow-gold hover:opacity-90 transition-all whitespace-nowrap"
@@ -81,7 +82,7 @@ export const Navbar = () => {
                     </Link>
                     <Link
                         to="/admin"
-                        className="px-4 py-2 border border-gold/40 text-zinc-200 hover:text-gold font-bold font-body text-xs rounded-full transition-all whitespace-nowrap"
+                        className="px-4 py-2 border border-gold/40 text-foreground hover:text-gold font-bold font-body text-xs rounded-full transition-all whitespace-nowrap"
                     >
                         Login
                     </Link>
@@ -96,24 +97,29 @@ export const Navbar = () => {
                         Register
                     </Link>
 
-                    <button
+                    <Button
+                        variant="ghost"
+                        size="icon"
                         onClick={() => setIsOpen(!isOpen)}
-                        className="p-2 text-zinc-200 hover:text-gold focus:outline-none"
+                        aria-label={isOpen ? "Close menu" : "Open menu"}
+                        aria-expanded={isOpen}
+                        aria-controls="mobile-navigation"
+                        className="shrink-0 text-foreground hover:text-gold"
                     >
                         {isOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-                    </button>
+                    </Button>
                 </div>
             </div>
 
             {/* Mobile Navigation Dropdown */}
             {isOpen && (
-                <div className="lg:hidden mt-2 bg-black/95 backdrop-blur-2xl border border-gold/30 rounded-3xl p-5 shadow-2xl space-y-2 animate-fade-down">
+                <div id="mobile-navigation" className="lg:hidden mt-2 bg-background/95 backdrop-blur-2xl border border-gold/30 rounded-3xl p-5 shadow-gold space-y-2 animate-fade-down">
                     <div className="grid grid-cols-2 gap-2">
                         {links.map((link) => (
                             <a
                                 key={link.label}
                                 href={link.href}
-                                className="px-3 py-2 text-xs font-semibold font-body text-zinc-200 hover:bg-gold/10 hover:text-gold rounded-xl transition-colors"
+                                className="px-3 py-2 text-xs font-semibold font-body text-foreground hover:bg-gold/10 hover:text-gold rounded-xl transition-colors"
                                 onClick={(e) => {
                                     setIsOpen(false);
                                     if (link.href.startsWith("/#")) {
@@ -129,11 +135,11 @@ export const Navbar = () => {
                             </a>
                         ))}
                     </div>
-                    <div className="pt-2 border-t border-zinc-800 flex items-center justify-between text-xs text-zinc-400">
+                    <div className="pt-2 border-t border-border flex items-center justify-between text-xs text-muted-foreground">
                         <Link to="/live" onClick={() => setIsOpen(false)} className="text-gold font-semibold flex items-center gap-1.5">
-                            Watch Live Stream {liveStreamSettings?.is_active && <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />}
+                            Watch Live Stream {liveStreamSettings?.is_active && <span className="h-2 w-2 rounded-full bg-destructive animate-pulse" />}
                         </Link>
-                        <Link to="/admin" onClick={() => setIsOpen(false)} className="text-zinc-300 hover:text-gold">
+                        <Link to="/admin" onClick={() => setIsOpen(false)} className="text-foreground/80 hover:text-gold">
                             Admin Login &rarr;
                         </Link>
                     </div>
