@@ -23,6 +23,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LineCh
 import logo from "@/assets/logo.png";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { NotificationsMenu } from "@/components/NotificationsMenu";
+import { assignAdminChurch } from "@/lib/admin-church";
 
 type AttendeeFilter = "all" | "confirmed" | "pending";
 
@@ -72,6 +73,8 @@ const SuperAdminDashboard = () => {
   const [editingAttendee, setEditingAttendee] = useState<any>(null);
   const [editingInviter, setEditingInviter] = useState<any>(null);
   const [editingAdmin, setEditingAdmin] = useState<any>(null);
+  const [savingAdminChurch, setSavingAdminChurch] = useState(false);
+  const [adminChurchError, setAdminChurchError] = useState("");
   const [editingTestimonial, setEditingTestimonial] = useState<any>(null);
   const [editingResource, setEditingResource] = useState<any>(null);
   const [viewingAttendee, setViewingAttendee] = useState<any>(null);
@@ -157,7 +160,7 @@ const SuperAdminDashboard = () => {
     },
   });
 
-  const { data: churches = [] } = useQuery({
+  const { data: churches = [], isLoading: churchesLoading, isError: churchesError } = useQuery({
     queryKey: ["all-churches"],
     queryFn: async () => {
       const { data, error } = await supabase.from("churches").select("*").order("name");
@@ -948,11 +951,22 @@ const SuperAdminDashboard = () => {
     queryClient.invalidateQueries({ queryKey: ["all-inviters"] });
   };
 
-  const handleSaveAdminRole = async () => {
-    if (!editingAdmin) return;
-    toast.success("Admin profiles & roles updated.");
-    setEditingAdmin(null);
-    queryClient.invalidateQueries({ queryKey: ["all-admins"] });
+  const handleSaveAdminChurch = async () => {
+    if (!editingAdmin || savingAdminChurch || !editingAdmin.church_id) return;
+    setSavingAdminChurch(true);
+    setAdminChurchError("");
+    try {
+      await assignAdminChurch(editingAdmin.id, editingAdmin.church_id);
+      await queryClient.invalidateQueries({ queryKey: ["all-admins"] });
+      toast.success("Administrator's church updated.");
+      setEditingAdmin(null);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not save the church assignment. Check your database permissions.";
+      setAdminChurchError(message);
+      toast.error(message);
+    } finally {
+      setSavingAdminChurch(false);
+    }
   };
 
   const handleCreateTestimonial = async () => {
@@ -2215,6 +2229,7 @@ const SuperAdminDashboard = () => {
                         <TableHead className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">Email</TableHead>
                         <TableHead className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">Assigned Church</TableHead>
                         <TableHead className="font-semibold text-xs uppercase tracking-wider text-muted-foreground text-center">System Roles</TableHead>
+                        <TableHead className="text-right">Church Assignment</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -2222,7 +2237,7 @@ const SuperAdminDashboard = () => {
                         <TableRow key={adm.id} className="hover:bg-zinc-900/50 border-b border-border/40">
                           <TableCell className="font-semibold text-foreground text-sm">{adm.full_name || "Admin"}</TableCell>
                           <TableCell className="text-sm text-muted-foreground">{adm.email}</TableCell>
-                          <TableCell className="text-sm text-zinc-300">{(adm.churches as any)?.name || "Global"}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{(adm.churches as any)?.name || "Not assigned"}</TableCell>
                           <TableCell className="text-center">
                             <div className="flex items-center justify-center gap-1">
                               {(adm.roles || []).map((r: any) => (
@@ -2231,6 +2246,15 @@ const SuperAdminDashboard = () => {
                                 </Badge>
                               ))}
                             </div>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button variant="outline" size="sm" aria-label={`Assign church to ${adm.full_name || adm.email}`} onClick={() => {
+                              setAdminChurchError("");
+                              setEditingAdmin({ ...adm });
+                            }}>
+                              <Church className="h-4 w-4 mr-2" />
+                              {adm.church_id ? "Change Church" : "Assign Church"}
+                            </Button>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -2320,6 +2344,38 @@ const SuperAdminDashboard = () => {
       </main>
 
       {/* MODAL 1: Add Church */}
+      <Dialog open={!!editingAdmin} onOpenChange={open => {
+        if (!open && !savingAdminChurch) setEditingAdmin(null);
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Assign Administrator's Church</DialogTitle>
+            <DialogDescription>{editingAdmin?.full_name || "Administrator"} · {editingAdmin?.email}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <Label htmlFor="admin-church">Church</Label>
+            <Select value={editingAdmin?.church_id || ""} disabled={savingAdminChurch || churchesLoading || churchesError} onValueChange={church_id => {
+              setEditingAdmin((current: any) => current ? { ...current, church_id } : null);
+              setAdminChurchError("");
+            }}>
+              <SelectTrigger id="admin-church"><SelectValue placeholder={churchesLoading ? "Loading churches…" : "Select a church"} /></SelectTrigger>
+              <SelectContent>
+                {churches.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            {churchesError && <p role="alert" className="text-sm text-destructive">Churches could not be loaded. Please try again.</p>}
+            {!churchesLoading && !churchesError && churches.length === 0 && <p className="text-sm text-muted-foreground">No churches available.</p>}
+            {adminChurchError && <p role="alert" className="text-sm text-destructive break-words">{adminChurchError}</p>}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" disabled={savingAdminChurch} onClick={() => setEditingAdmin(null)}>Cancel</Button>
+            <Button disabled={savingAdminChurch || churchesLoading || churchesError || !editingAdmin?.church_id || churches.length === 0} onClick={handleSaveAdminChurch}>
+              <Check className="mr-2 h-4 w-4" />{savingAdminChurch ? "Saving…" : "Save Church"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={isAddingChurch} onOpenChange={setIsAddingChurch}>
         <DialogContent className="bg-zinc-950 border-gold/40 text-foreground rounded-3xl max-w-md">
           <DialogHeader>
