@@ -14,11 +14,8 @@ const RegistrationForm = () => {
     queryKey: ["inviters"],
     queryFn: async () => {
       try {
-        const { data } = await supabase
-          .from("inviters")
-          .select("id, full_name, church_id, invite_count, churches(id, name, is_external, privacy_mode)")
-          .order("full_name");
-        return data || [];
+        const { data } = await supabase.rpc("list_public_inviters" as any);
+        return ((data as any[]) || []).map((i) => ({ ...i, invite_count: 0, churches: { id: i.church_id, name: i.church_name } })) as any[];
       } catch {
         return [];
       }
@@ -102,16 +99,10 @@ const RegistrationForm = () => {
           category: "general",
           is_privacy_protected: isPrivacyProtected,
           masked_identifier: maskedId,
-          confirmed: true,
         })
         .select("id")
         .single();
       if (error) throw error;
-
-      if (!isSelf && inviter) {
-        const nextInviteCount = (inviter.invite_count ?? 0) + 1;
-        await supabase.from("inviters").update({ invite_count: nextInviteCount }).eq("id", form.inviterId);
-      }
 
       const { error: emailError } = await supabase.functions.invoke("send-inviter-email", {
         body: { memberId: insertedMember.id },

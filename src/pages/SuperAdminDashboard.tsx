@@ -1098,8 +1098,8 @@ const SuperAdminDashboard = () => {
 
     const headers = Object.keys(data[0]).filter((k) => typeof data[0][k] !== "object");
     const csv = [
-      headers.join(","),
-      ...data.map((row) => headers.map((h) => `"${String(row[h] ?? "").replace(/"/g, '""')}"`).join(",")),
+      headers.map((h) => (/^[=+\-@]/.test(h) ? "'" + h : h)).join(","),
+      ...data.map((row) => headers.map((h) => { let v = String(row[h] ?? ""); if (/^[=+\-@\t\r]/.test(v)) v = "'" + v; return `"${v.replace(/"/g, '""')}"`; }).join(",")),
     ].join("\n");
 
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });

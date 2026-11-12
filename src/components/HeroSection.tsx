@@ -10,11 +10,9 @@ const HeroSection = () => {
   const { data: membersCount = 1420 } = useQuery({
     queryKey: ["members-count"],
     queryFn: async () => {
-      const { count, error } = await supabase
-        .from("members")
-        .select("*", { count: "exact", head: true });
-      if (error || count === null) return 1420;
-      return Math.max(count, 1420);
+      const { data: count, error } = await supabase.rpc("public_member_count" as any);
+      if (error || count == null) return 1420;
+      return Math.max(Number(count), 1420);
     },
   });
 
