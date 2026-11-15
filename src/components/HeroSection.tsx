@@ -10,16 +10,14 @@ const HeroSection = () => {
   const { data: membersCount = 1420 } = useQuery({
     queryKey: ["members-count"],
     queryFn: async () => {
-      const { count, error } = await supabase
-        .from("members")
-        .select("*", { count: "exact", head: true });
-      if (error || count === null) return 1420;
-      return Math.max(count, 1420);
+      const { data: count, error } = await supabase.rpc("public_member_count" as any);
+      if (error || count == null) return 1420;
+      return Math.max(Number(count), 1420);
     },
   });
 
   return (
-    <div className="relative h-screen min-h-[640px] flex items-end overflow-hidden bg-navy">
+    <div className="relative min-h-screen pt-32 md:pt-36 flex items-end overflow-hidden bg-navy">
       {/* Slow cinematic zoom on background */}
       <div className="absolute inset-0 hero-bg animate-[heroZoom_20s_ease-out_forwards]" />
       <div className="absolute inset-0 bg-gradient-to-b from-background/70 via-background/20 to-background" />

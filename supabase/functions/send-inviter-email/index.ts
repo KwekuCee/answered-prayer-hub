@@ -6,6 +6,9 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+const escapeHtml = (v: unknown) =>
+  String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -25,7 +28,7 @@ serve(async (req) => {
     const body = await req.json();
     const memberId = body?.memberId as string | undefined;
 
-    if (!memberId) {
+    if (!memberId || !/^[0-9a-f-]{36}$/i.test(memberId)) {
       return new Response(JSON.stringify({ error: "memberId is required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -36,13 +39,34 @@ serve(async (req) => {
 
     const { data: member, error: memberError } = await adminClient
       .from("members")
-      .select("id, full_name, inviter_id")
+      .select("id, full_name, inviter_id, created_at, inviter_notified_at")
       .eq("id", memberId)
       .single();
 
     if (memberError || !member) {
       return new Response(JSON.stringify({ error: "Member not found" }), {
         status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Only notify once, and only for a registration that just happened.
+    const ageMs = Date.now() - new Date(member.created_at).getTime();
+    if (member.inviter_notified_at || ageMs > 10 * 60 * 1000) {
+      return new Response(JSON.stringify({ success: true, skipped: true }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const { data: claimed } = await adminClient
+      .from("members")
+      .update({ inviter_notified_at: new Date().toISOString() })
+      .eq("id", member.id)
+      .is("inviter_notified_at", null)
+      .select("id");
+    if (!claimed || claimed.length === 0) {
+      return new Response(JSON.stringify({ success: true, skipped: true }), {
+        status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -67,12 +91,14 @@ serve(async (req) => {
       });
     }
 
-    const subject = `New member registration: ${member.full_name}`;
+    const safeMember = escapeHtml(member.full_name);
+    const safeInviter = escapeHtml(inviter.full_name);
+    const subject = `New member registration: ${String(member.full_name).replace(/[\r\n]/g, " ").slice(0, 100)}`;
     const html = `
       <div style="font-family: Arial, sans-serif; line-height: 1.5; color: #1f2937;">
         <h2 style="margin: 0 0 12px;">New member registered</h2>
-        <p style="margin: 0 0 12px;">Hello ${inviter.full_name},</p>
-        <p style="margin: 0 0 12px;"><strong>${member.full_name}</strong> just registered through your invitation.</p>
+        <p style="margin: 0 0 12px;">Hello ${safeInviter},</p>
+        <p style="margin: 0 0 12px;"><strong>${safeMember}</strong> just registered through your invitation.</p>
         <p style="margin: 0;">Thank you for helping grow the Korle Bu Stands in Worship movement.</p>
       </div>
     `;
@@ -94,7 +120,8 @@ serve(async (req) => {
     const resendData = await resendResponse.json();
 
     if (!resendResponse.ok) {
-      throw new Error(`Resend API failed [${resendResponse.status}]: ${JSON.stringify(resendData)}`);
+      console.error("Resend API failed", resendResponse.status, resendData);
+      throw new Error("Email delivery failed");
     }
 
     return new Response(JSON.stringify({ success: true, id: resendData.id }), {

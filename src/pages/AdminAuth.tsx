@@ -42,14 +42,12 @@ const AdminAuth = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("No user found");
 
-      let { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", user.id);
+      const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", user.id);
 
+      // Roles are granted only by the server at sign-up; never self-assign here.
       if (!roles || roles.length === 0) {
-        await supabase.from("user_roles").insert({
-          user_id: user.id,
-          role: "church_admin",
-        });
-        roles = [{ role: "church_admin" as any }];
+        await supabase.auth.signOut();
+        throw new Error("This account does not have administrator access.");
       }
 
       const isSuperAdmin = roles?.some(r => r.role === "super_admin");
@@ -85,6 +83,8 @@ const AdminAuth = () => {
           data: {
             full_name: regForm.fullName.trim(),
             username: regForm.username.trim(),
+            // Verified by the database at sign-up to grant the church admin role
+            admin_auth_code: regForm.authCode.trim(),
           },
         },
       });
@@ -95,12 +95,6 @@ const AdminAuth = () => {
         await supabase.from("profiles").update({
           phone: regForm.phone.trim(),
         }).eq("user_id", authData.user.id);
-
-        // Add church_admin role
-        await supabase.from("user_roles").insert({
-          user_id: authData.user.id,
-          role: "church_admin" as const,
-        });
 
         if (authData.session) {
           toast.success("Account created successfully!");

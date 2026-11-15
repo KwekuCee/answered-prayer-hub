@@ -309,6 +309,7 @@ export type Database = {
           full_name: string
           id: string
           inviter_id: string | null
+          inviter_notified_at: string | null
           location: string | null
           occupation: string | null
           phone: string
@@ -322,6 +323,7 @@ export type Database = {
           full_name: string
           id?: string
           inviter_id?: string | null
+          inviter_notified_at?: string | null
           location?: string | null
           occupation?: string | null
           phone: string
@@ -335,6 +337,7 @@ export type Database = {
           full_name?: string
           id?: string
           inviter_id?: string | null
+          inviter_notified_at?: string | null
           location?: string | null
           occupation?: string | null
           phone?: string
@@ -483,6 +486,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      current_admin_church: { Args: never; Returns: string }
       delete_admin_user: { Args: { target_user_id: string }; Returns: boolean }
       has_role: {
         Args: {
@@ -491,6 +495,16 @@ export type Database = {
         }
         Returns: boolean
       }
+      list_public_inviters: {
+        Args: never
+        Returns: {
+          church_id: string
+          church_name: string
+          full_name: string
+          id: string
+        }[]
+      }
+      public_member_count: { Args: never; Returns: number }
     }
     Enums: {
       app_role: "super_admin" | "church_admin"
