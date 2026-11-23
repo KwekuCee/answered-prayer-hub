@@ -27,14 +27,15 @@ export const Navbar = () => {
         { label: "Location", href: "/#location" },
         { label: "Prayer", href: "/#prayer" },
         { label: "Resources", href: "/resources" },
+        { label: "Shop", href: "/shop" },
         { label: "Give", href: "/donate" },
         { label: "Live", href: "/live" },
     ];
 
     return (
-        <nav aria-label="Main navigation" className="fixed top-4 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] max-w-[60rem] z-50 transition-all duration-300">
+        <nav aria-label="Main navigation" className="fixed top-4 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] max-w-[66rem] z-50 transition-all duration-300">
             {/* Complete Floating Rounded Rectangle Navbar Container */}
-            <div className="relative bg-background/90 backdrop-blur-xl border border-gold/30 rounded-full px-4 lg:px-5 py-2.5 shadow-gold flex items-center justify-between gap-4">
+            <div className="relative bg-background/90 backdrop-blur-xl border border-gold/30 rounded-full px-4 lg:px-6 py-2.5 shadow-gold flex items-center justify-between gap-4">
                 
                 {/* Left Side: White Logo (increased size for prominence & WebP loaded) */}
                 <Link to="/" className="flex items-center gap-2 shrink-0 z-10">
@@ -47,29 +48,45 @@ export const Navbar = () => {
                     />
                 </Link>
 
-                {/* Links share layout space with the logo and account controls. */}
-                <div className="hidden lg:flex items-center justify-center gap-4 flex-1 min-w-0">
-                    {links.map((link) => (
-                        <a
-                            key={link.label}
-                            href={link.href}
-                            className="text-foreground/80 hover:text-gold font-body text-xs font-semibold uppercase tracking-normal transition-colors whitespace-nowrap"
-                            onClick={(e) => {
-                                if (link.href.startsWith("/#")) {
+                {/* Links centered inside navbar */}
+                <div className="hidden lg:flex items-center justify-center gap-3.5 xl:gap-5 flex-1 min-w-0">
+                    {links.map((link) => {
+                        const content = (
+                            <>
+                                {link.label}
+                                {link.label === "Live" && liveStreamSettings?.is_active && (
+                                    <span className="ml-1.5 inline-block h-2 w-2 rounded-full bg-destructive animate-pulse" />
+                                )}
+                            </>
+                        );
+                        if (!link.href.startsWith("/#")) {
+                            return (
+                                <Link
+                                    key={link.label}
+                                    to={link.href}
+                                    className="text-foreground/80 hover:text-gold font-body text-xs font-semibold uppercase tracking-normal transition-colors whitespace-nowrap shrink-0"
+                                >
+                                    {content}
+                                </Link>
+                            );
+                        }
+                        return (
+                            <a
+                                key={link.label}
+                                href={link.href}
+                                className="text-foreground/80 hover:text-gold font-body text-xs font-semibold uppercase tracking-normal transition-colors whitespace-nowrap shrink-0"
+                                onClick={(e) => {
                                     const id = link.href.split("/")[1];
                                     if (window.location.pathname === "/") {
                                         e.preventDefault();
                                         document.querySelector(id)?.scrollIntoView({ behavior: "smooth" });
                                     }
-                                }
-                            }}
-                        >
-                            {link.label}
-                            {link.label === "Live" && liveStreamSettings?.is_active && (
-                                <span className="ml-1.5 inline-block h-2 w-2 rounded-full bg-destructive animate-pulse" />
-                            )}
-                        </a>
-                    ))}
+                                }}
+                            >
+                                {content}
+                            </a>
+                        );
+                    })}
                 </div>
 
                 {/* Right Side: Register, Login */}
@@ -115,25 +132,34 @@ export const Navbar = () => {
             {isOpen && (
                 <div id="mobile-navigation" className="lg:hidden mt-2 bg-background/95 backdrop-blur-2xl border border-gold/30 rounded-3xl p-5 shadow-gold space-y-2 animate-fade-down">
                     <div className="grid grid-cols-2 gap-2">
-                        {links.map((link) => (
-                            <a
-                                key={link.label}
-                                href={link.href}
-                                className="px-3 py-2 text-xs font-semibold font-body text-foreground hover:bg-gold/10 hover:text-gold rounded-xl transition-colors"
-                                onClick={(e) => {
-                                    setIsOpen(false);
-                                    if (link.href.startsWith("/#")) {
+                        {links.map((link) =>
+                            !link.href.startsWith("/#") ? (
+                                <Link
+                                    key={link.label}
+                                    to={link.href}
+                                    className="px-3 py-2 text-xs font-semibold font-body text-foreground hover:bg-gold/10 hover:text-gold rounded-xl transition-colors"
+                                    onClick={() => setIsOpen(false)}
+                                >
+                                    {link.label}
+                                </Link>
+                            ) : (
+                                <a
+                                    key={link.label}
+                                    href={link.href}
+                                    className="px-3 py-2 text-xs font-semibold font-body text-foreground hover:bg-gold/10 hover:text-gold rounded-xl transition-colors"
+                                    onClick={(e) => {
+                                        setIsOpen(false);
                                         const id = link.href.split("/")[1];
                                         if (window.location.pathname === "/") {
                                             e.preventDefault();
                                             document.querySelector(id)?.scrollIntoView({ behavior: "smooth" });
                                         }
-                                    }
-                                }}
-                            >
-                                {link.label}
-                            </a>
-                        ))}
+                                    }}
+                                >
+                                    {link.label}
+                                </a>
+                            )
+                        )}
                     </div>
                     <div className="pt-2 border-t border-border flex items-center justify-between text-xs text-muted-foreground">
                         <Link to="/live" onClick={() => setIsOpen(false)} className="text-gold font-semibold flex items-center gap-1.5">

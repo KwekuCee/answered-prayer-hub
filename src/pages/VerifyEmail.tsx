@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { CheckCircle2, XCircle, Church } from "lucide-react";
-import logo from "@/assets/logo.png";
+import logo from "@/assets/logo.webp";
 import Navbar from "@/components/Navbar";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery } from "@tanstack/react-query";
@@ -133,7 +133,7 @@ const VerifyEmail = () => {
 
                 <div className="w-full max-w-md relative z-10 animate-fade-up">
                     <div className="text-center mb-8">
-                        <img src={logo} alt="Korle Bu Stands in Worship" className="w-48 mx-auto mb-6" />
+                        <img src={logo} alt="Korle Bu Stands in Worship" loading="lazy" decoding="async" className="w-48 mx-auto mb-6" />
                         <h1 className="text-3xl md:text-4xl font-display font-bold text-foreground">
                             Account <span className="bg-gradient-gold bg-clip-text text-transparent">Setup</span>
                         </h1>

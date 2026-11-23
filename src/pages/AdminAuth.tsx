@@ -9,7 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { ArrowLeft, LogIn, UserPlus, ShieldAlert, Eye, EyeOff } from "lucide-react";
 import { Link } from "react-router-dom";
-import logo from "@/assets/logo.png";
+import logo from "@/assets/logo.webp";
 
 const AUTH_CODE = "100PRAYER";
 
@@ -123,7 +123,7 @@ const AdminAuth = () => {
         </Link>
 
         <div className="text-center space-y-3">
-          <img src={logo} alt="Korle Bu Stands in Worship" className="w-44 md:w-52 mx-auto drop-shadow" />
+          <img src={logo} alt="Korle Bu Stands in Worship" decoding="async" className="w-44 md:w-52 mx-auto drop-shadow" />
           <h2 className="text-2xl md:text-3xl font-display font-bold text-foreground">Admin Portal</h2>
           <p className="text-muted-foreground font-body text-sm">Korle Bu Stands in Worship Management System</p>
         </div>

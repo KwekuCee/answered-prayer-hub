@@ -16,7 +16,7 @@ import {
   CheckCircle2, Clock, Target, Pencil, Trash2, Search, PlusCircle,
   ChevronLeft, ChevronRight, Sparkles, Building2, Trophy, ArrowUpRight
 } from "lucide-react";
-import logo from "@/assets/logo.png";
+import logo from "@/assets/logo.webp";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { NotificationsMenu } from "@/components/NotificationsMenu";
 
@@ -550,7 +550,7 @@ const ChurchAdminDashboard = () => {
       {/* Sidebar Navigation */}
       <aside className={`${sidebarOpen ? "w-64" : "w-0 overflow-hidden"} bg-zinc-950 border-r border-border/50 transition-all duration-300 flex flex-col fixed inset-y-0 left-0 z-40`}>
         <div className="p-6 border-b border-border/50 space-y-3">
-          <img src={logo} alt="Korle Bu Stands in Worship" className="w-36 drop-shadow" />
+          <img src={logo} alt="Korle Bu Stands in Worship" loading="lazy" decoding="async" className="w-36 drop-shadow" />
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gold/10 border border-gold/30 text-gold text-xs font-semibold">
             <Building2 className="w-3.5 h-3.5 shrink-0 text-gold" />
             <span className="truncate">{churchName || "Church Admin"}</span>

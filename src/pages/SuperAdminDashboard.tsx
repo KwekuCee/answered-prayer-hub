@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useRef } from "react";
+import React, { Suspense, useEffect, useMemo, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -17,13 +17,15 @@ import { toast } from "sonner";
 import {
   LayoutDashboard, Church, Shield, UserCheck, Users, Trophy, Download,
   LogOut, Menu, X, TrendingUp, Target, Medal, Pencil, Trash2, Activity, MapPin, MessageCircle, Eye, Mail, Bus, Calendar, Heart, PlusCircle, Search, ChevronLeft, ChevronRight, Sparkles, Video, CheckCircle2, ShieldAlert, FileText, Check,
-  History, Clock,
+  History, Clock, ShoppingBag,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LineChart, Line, PieChart, Pie, Legend } from "recharts";
-import logo from "@/assets/logo.png";
+import logo from "@/assets/logo.webp";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { NotificationsMenu } from "@/components/NotificationsMenu";
 import { assignAdminChurch } from "@/lib/admin-church";
+
+const SuperAdminShopSection = React.lazy(() => import("@/components/admin/SuperAdminShopSection"));
 
 type AttendeeFilter = "all" | "confirmed" | "pending";
 
@@ -1143,6 +1145,7 @@ const SuperAdminDashboard = () => {
     { id: "prayer-points", label: "Private Prayer Points", icon: ShieldAlert },
     { id: "testimonials", label: "Testimonial Reviews", icon: MessageCircle },
     { id: "resources", label: "Digital Library", icon: FileText },
+    { id: "shop", label: "Shop & Orders", icon: ShoppingBag },
     { id: "admins", label: "System Admins", icon: Shield },
     { id: "audit-logs", label: "Audit Logs", icon: History },
     { id: "export", label: "Data Export Center", icon: Download },
@@ -1167,7 +1170,7 @@ const SuperAdminDashboard = () => {
       {/* Sidebar Navigation */}
       <aside className={`${sidebarOpen ? "w-64" : "w-0 overflow-hidden"} bg-zinc-950 border-r border-border/50 transition-all duration-300 flex flex-col fixed inset-y-0 left-0 z-40`}>
         <div className="p-6 border-b border-border/50 space-y-3">
-          <img src={logo} alt="Korle Bu Stands in Worship" className="w-36 drop-shadow" />
+          <img src={logo} alt="Korle Bu Stands in Worship" loading="lazy" decoding="async" className="w-36 drop-shadow" />
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-gradient-gold text-navy font-bold text-xs shadow-gold">
             <Shield className="w-3.5 h-3.5 shrink-0" />
             <span className="truncate">Super Admin Portal</span>
@@ -2316,6 +2319,13 @@ const SuperAdminDashboard = () => {
                 )}
               </Card>
             </div>
+          )}
+
+          {/* TAB: SHOP & ORDERS */}
+          {activeTab === "shop" && (
+            <Suspense fallback={<div className="py-12 text-center text-sm text-muted-foreground">Loading Shop &amp; Orders...</div>}>
+              <SuperAdminShopSection />
+            </Suspense>
           )}
 
           {/* TAB 13: EXPORT CENTER */}

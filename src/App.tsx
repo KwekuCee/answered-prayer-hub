@@ -20,6 +20,7 @@ const LiveStream = React.lazy(() => import("./pages/LiveStream"));
 const QrScanner = React.lazy(() => import("./pages/QrScanner"));
 const Donate = React.lazy(() => import("./pages/Donate"));
 const Resources = React.lazy(() => import("./pages/Resources"));
+const Shop = React.lazy(() => import("./pages/Shop"));
 const ShareTestimony = React.lazy(() => import("./pages/ShareTestimony"));
 const VerifyEmail = React.lazy(() => import("./pages/VerifyEmail"));
 
@@ -46,6 +47,7 @@ const App = () => (
             <Route path="/live" element={<LiveStream />} />
             <Route path="/donate" element={<Donate />} />
             <Route path="/resources" element={<Resources />} />
+            <Route path="/shop" element={<Shop />} />
             <Route path="/admin/scanner" element={<QrScanner />} />
             <Route path="/register" element={<Register />} />
             <Route path="/share-testimony" element={<ShareTestimony />} />
