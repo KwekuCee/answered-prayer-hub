@@ -592,27 +592,18 @@ export type Database = {
       shop_settings: {
         Row: {
           id: string
-          momo_account_name: string
-          momo_network: string
-          momo_number: string
           store_notice: string
           updated_at: string
           whatsapp_number: string
         }
         Insert: {
           id?: string
-          momo_account_name?: string
-          momo_network?: string
-          momo_number?: string
           store_notice?: string
           updated_at?: string
           whatsapp_number?: string
         }
         Update: {
           id?: string
-          momo_account_name?: string
-          momo_network?: string
-          momo_number?: string
           store_notice?: string
           updated_at?: string
           whatsapp_number?: string

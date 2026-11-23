@@ -62,7 +62,7 @@ test("generateOrderNumber formats predictable KSW order references", () => {
   assert.equal(ref, "KSW-20261218-AB12");
 });
 
-test("buildWhatsAppOrderMessage & buildWhatsAppUrl include confirmed payment, items, and delivery info", () => {
+test("buildWhatsAppOrderMessage & buildWhatsAppUrl include items, total, and delivery details for manual WhatsApp completion", () => {
   const order = {
     order_number: "KSW-20261218-Z9K1",
     customer_name: "Abena Osei",
@@ -75,17 +75,15 @@ test("buildWhatsAppOrderMessage & buildWhatsAppUrl include confirmed payment, it
       { product_id: "1", name: "KSW 2026 Royal Crest Worship Tee", price: 150, quantity: 2, image_url: "/tee.webp" },
     ],
     total_amount: 300,
-    payment_reference: "MOMO-TXN-887766",
-    momo_network: "MTN Mobile Money",
   };
 
   const msg = buildWhatsAppOrderMessage(order);
   assert.match(msg, /KSW-20261218-Z9K1/);
-  assert.match(msg, /PAID & CONFIRMED/);
-  assert.match(msg, /MOMO-TXN-887766/);
+  assert.match(msg, /Awaiting Payment Follow-up/);
   assert.match(msg, /Abena Osei/);
   assert.match(msg, /Dansoman/);
   assert.match(msg, /₵300\.00/);
+  assert.equal(msg.includes("MoMo"), false);
 
   const url = buildWhatsAppUrl("0249998888", order);
   assert.ok(url.startsWith("https://wa.me/233249998888?text="));

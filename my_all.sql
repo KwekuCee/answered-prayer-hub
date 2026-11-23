@@ -779,7 +779,7 @@ DO $$ BEGIN
  END IF;
 END $$;
 -- =============================================================================
--- SHOP MODULE: PRODUCTS, SETTINGS (MOMO & WHATSAPP), ORDERS & ORDER ITEMS
+-- SHOP MODULE: PRODUCTS, SETTINGS (WHATSAPP), ORDERS, ORDER ITEMS & STORAGE
 -- =============================================================================
 
 CREATE TABLE IF NOT EXISTS public.shop_products (
@@ -797,13 +797,15 @@ CREATE TABLE IF NOT EXISTS public.shop_products (
 
 CREATE TABLE IF NOT EXISTS public.shop_settings (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  momo_number text NOT NULL DEFAULT '0240000000',
-  momo_account_name text NOT NULL DEFAULT 'Korle Bu Stands in Worship',
-  momo_network text NOT NULL DEFAULT 'MTN Mobile Money',
   whatsapp_number text NOT NULL DEFAULT '233240000000',
-  store_notice text NOT NULL DEFAULT 'Orders are manually dispatched for physical delivery after MoMo payment confirmation.',
+  store_notice text NOT NULL DEFAULT 'Place your order with your delivery details and complete it directly on WhatsApp for payment and manual physical delivery.',
   updated_at timestamptz NOT NULL DEFAULT now()
 );
+
+ALTER TABLE public.shop_settings
+  DROP COLUMN IF EXISTS momo_number,
+  DROP COLUMN IF EXISTS momo_account_name,
+  DROP COLUMN IF EXISTS momo_network;
 
 CREATE TABLE IF NOT EXISTS public.shop_orders (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -816,16 +818,23 @@ CREATE TABLE IF NOT EXISTS public.shop_orders (
   delivery_notes text,
   items jsonb NOT NULL DEFAULT '[]'::jsonb,
   total_amount numeric(10,2) NOT NULL CHECK (total_amount >= 0),
-  payment_method text NOT NULL DEFAULT 'momo' CHECK (payment_method IN ('momo','card')),
+  payment_method text NOT NULL DEFAULT 'whatsapp',
   payment_reference text,
-  momo_network text,
   payment_confirmed boolean NOT NULL DEFAULT false,
   payment_confirmed_at timestamptz,
-  status text NOT NULL DEFAULT 'payment_confirmed' CHECK (status IN ('pending_payment','payment_confirmed','processing','dispatched','delivered','cancelled')),
+  status text NOT NULL DEFAULT 'pending_payment' CHECK (status IN ('pending_payment','payment_confirmed','processing','dispatched','delivered','cancelled')),
   whatsapp_notified boolean NOT NULL DEFAULT false,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
+
+ALTER TABLE public.shop_orders
+  DROP COLUMN IF EXISTS momo_network,
+  DROP CONSTRAINT IF EXISTS shop_orders_payment_method_check;
+ALTER TABLE public.shop_orders
+  ALTER COLUMN payment_method SET DEFAULT 'whatsapp',
+  ALTER COLUMN status SET DEFAULT 'pending_payment',
+  ADD CONSTRAINT shop_orders_payment_method_check CHECK (payment_method IN ('whatsapp','momo','card'));
 
 CREATE TABLE IF NOT EXISTS public.shop_order_items (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -876,13 +885,42 @@ CREATE POLICY "Public shop order submission" ON public.shop_orders FOR INSERT TO
   AND length(btrim(customer_phone)) BETWEEN 3 AND 50
   AND length(btrim(delivery_address)) BETWEEN 3 AND 500
   AND total_amount > 0
-  AND status IN ('pending_payment', 'payment_confirmed')
+  AND payment_method = 'whatsapp'
+  AND payment_confirmed = false
+  AND status = 'pending_payment'
 );
 CREATE POLICY "Super admin manages shop orders" ON public.shop_orders FOR ALL TO authenticated USING (public.has_role(auth.uid(), 'super_admin')) WITH CHECK (public.has_role(auth.uid(), 'super_admin'));
 
 DROP POLICY IF EXISTS "Super admin manages shop order items" ON public.shop_order_items;
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.shop_order_items TO authenticated;
 CREATE POLICY "Super admin manages shop order items" ON public.shop_order_items FOR ALL TO authenticated USING (public.has_role(auth.uid(), 'super_admin')) WITH CHECK (public.has_role(auth.uid(), 'super_admin'));
+
+-- Storage bucket & policies for Super Admin Product Image Uploads
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('shop-images', 'shop-images', true)
+ON CONFLICT (id) DO UPDATE SET public = EXCLUDED.public;
+
+DROP POLICY IF EXISTS "Public read shop images" ON storage.objects;
+DROP POLICY IF EXISTS "Super admin uploads shop images" ON storage.objects;
+DROP POLICY IF EXISTS "Super admin updates shop images" ON storage.objects;
+DROP POLICY IF EXISTS "Super admin deletes shop images" ON storage.objects;
+
+CREATE POLICY "Public read shop images" ON storage.objects
+  FOR SELECT TO anon, authenticated
+  USING (bucket_id = 'shop-images');
+
+CREATE POLICY "Super admin uploads shop images" ON storage.objects
+  FOR INSERT TO authenticated
+  WITH CHECK (bucket_id = 'shop-images' AND public.has_role(auth.uid(), 'super_admin'));
+
+CREATE POLICY "Super admin updates shop images" ON storage.objects
+  FOR UPDATE TO authenticated
+  USING (bucket_id = 'shop-images' AND public.has_role(auth.uid(), 'super_admin'))
+  WITH CHECK (bucket_id = 'shop-images' AND public.has_role(auth.uid(), 'super_admin'));
+
+CREATE POLICY "Super admin deletes shop images" ON storage.objects
+  FOR DELETE TO authenticated
+  USING (bucket_id = 'shop-images' AND public.has_role(auth.uid(), 'super_admin'));
 
 DO $$ DECLARE t text; BEGIN
   FOREACH t IN ARRAY ARRAY['shop_products','shop_settings','shop_orders'] LOOP
@@ -929,8 +967,8 @@ DROP TRIGGER IF EXISTS process_shop_order_items ON public.shop_orders;
 CREATE TRIGGER process_shop_order_items AFTER INSERT ON public.shop_orders FOR EACH ROW EXECUTE FUNCTION public.process_shop_order_items();
 
 -- Seed default shop configuration & initial catalog if empty
-INSERT INTO public.shop_settings (momo_number, momo_account_name, momo_network, whatsapp_number, store_notice)
-SELECT '0240000000', 'Korle Bu Stands in Worship', 'MTN Mobile Money', '233240000000', 'Orders are manually dispatched for physical delivery after MoMo payment confirmation.'
+INSERT INTO public.shop_settings (whatsapp_number, store_notice)
+SELECT '233240000000', 'Place your order with your delivery details and complete it directly on WhatsApp for payment and manual physical delivery.'
 WHERE NOT EXISTS (SELECT 1 FROM public.shop_settings);
 
 INSERT INTO public.shop_products (name, description, category, price, stock, image_url, is_active)

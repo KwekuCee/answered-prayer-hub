@@ -15,7 +15,6 @@ import {
   PlusCircle,
   Pencil,
   Trash2,
-  Smartphone,
   MessageSquare,
   Truck,
   Save,
@@ -23,6 +22,8 @@ import {
   ChevronLeft,
   ChevronRight,
   ExternalLink,
+  Upload,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -44,6 +45,7 @@ import {
   deleteShopProduct,
   saveShopSettings,
   updateShopOrderStatus,
+  uploadShopProductImage,
 } from "@/lib/shop-store";
 
 const PRESET_PRODUCT_IMAGES = [
@@ -55,7 +57,7 @@ const PRESET_PRODUCT_IMAGES = [
 
 const ORDER_STATUS_LABELS: Record<OrderStatus, { label: string; className: string }> = {
   pending_payment: { label: "Pending Payment", className: "bg-amber-500/15 text-amber-400 border-amber-500/30" },
-  payment_confirmed: { label: "Paid (MoMo Confirmed)", className: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" },
+  payment_confirmed: { label: "Payment Received", className: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" },
   processing: { label: "Packing for Delivery", className: "bg-blue-500/15 text-blue-400 border-blue-500/30" },
   dispatched: { label: "Out for Delivery", className: "bg-gold/15 text-gold border-gold/40" },
   delivered: { label: "Delivered", className: "bg-zinc-500/15 text-zinc-300 border-zinc-500/30" },
@@ -104,6 +106,7 @@ export const SuperAdminShopSection: React.FC = () => {
     is_active: true,
   });
   const [savingProduct, setSavingProduct] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   // Orders filter & pagination
   const [orderStatusFilter, setOrderStatusFilter] = useState<string>("all");
@@ -137,6 +140,30 @@ export const SuperAdminShopSection: React.FC = () => {
   const openEditProduct = (product: ShopProduct) => {
     setEditingProduct({ ...product });
     setProductModalOpen(true);
+  };
+
+  const handleProductImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select an image file (JPG, PNG, or WebP).");
+      return;
+    }
+    setUploadingImage(true);
+    try {
+      const { url, uploadedToStorage } = await uploadShopProductImage(file);
+      setEditingProduct((p) => ({ ...p, image_url: url }));
+      toast.success(
+        uploadedToStorage
+          ? "Product image uploaded and converted to WebP!"
+          : "Product image optimized to WebP and attached!"
+      );
+    } catch {
+      toast.error("Could not process the selected image. Please try another file.");
+    } finally {
+      setUploadingImage(false);
+      e.target.value = "";
+    }
   };
 
   const handleSaveProduct = async (e: React.FormEvent) => {
@@ -175,8 +202,8 @@ export const SuperAdminShopSection: React.FC = () => {
 
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentSettings.momo_number.trim() || !currentSettings.whatsapp_number.trim()) {
-      toast.error("Both MoMo number and WhatsApp notification number are required.");
+    if (!currentSettings.whatsapp_number.trim()) {
+      toast.error("WhatsApp order number is required.");
       return;
     }
     setSavingConfig(true);
@@ -187,7 +214,7 @@ export const SuperAdminShopSection: React.FC = () => {
       setDraftSettings(null);
       toast.success(
         syncedToDb
-          ? "MoMo & WhatsApp order settings updated!"
+          ? "WhatsApp order desk settings updated!"
           : "Settings saved locally (apply Shop SQL migration in Supabase to sync across devices)."
       );
     } finally {
@@ -203,10 +230,10 @@ export const SuperAdminShopSection: React.FC = () => {
     toast.success(`Order updated to "${ORDER_STATUS_LABELS[status].label}"`);
   };
 
-  const confirmedRevenue = useMemo(
+  const totalOrderValue = useMemo(
     () =>
       orders
-        .filter((o) => o.payment_confirmed && o.status !== "cancelled")
+        .filter((o) => o.status !== "cancelled")
         .reduce((sum, o) => sum + Number(o.total_amount || 0), 0),
     [orders]
   );
@@ -223,15 +250,15 @@ export const SuperAdminShopSection: React.FC = () => {
           </p>
         </Card>
         <Card className="bg-card/80 backdrop-blur-xl border-border/60 rounded-3xl p-5">
-          <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Confirmed Orders</p>
+          <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Total Orders</p>
           <p className="text-3xl font-display font-bold text-foreground mt-1 tabular-nums">
-            {orders.filter((o) => o.payment_confirmed).length}
+            {orders.length}
           </p>
         </Card>
         <Card className="bg-card/80 backdrop-blur-xl border-gold/30 rounded-3xl p-5">
-          <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">MoMo Revenue</p>
+          <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Order Volume</p>
           <p className="text-3xl font-display font-bold text-gold mt-1 tabular-nums">
-            {formatGHS(confirmedRevenue)}
+            {formatGHS(totalOrderValue)}
           </p>
         </Card>
       </div>
@@ -258,7 +285,7 @@ export const SuperAdminShopSection: React.FC = () => {
             onClick={() => setSubTab("config")}
             className={subTab === "config" ? "bg-gradient-gold text-navy font-bold rounded-2xl" : "rounded-2xl"}
           >
-            <Smartphone className="w-4 h-4 mr-2" /> MoMo &amp; WhatsApp Setup
+            <MessageSquare className="w-4 h-4 mr-2" /> WhatsApp &amp; Store Setup
           </Button>
         </div>
 
@@ -347,7 +374,7 @@ export const SuperAdminShopSection: React.FC = () => {
             <div>
               <CardTitle className="font-display text-xl">Customer Orders &amp; Manual Delivery</CardTitle>
               <CardDescription className="text-xs">
-                Track confirmed MoMo payments and dispatch physical deliveries.
+                Follow up on WhatsApp orders, mark payment received, and track physical delivery.
               </CardDescription>
             </div>
             <Select value={orderStatusFilter} onValueChange={(v) => { setOrderStatusFilter(v); setOrderPage(1); }}>
@@ -356,11 +383,11 @@ export const SuperAdminShopSection: React.FC = () => {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Orders</SelectItem>
-                <SelectItem value="payment_confirmed">Paid (MoMo Confirmed)</SelectItem>
+                <SelectItem value="pending_payment">Pending Payment</SelectItem>
+                <SelectItem value="payment_confirmed">Payment Received</SelectItem>
                 <SelectItem value="processing">Packing for Delivery</SelectItem>
                 <SelectItem value="dispatched">Out for Delivery</SelectItem>
                 <SelectItem value="delivered">Delivered</SelectItem>
-                <SelectItem value="pending_payment">Pending Payment</SelectItem>
                 <SelectItem value="cancelled">Cancelled</SelectItem>
               </SelectContent>
             </Select>
@@ -379,14 +406,14 @@ export const SuperAdminShopSection: React.FC = () => {
                     <TableHead className="text-xs uppercase">Order Ref</TableHead>
                     <TableHead className="text-xs uppercase">Customer &amp; Delivery</TableHead>
                     <TableHead className="text-xs uppercase">Items</TableHead>
-                    <TableHead className="text-xs uppercase">MoMo Ref / Total</TableHead>
+                    <TableHead className="text-xs uppercase">Order Total</TableHead>
                     <TableHead className="text-xs uppercase">Status</TableHead>
                     <TableHead className="text-xs uppercase text-right">WhatsApp</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {paginatedOrders.map((order) => {
-                    const statusMeta = ORDER_STATUS_LABELS[order.status] || ORDER_STATUS_LABELS.payment_confirmed;
+                    const statusMeta = ORDER_STATUS_LABELS[order.status] || ORDER_STATUS_LABELS.pending_payment;
                     return (
                       <TableRow key={order.id} className="border-b border-border/40">
                         <TableCell className="font-mono text-xs font-semibold text-gold">
@@ -413,8 +440,8 @@ export const SuperAdminShopSection: React.FC = () => {
                           <div className="font-display font-bold text-sm tabular-nums text-foreground">
                             {formatGHS(order.total_amount)}
                           </div>
-                          <div className="font-mono text-[11px] text-muted-foreground">
-                            {order.payment_reference || "Pending ref"}
+                          <div className="text-[11px] text-muted-foreground">
+                            WhatsApp Follow-up
                           </div>
                         </TableCell>
                         <TableCell>
@@ -484,79 +511,35 @@ export const SuperAdminShopSection: React.FC = () => {
         </Card>
       )}
 
-      {/* SUBTAB 3: MOMO & WHATSAPP CONFIGURATION */}
+      {/* SUBTAB 3: WHATSAPP & STORE CONFIGURATION */}
       {subTab === "config" && (
         <Card className="bg-card/80 backdrop-blur-xl border-gold/30 rounded-3xl max-w-2xl">
           <CardHeader>
             <CardTitle className="font-display text-xl flex items-center gap-2">
-              <Smartphone className="w-5 h-5 text-gold" /> MoMo &amp; WhatsApp Order Desk Configuration
+              <MessageSquare className="w-5 h-5 text-emerald-400" /> WhatsApp Order Desk Configuration
             </CardTitle>
             <CardDescription className="text-xs">
-              Configure the Mobile Money account displayed at checkout and the WhatsApp number that receives confirmed order alerts for physical dispatch.
+              Configure the WhatsApp number customers message when completing orders on the shop so you can arrange manual payment and physical delivery.
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSaveSettings} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="admin-momo-number" className="text-xs">MoMo Payment Number *</Label>
-                  <Input
-                    id="admin-momo-number"
-                    value={currentSettings.momo_number}
-                    onChange={(e) =>
-                      setDraftSettings({ ...currentSettings, momo_number: e.target.value })
-                    }
-                    placeholder="e.g. 024 123 4567"
-                    required
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="admin-momo-network" className="text-xs">MoMo Network *</Label>
-                  <Select
-                    value={currentSettings.momo_network}
-                    onValueChange={(v) =>
-                      setDraftSettings({ ...currentSettings, momo_network: v })
-                    }
-                  >
-                    <SelectTrigger id="admin-momo-network">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="MTN Mobile Money">MTN Mobile Money</SelectItem>
-                      <SelectItem value="Telecel Cash">Telecel Cash</SelectItem>
-                      <SelectItem value="AT Money">AT Money</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="admin-momo-account" className="text-xs">MoMo Account Name *</Label>
-                  <Input
-                    id="admin-momo-account"
-                    value={currentSettings.momo_account_name}
-                    onChange={(e) =>
-                      setDraftSettings({ ...currentSettings, momo_account_name: e.target.value })
-                    }
-                    placeholder="Korle Bu Stands in Worship"
-                    required
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="admin-whatsapp-number" className="text-xs flex items-center gap-1.5">
-                    <MessageSquare className="w-3.5 h-3.5 text-emerald-400" /> WhatsApp Alert Number *
-                  </Label>
-                  <Input
-                    id="admin-whatsapp-number"
-                    value={currentSettings.whatsapp_number}
-                    onChange={(e) =>
-                      setDraftSettings({ ...currentSettings, whatsapp_number: e.target.value })
-                    }
-                    placeholder="e.g. 233241234567 or 0241234567"
-                    required
-                  />
-                </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="admin-whatsapp-number" className="text-xs flex items-center gap-1.5">
+                  <MessageSquare className="w-3.5 h-3.5 text-emerald-400" /> WhatsApp Order Number *
+                </Label>
+                <Input
+                  id="admin-whatsapp-number"
+                  value={currentSettings.whatsapp_number}
+                  onChange={(e) =>
+                    setDraftSettings({ ...currentSettings, whatsapp_number: e.target.value })
+                  }
+                  placeholder="e.g. 233241234567 or 0241234567"
+                  required
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  When customers click &quot;Complete Order on WhatsApp&quot;, it opens this WhatsApp chat with their itemized order and delivery address.
+                </p>
               </div>
 
               <div className="space-y-1.5">
@@ -578,7 +561,7 @@ export const SuperAdminShopSection: React.FC = () => {
                 className="bg-gradient-gold text-navy font-bold rounded-2xl shadow-gold gap-2 h-11 px-6"
               >
                 <Save className="w-4 h-4" />
-                {savingConfig ? "Saving Configuration..." : "Save MoMo & WhatsApp Settings"}
+                {savingConfig ? "Saving Configuration..." : "Save WhatsApp Order Settings"}
               </Button>
             </form>
           </CardContent>
@@ -587,13 +570,13 @@ export const SuperAdminShopSection: React.FC = () => {
 
       {/* Add / Edit Product Modal */}
       <Dialog open={productModalOpen} onOpenChange={setProductModalOpen}>
-        <DialogContent className="sm:max-w-lg bg-zinc-950 border-gold/40 text-foreground rounded-3xl">
+        <DialogContent className="sm:max-w-lg bg-zinc-950 border-gold/40 text-foreground rounded-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="font-display text-xl font-bold">
               {editingProduct.id ? "Edit Store Product" : "List New Store Product"}
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
-              Products saved here immediately appear in the public Shop storefront.
+              Upload a product photo from your device and publish directly to the public Shop storefront.
             </DialogDescription>
           </DialogHeader>
 
@@ -604,7 +587,7 @@ export const SuperAdminShopSection: React.FC = () => {
                 id="prod-name"
                 value={editingProduct.name || ""}
                 onChange={(e) => setEditingProduct((p) => ({ ...p, name: e.target.value }))}
-                placeholder="e.g. KSW Choir Choir Robe Edition"
+                placeholder="e.g. KSW Commemorative Choir Shirt"
                 required
               />
             </div>
@@ -657,15 +640,57 @@ export const SuperAdminShopSection: React.FC = () => {
               />
             </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="prod-image" className="text-xs">Product Image URL or WebP Preset</Label>
+            <div className="space-y-2">
+              <Label className="text-xs">Product Image (Upload Photo or Choose Preset)</Label>
+              <div className="flex items-center gap-3.5 p-3 rounded-2xl border border-border/70 bg-zinc-900/60">
+                <div className="w-20 h-20 rounded-xl overflow-hidden bg-zinc-950 border border-border/60 shrink-0 flex items-center justify-center">
+                  {editingProduct.image_url ? (
+                    <img
+                      src={editingProduct.image_url}
+                      alt="Product preview"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <Package className="w-6 h-6 text-muted-foreground" />
+                  )}
+                </div>
+                <div className="flex-1 space-y-2">
+                  <label
+                    htmlFor="prod-image-upload"
+                    className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-gold/40 bg-gold/10 text-gold text-xs font-semibold cursor-pointer hover:bg-gold/20 transition-colors ${
+                      uploadingImage ? "opacity-60 pointer-events-none" : ""
+                    }`}
+                  >
+                    {uploadingImage ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Upload className="w-3.5 h-3.5" />
+                    )}
+                    <span>{uploadingImage ? "Uploading & Converting..." : "Upload Product Image"}</span>
+                    <input
+                      id="prod-image-upload"
+                      data-testid="admin-product-image-upload"
+                      type="file"
+                      accept="image/*"
+                      onChange={handleProductImageUpload}
+                      disabled={uploadingImage}
+                      className="sr-only"
+                    />
+                  </label>
+                  <p className="text-[11px] text-muted-foreground">
+                    Automatically compressed to fast WebP for instant storefront loading.
+                  </p>
+                </div>
+              </div>
+
               <Input
                 id="prod-image"
                 value={editingProduct.image_url || ""}
                 onChange={(e) => setEditingProduct((p) => ({ ...p, image_url: e.target.value }))}
-                placeholder="/images/shop/worship-tee.webp"
+                placeholder="Or paste an image URL (/images/shop/worship-tee.webp)"
+                className="text-xs"
               />
-              <div className="flex flex-wrap gap-1.5 pt-1">
+              <div className="flex flex-wrap gap-1.5 pt-0.5">
                 {PRESET_PRODUCT_IMAGES.map((preset) => (
                   <button
                     key={preset.url}
@@ -696,7 +721,7 @@ export const SuperAdminShopSection: React.FC = () => {
               <Button type="button" variant="outline" onClick={() => setProductModalOpen(false)} className="rounded-xl">
                 Cancel
               </Button>
-              <Button type="submit" disabled={savingProduct} className="bg-gradient-gold text-navy font-bold rounded-xl shadow-gold">
+              <Button type="submit" disabled={savingProduct || uploadingImage} className="bg-gradient-gold text-navy font-bold rounded-xl shadow-gold">
                 {savingProduct ? "Saving..." : "Save Product"}
               </Button>
             </DialogFooter>

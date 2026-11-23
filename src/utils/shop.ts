@@ -13,9 +13,6 @@ export interface ShopProduct {
 
 export interface ShopSettings {
   id?: string;
-  momo_number: string;
-  momo_account_name: string;
-  momo_network: string;
   whatsapp_number: string;
   store_notice: string;
   updated_at?: string;
@@ -48,9 +45,8 @@ export interface ShopOrder {
   delivery_notes?: string | null;
   items: CartItem[];
   total_amount: number;
-  payment_method: "momo" | "card";
+  payment_method: "whatsapp" | "momo" | "card";
   payment_reference?: string | null;
-  momo_network?: string | null;
   payment_confirmed: boolean;
   payment_confirmed_at?: string | null;
   status: OrderStatus;
@@ -69,11 +65,9 @@ export interface DeliveryFormInput {
 
 export const DEFAULT_SHOP_SETTINGS: ShopSettings = {
   id: "default-shop-settings",
-  momo_number: "024 000 0000",
-  momo_account_name: "Korle Bu Stands in Worship",
-  momo_network: "MTN Mobile Money",
   whatsapp_number: "233240000000",
-  store_notice: "Orders are manually dispatched for physical delivery after MoMo payment confirmation.",
+  store_notice:
+    "Place your order with your delivery details and complete it directly on WhatsApp for payment & manual physical delivery.",
 };
 
 export const SEED_SHOP_PRODUCTS: ShopProduct[] = [
@@ -125,7 +119,7 @@ export const SEED_SHOP_PRODUCTS: ShopProduct[] = [
 
 export const LOCAL_STORAGE_KEYS = {
   PRODUCTS: "ksw_shop_products_v1",
-  SETTINGS: "ksw_shop_settings_v1",
+  SETTINGS: "ksw_shop_settings_v2",
   ORDERS: "ksw_shop_orders_v1",
   CART: "ksw_shop_cart_v1",
 } as const;
@@ -215,8 +209,6 @@ export function buildWhatsAppOrderMessage(
     | "delivery_notes"
     | "items"
     | "total_amount"
-    | "payment_reference"
-    | "momo_network"
   >
 ): string {
   const itemLines = order.items
@@ -224,17 +216,15 @@ export function buildWhatsAppOrderMessage(
     .join("\n");
 
   const lines = [
-    `*NEW CONFIRMED ORDER — KORLE BU STANDS IN WORSHIP SHOP*`,
+    `*NEW ORDER — KORLE BU STANDS IN WORSHIP SHOP*`,
     `Order Ref: *${order.order_number}*`,
-    `Payment Status: *PAID & CONFIRMED (MoMo)*`,
-    order.momo_network ? `Network: ${order.momo_network}` : null,
-    order.payment_reference ? `MoMo Transaction ID: ${order.payment_reference}` : null,
+    `Status: *Awaiting Payment Follow-up & Manual Delivery*`,
     ``,
     `*ITEMS ORDERED:*`,
     itemLines,
-    `*Total Paid: ${formatGHS(order.total_amount)}*`,
+    `*Total Amount: ${formatGHS(order.total_amount)}*`,
     ``,
-    `*PHYSICAL DELIVERY DETAILS:*`,
+    `*DELIVERY DETAILS:*`,
     `Recipient: ${order.customer_name}`,
     `Phone: ${order.customer_phone}`,
     order.customer_email ? `Email: ${order.customer_email}` : null,
@@ -242,13 +232,16 @@ export function buildWhatsAppOrderMessage(
     `Address/Landmark: ${order.delivery_address}`,
     order.delivery_notes ? `Notes: ${order.delivery_notes}` : null,
     ``,
-    `Please arrange physical dispatch for this order.`,
+    `Hello! I would like to complete payment and arrange physical delivery for this order.`,
   ].filter((l) => l !== null);
 
   return lines.join("\n");
 }
 
-export function buildWhatsAppUrl(whatsappNumber: string, order: Parameters<typeof buildWhatsAppOrderMessage>[0]): string {
+export function buildWhatsAppUrl(
+  whatsappNumber: string,
+  order: Parameters<typeof buildWhatsAppOrderMessage>[0]
+): string {
   const normalized = normalizeWhatsAppNumber(whatsappNumber);
   const message = encodeURIComponent(buildWhatsAppOrderMessage(order));
   return normalized ? `https://wa.me/${normalized}?text=${message}` : `https://wa.me/?text=${message}`;

@@ -20,16 +20,13 @@ import {
   Minus,
   Trash2,
   ArrowRight,
-  ArrowLeft,
   CheckCircle2,
-  Smartphone,
   Copy,
   Check,
   MessageSquare,
   Truck,
   Package,
   X,
-  CreditCard,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -52,10 +49,10 @@ import {
 import {
   fetchPublicProducts,
   fetchShopSettings,
-  submitConfirmedOrder,
+  submitShopOrder,
 } from "@/lib/shop-store";
 
-type CheckoutStep = "delivery" | "payment" | "confirmed";
+type CheckoutStep = "delivery" | "whatsapp";
 
 function createUuid(): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -142,8 +139,6 @@ const Shop = () => {
   const [deliveryNotes, setDeliveryNotes] = useState("");
   const [formError, setFormError] = useState<string>("");
 
-  const [momoReference, setMomoReference] = useState("");
-  const [payerMomoPhone, setPayerMomoPhone] = useState("");
   const [submittingOrder, setSubmittingOrder] = useState(false);
   const [confirmedOrder, setConfirmedOrder] = useState<ShopOrder | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
@@ -256,7 +251,7 @@ const Shop = () => {
     setCheckoutOpen(true);
   };
 
-  const handleProceedToPayment = (e: React.FormEvent) => {
+  const handlePlaceOrderForWhatsApp = async (e: React.FormEvent) => {
     e.preventDefault();
     const validation = validateDeliveryForm({
       customer_name: customerName,
@@ -271,20 +266,8 @@ const Shop = () => {
       toast.error(validation.errors[0]);
       return;
     }
+
     setFormError("");
-    if (!payerMomoPhone) {
-      setPayerMomoPhone(customerPhone);
-    }
-    setCheckoutStep("payment");
-  };
-
-  const handleConfirmMomoPayment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!momoReference.trim() || momoReference.trim().length < 3) {
-      toast.error("Please enter your MoMo Transaction ID or Payment Reference to confirm.");
-      return;
-    }
-
     setSubmittingOrder(true);
     try {
       const orderNumber = generateOrderNumber();
@@ -300,38 +283,34 @@ const Shop = () => {
         delivery_notes: deliveryNotes.trim() || null,
         items: checkoutItems,
         total_amount: checkoutTotal,
-        payment_method: "momo",
-        payment_reference: momoReference.trim(),
-        momo_network: settings?.momo_network || "MTN Mobile Money",
-        payment_confirmed: true,
-        payment_confirmed_at: nowIso,
-        status: "payment_confirmed",
+        payment_method: "whatsapp",
+        payment_reference: null,
+        payment_confirmed: false,
+        payment_confirmed_at: null,
+        status: "pending_payment",
         whatsapp_notified: true,
         created_at: nowIso,
       };
 
-      await submitConfirmedOrder(order);
+      await submitShopOrder(order);
 
       if (!isDirectBuy) {
         setCart([]);
       }
 
       setConfirmedOrder(order);
-      setCheckoutStep("confirmed");
+      setCheckoutStep("whatsapp");
       queryClient.invalidateQueries({ queryKey: ["shop-products-public"] });
       queryClient.invalidateQueries({ queryKey: ["admin-shop-orders"] });
-      toast.success("MoMo payment confirmed! Order alert ready for WhatsApp dispatch.");
+      toast.success("Order saved! Tap Complete Order on WhatsApp to finalize.");
     } catch {
-      toast.error("Could not complete order. Please try again.");
+      toast.error("Could not place order. Please try again.");
     } finally {
       setSubmittingOrder(false);
     }
   };
 
   const activeWhatsappNumber = settings?.whatsapp_number || "233240000000";
-  const activeMomoNumber = settings?.momo_number || "024 000 0000";
-  const activeMomoAccount = settings?.momo_account_name || "Korle Bu Stands in Worship";
-  const activeMomoNetwork = settings?.momo_network || "MTN Mobile Money";
 
   const whatsappUrl = useMemo(() => {
     if (!confirmedOrder) return "#";
@@ -365,7 +344,7 @@ const Shop = () => {
             </h1>
             <p className="text-sm md:text-base text-muted-foreground font-body leading-relaxed">
               {settings?.store_notice ||
-                "Select any item, enter your delivery address, pay securely via MoMo, and confirm directly to our WhatsApp dispatch desk for physical delivery."}
+                "Select any item, enter your delivery details, and complete your order directly on WhatsApp to arrange payment and manual physical delivery."}
             </p>
           </div>
 
@@ -716,32 +695,28 @@ const Shop = () => {
         )}
       </AnimatePresence>
 
-      {/* Multi-Step Checkout Modal: Delivery Details -> MoMo Payment -> WhatsApp Alert */}
+      {/* Two-Step Checkout Modal: Delivery Details -> Complete Order on WhatsApp */}
       <Dialog open={checkoutOpen} onOpenChange={(open) => !submittingOrder && setCheckoutOpen(open)}>
         <DialogContent className="sm:max-w-xl bg-card border-gold/30 rounded-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-gold">
-              {checkoutStep === "delivery" && "Step 1 of 3 · Delivery Details"}
-              {checkoutStep === "payment" && "Step 2 of 3 · MoMo Payment"}
-              {checkoutStep === "confirmed" && "Step 3 of 3 · Order Confirmed"}
+              {checkoutStep === "delivery" && "Step 1 of 2 · Delivery Details"}
+              {checkoutStep === "whatsapp" && "Step 2 of 2 · Complete on WhatsApp"}
             </div>
             <DialogTitle className="font-display text-2xl font-bold text-foreground">
               {checkoutStep === "delivery" && "Where should we deliver?"}
-              {checkoutStep === "payment" && "Complete Payment via MoMo"}
-              {checkoutStep === "confirmed" && "Payment Confirmed & Dispatch Ready"}
+              {checkoutStep === "whatsapp" && "Complete Your Order on WhatsApp"}
             </DialogTitle>
             <DialogDescription className="text-xs font-body text-muted-foreground">
               {checkoutStep === "delivery" &&
-                "Enter your physical delivery details before confirming MoMo payment."}
-              {checkoutStep === "payment" &&
-                "Send the total via Mobile Money to the configured number below, then enter your transaction ID."}
-              {checkoutStep === "confirmed" &&
-                "Send this confirmed order summary directly to our official WhatsApp order desk."}
+                "Enter your contact and physical delivery location, then continue to WhatsApp to complete payment and dispatch."}
+              {checkoutStep === "whatsapp" &&
+                "Tap the WhatsApp button below to open WhatsApp with your full order message pre-filled for payment and delivery arrangement."}
             </DialogDescription>
           </DialogHeader>
 
           {/* Order Items Summary Strip */}
-          {checkoutStep !== "confirmed" && (
+          {checkoutStep === "delivery" && (
             <div className="rounded-2xl border border-border/60 bg-background/60 p-4 space-y-2">
               {checkoutItems.map((item) => (
                 <div key={item.product_id} className="flex items-center justify-between text-xs">
@@ -766,7 +741,7 @@ const Shop = () => {
 
           {/* Step 1: Delivery Details */}
           {checkoutStep === "delivery" && (
-            <form onSubmit={handleProceedToPayment} className="space-y-4">
+            <form onSubmit={handlePlaceOrderForWhatsApp} className="space-y-4">
               {formError && (
                 <p role="alert" className="text-xs text-destructive bg-destructive/10 border border-destructive/30 rounded-xl px-3 py-2">
                   {formError}
@@ -842,109 +817,27 @@ const Shop = () => {
 
               <Button
                 type="submit"
+                disabled={submittingOrder}
+                data-testid="submit-delivery-order-btn"
                 className="w-full h-11 rounded-2xl bg-gradient-gold text-navy font-bold shadow-gold gap-2"
               >
-                Continue to MoMo Payment <ArrowRight className="w-4 h-4" />
+                {submittingOrder ? "Preparing Order..." : "Continue & Complete Order on WhatsApp"}
+                <ArrowRight className="w-4 h-4" />
               </Button>
             </form>
           )}
 
-          {/* Step 2: MoMo Payment */}
-          {checkoutStep === "payment" && (
-            <form onSubmit={handleConfirmMomoPayment} className="space-y-5">
-              <div className="rounded-2xl border border-gold/40 bg-gold/5 p-5 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-gold">
-                    <Smartphone className="w-4 h-4" /> {activeMomoNetwork}
-                  </span>
-                  <span className="text-xs text-muted-foreground flex items-center gap-1">
-                    <CreditCard className="w-3.5 h-3.5" /> Official Merchant
-                  </span>
-                </div>
-
-                <div className="flex items-center justify-between gap-3 bg-background/80 rounded-xl px-4 py-3 border border-border/60">
-                  <div>
-                    <p className="text-[11px] uppercase tracking-wider text-muted-foreground">MoMo Number</p>
-                    <p data-testid="checkout-momo-number" className="text-xl font-display font-bold text-foreground tabular-nums">
-                      {activeMomoNumber}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      Account Name: <span className="text-foreground font-medium">{activeMomoAccount}</span>
-                    </p>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => copyValue("momo", activeMomoNumber)}
-                    className="rounded-xl gap-1.5 shrink-0"
-                  >
-                    {copiedKey === "momo" ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-                    Copy
-                  </Button>
-                </div>
-
-                <p className="text-xs text-muted-foreground font-body leading-relaxed">
-                  Transfer <strong className="text-foreground">{formatGHS(checkoutTotal)}</strong> using{" "}
-                  <strong>{activeMomoNetwork}</strong> to <strong>{activeMomoNumber}</strong> with your name as reference, then enter your transaction ID below to confirm.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                <div className="space-y-1.5">
-                  <Label htmlFor="momo-payer-phone" className="text-xs">MoMo Number Used</Label>
-                  <Input
-                    id="momo-payer-phone"
-                    value={payerMomoPhone}
-                    onChange={(e) => setPayerMomoPhone(e.target.value)}
-                    placeholder="024 123 4567"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="momo-tx-ref" className="text-xs">MoMo Transaction ID / Ref *</Label>
-                  <Input
-                    id="momo-tx-ref"
-                    value={momoReference}
-                    onChange={(e) => setMomoReference(e.target.value)}
-                    placeholder="e.g. TXN-49201948"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setCheckoutStep("delivery")}
-                  className="rounded-2xl gap-1.5"
-                >
-                  <ArrowLeft className="w-4 h-4" /> Back
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={submittingOrder}
-                  data-testid="confirm-momo-payment-btn"
-                  className="flex-1 h-11 rounded-2xl bg-gradient-gold text-navy font-bold shadow-gold"
-                >
-                  {submittingOrder ? "Confirming Payment..." : "I Have Paid · Confirm Order"}
-                </Button>
-              </div>
-            </form>
-          )}
-
-          {/* Step 3: Payment Confirmed & WhatsApp Alert Dispatch */}
-          {checkoutStep === "confirmed" && confirmedOrder && (
+          {/* Step 2: Direct WhatsApp Order Launch */}
+          {checkoutStep === "whatsapp" && confirmedOrder && (
             <div className="space-y-5">
               <div className="rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-5 flex items-start gap-3.5">
                 <CheckCircle2 className="w-6 h-6 text-emerald-500 shrink-0 mt-0.5" />
                 <div className="space-y-1">
                   <p className="font-display font-bold text-base text-foreground">
-                    Payment Confirmed · {confirmedOrder.order_number}
+                    Order Recorded · {confirmedOrder.order_number}
                   </p>
                   <p className="text-xs text-muted-foreground font-body leading-relaxed">
-                    MoMo Ref <strong className="text-foreground">{confirmedOrder.payment_reference}</strong> recorded for{" "}
-                    <strong className="text-foreground">{formatGHS(confirmedOrder.total_amount)}</strong>. Delivery is fulfilled manually once dispatched via WhatsApp.
+                    Order total: <strong className="text-foreground">{formatGHS(confirmedOrder.total_amount)}</strong>. Click below to open WhatsApp and send your order directly to our team for payment follow-up and manual physical delivery.
                   </p>
                 </div>
               </div>
@@ -952,13 +845,13 @@ const Shop = () => {
               <div className="rounded-2xl border border-border/60 bg-background/70 p-4 space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold uppercase tracking-wider text-gold">
-                    WhatsApp Order Alert Preview
+                    WhatsApp Order Message Preview
                   </span>
                   <span className="text-xs text-muted-foreground tabular-nums">
                     To: +{activeWhatsappNumber.replace(/\D/g, "")}
                   </span>
                 </div>
-                <pre className="text-[11px] font-mono whitespace-pre-wrap text-foreground/85 bg-card/80 p-3 rounded-xl border border-border/50 max-h-44 overflow-y-auto">
+                <pre className="text-[11px] font-mono whitespace-pre-wrap text-foreground/85 bg-card/80 p-3 rounded-xl border border-border/50 max-h-48 overflow-y-auto">
                   {whatsappPreviewText}
                 </pre>
               </div>
@@ -971,16 +864,16 @@ const Shop = () => {
                   data-testid="whatsapp-order-link"
                   className="flex-1 inline-flex items-center justify-center gap-2 h-12 px-5 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-sm transition-colors shadow-lg"
                 >
-                  <MessageSquare className="w-4 h-4" /> Send Confirmed Order on WhatsApp
+                  <MessageSquare className="w-4 h-4" /> Complete Order on WhatsApp
                 </a>
                 <Button
                   type="button"
                   variant="outline"
                   onClick={() => copyValue("wa-msg", whatsappPreviewText)}
-                  className="h-12 rounded-2xl gap-1.5"
+                  className="h-12 rounded-2xl gap-1.5 hover:bg-zinc-900 hover:text-foreground"
                 >
                   {copiedKey === "wa-msg" ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
-                  Copy Receipt
+                  Copy Message
                 </Button>
               </div>
 

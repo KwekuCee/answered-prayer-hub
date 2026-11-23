@@ -67,17 +67,19 @@ export async function fetchPublicProducts(): Promise<ShopProduct[]> {
 
 export async function fetchAllAdminProducts(): Promise<ShopProduct[]> {
   try {
-    const { data, error } = await supabase
-      .from("shop_products")
-      .select("*")
-      .order("created_at", { ascending: false });
+    const { data, error }: any = await withTimeout(
+      supabase
+        .from("shop_products")
+        .select("*")
+        .order("created_at", { ascending: false })
+    );
 
     if (error) {
       return readLocalJson<ShopProduct[]>(LOCAL_STORAGE_KEYS.PRODUCTS, SEED_SHOP_PRODUCTS);
     }
 
     if (data && data.length > 0) {
-      const normalized = data.map((row) => ({ ...row, price: Number(row.price) }));
+      const normalized = data.map((row: any) => ({ ...row, price: Number(row.price) }));
       writeLocalJson(LOCAL_STORAGE_KEYS.PRODUCTS, normalized);
       return normalized;
     }
@@ -86,6 +88,92 @@ export async function fetchAllAdminProducts(): Promise<ShopProduct[]> {
   } catch {
     return readLocalJson<ShopProduct[]>(LOCAL_STORAGE_KEYS.PRODUCTS, SEED_SHOP_PRODUCTS);
   }
+}
+
+function readFileAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("Could not read image file"));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function compressImageToWebP(
+  file: File,
+  maxDimension = 900,
+  quality = 0.84
+): Promise<{ blob: Blob; dataUrl: string }> {
+  const srcDataUrl = await readFileAsDataUrl(file);
+  const img = new Image();
+  await new Promise<void>((resolve, reject) => {
+    img.onload = () => resolve();
+    img.onerror = () => reject(new Error("Invalid image file"));
+    img.src = srcDataUrl;
+  });
+
+  const scale = Math.min(1, maxDimension / Math.max(img.width || 1, img.height || 1));
+  const targetWidth = Math.max(1, Math.round((img.width || maxDimension) * scale));
+  const targetHeight = Math.max(1, Math.round((img.height || maxDimension) * scale));
+
+  const canvas = document.createElement("canvas");
+  canvas.width = targetWidth;
+  canvas.height = targetHeight;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    return { blob: file, dataUrl: srcDataUrl };
+  }
+  ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+
+  const webpDataUrl = canvas.toDataURL("image/webp", quality);
+  const blob = await new Promise<Blob>((resolve) => {
+    canvas.toBlob(
+      (b) => resolve(b || file),
+      "image/webp",
+      quality
+    );
+  });
+
+  return {
+    blob,
+    dataUrl: webpDataUrl.startsWith("data:image/") ? webpDataUrl : srcDataUrl,
+  };
+}
+
+/**
+ * Compresses a selected product image to WebP and uploads it to the `shop-images`
+ * Supabase Storage bucket when available, with a compressed WebP Data URL fallback.
+ */
+export async function uploadShopProductImage(
+  file: File
+): Promise<{ url: string; uploadedToStorage: boolean }> {
+  const { blob, dataUrl } = await compressImageToWebP(file);
+  const filePath = `products/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.webp`;
+
+  try {
+    const { error }: any = await withTimeout(
+      supabase.storage
+        .from("shop-images")
+        .upload(filePath, blob, {
+          contentType: "image/webp",
+          upsert: true,
+        }),
+      5000
+    );
+
+    if (!error) {
+      const { data: pub } = supabase.storage
+        .from("shop-images")
+        .getPublicUrl(filePath);
+      if (pub?.publicUrl) {
+        return { url: pub.publicUrl, uploadedToStorage: true };
+      }
+    }
+  } catch {
+    // Fall through to compressed WebP Data URL fallback
+  }
+
+  return { url: dataUrl, uploadedToStorage: false };
 }
 
 export async function upsertShopProduct(
@@ -110,22 +198,26 @@ export async function upsertShopProduct(
 
   try {
     if (product.id && /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(product.id)) {
-      const { data, error } = await supabase
-        .from("shop_products")
-        .update(payload)
-        .eq("id", product.id)
-        .select()
-        .single();
+      const { data, error }: any = await withTimeout(
+        supabase
+          .from("shop_products")
+          .update(payload)
+          .eq("id", product.id)
+          .select()
+          .single()
+      );
       if (!error && data) {
         savedRow = { ...data, price: Number(data.price) };
         syncedToDb = true;
       }
     } else {
-      const { data, error } = await supabase
-        .from("shop_products")
-        .insert(payload)
-        .select()
-        .single();
+      const { data, error }: any = await withTimeout(
+        supabase
+          .from("shop_products")
+          .insert(payload)
+          .select()
+          .single()
+      );
       if (!error && data) {
         savedRow = { ...data, price: Number(data.price) };
         syncedToDb = true;
@@ -150,7 +242,9 @@ export async function deleteShopProduct(id: string): Promise<{ syncedToDb: boole
   let syncedToDb = false;
   try {
     if (/^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(id)) {
-      const { error } = await supabase.from("shop_products").delete().eq("id", id);
+      const { error }: any = await withTimeout(
+        supabase.from("shop_products").delete().eq("id", id)
+      );
       if (!error) syncedToDb = true;
     }
   } catch {
@@ -167,28 +261,35 @@ export async function deleteShopProduct(id: string): Promise<{ syncedToDb: boole
 
 export async function fetchShopSettings(): Promise<ShopSettings> {
   try {
-    const { data, error } = await supabase
-      .from("shop_settings")
-      .select("*")
-      .order("updated_at", { ascending: false })
-      .limit(1);
+    const { data, error }: any = await withTimeout(
+      supabase
+        .from("shop_settings")
+        .select("id, whatsapp_number, store_notice, updated_at")
+        .order("updated_at", { ascending: false })
+        .limit(1)
+    );
 
     if (error || !data || data.length === 0) {
       return readLocalJson<ShopSettings>(LOCAL_STORAGE_KEYS.SETTINGS, DEFAULT_SHOP_SETTINGS);
     }
 
-    writeLocalJson(LOCAL_STORAGE_KEYS.SETTINGS, data[0]);
-    return data[0];
+    const normalized: ShopSettings = {
+      id: data[0].id,
+      whatsapp_number: data[0].whatsapp_number || DEFAULT_SHOP_SETTINGS.whatsapp_number,
+      store_notice: data[0].store_notice || DEFAULT_SHOP_SETTINGS.store_notice,
+      updated_at: data[0].updated_at,
+    };
+    writeLocalJson(LOCAL_STORAGE_KEYS.SETTINGS, normalized);
+    return normalized;
   } catch {
     return readLocalJson<ShopSettings>(LOCAL_STORAGE_KEYS.SETTINGS, DEFAULT_SHOP_SETTINGS);
   }
 }
 
-export async function saveShopSettings(settings: ShopSettings): Promise<{ saved: ShopSettings; syncedToDb: boolean }> {
+export async function saveShopSettings(
+  settings: ShopSettings
+): Promise<{ saved: ShopSettings; syncedToDb: boolean }> {
   const payload = {
-    momo_number: settings.momo_number.trim(),
-    momo_account_name: settings.momo_account_name.trim(),
-    momo_network: settings.momo_network.trim(),
     whatsapp_number: settings.whatsapp_number.trim(),
     store_notice: settings.store_notice.trim(),
   };
@@ -201,28 +302,34 @@ export async function saveShopSettings(settings: ShopSettings): Promise<{ saved:
   };
 
   try {
-    const { data: existing } = await supabase
-      .from("shop_settings")
-      .select("id")
-      .limit(1);
+    const { data: existing }: any = await withTimeout(
+      supabase
+        .from("shop_settings")
+        .select("id")
+        .limit(1)
+    );
 
     if (existing && existing.length > 0) {
-      const { data, error } = await supabase
-        .from("shop_settings")
-        .update(payload)
-        .eq("id", existing[0].id)
-        .select()
-        .single();
+      const { data, error }: any = await withTimeout(
+        supabase
+          .from("shop_settings")
+          .update(payload)
+          .eq("id", existing[0].id)
+          .select("id, whatsapp_number, store_notice, updated_at")
+          .single()
+      );
       if (!error && data) {
         savedRow = data;
         syncedToDb = true;
       }
     } else {
-      const { data, error } = await supabase
-        .from("shop_settings")
-        .insert(payload)
-        .select()
-        .single();
+      const { data, error }: any = await withTimeout(
+        supabase
+          .from("shop_settings")
+          .insert(payload)
+          .select("id, whatsapp_number, store_notice, updated_at")
+          .single()
+      );
       if (!error && data) {
         savedRow = data;
         syncedToDb = true;
@@ -236,32 +343,33 @@ export async function saveShopSettings(settings: ShopSettings): Promise<{ saved:
   return { saved: savedRow, syncedToDb };
 }
 
-export async function submitConfirmedOrder(order: ShopOrder): Promise<{ syncedToDb: boolean }> {
+export async function submitShopOrder(order: ShopOrder): Promise<{ syncedToDb: boolean }> {
   let syncedToDb = false;
   try {
-    const { error } = await supabase.from("shop_orders").insert({
-      id: order.id,
-      order_number: order.order_number,
-      customer_name: order.customer_name,
-      customer_phone: order.customer_phone,
-      customer_email: order.customer_email || null,
-      delivery_address: order.delivery_address,
-      delivery_city: order.delivery_city,
-      delivery_notes: order.delivery_notes || null,
-      items: order.items as any,
-      total_amount: order.total_amount,
-      payment_method: order.payment_method,
-      payment_reference: order.payment_reference || null,
-      momo_network: order.momo_network || null,
-      payment_confirmed: order.payment_confirmed,
-      payment_confirmed_at: order.payment_confirmed_at || new Date().toISOString(),
-      status: order.status,
-      whatsapp_notified: order.whatsapp_notified,
-    });
+    const { error }: any = await withTimeout(
+      supabase.from("shop_orders").insert({
+        id: order.id,
+        order_number: order.order_number,
+        customer_name: order.customer_name,
+        customer_phone: order.customer_phone,
+        customer_email: order.customer_email || null,
+        delivery_address: order.delivery_address,
+        delivery_city: order.delivery_city,
+        delivery_notes: order.delivery_notes || null,
+        items: order.items as any,
+        total_amount: order.total_amount,
+        payment_method: order.payment_method || "whatsapp",
+        payment_reference: order.payment_reference || null,
+        payment_confirmed: Boolean(order.payment_confirmed),
+        payment_confirmed_at: order.payment_confirmed_at || null,
+        status: order.status,
+        whatsapp_notified: order.whatsapp_notified,
+      })
+    );
     if (!error) {
       syncedToDb = true;
     } else if (!isMissingRelationError(error)) {
-      console.warn("submitConfirmedOrder note:", error.message);
+      console.warn("submitShopOrder note:", error.message);
     }
   } catch {
     syncedToDb = false;
@@ -270,7 +378,7 @@ export async function submitConfirmedOrder(order: ShopOrder): Promise<{ syncedTo
   const localOrders = readLocalJson<ShopOrder[]>(LOCAL_STORAGE_KEYS.ORDERS, []);
   writeLocalJson(LOCAL_STORAGE_KEYS.ORDERS, [order, ...localOrders]);
 
-  // Also decrement stock in local cache immediately
+  // Decrement stock in local cache immediately
   const localProducts = readLocalJson<ShopProduct[]>(LOCAL_STORAGE_KEYS.PRODUCTS, SEED_SHOP_PRODUCTS);
   const updatedProducts = localProducts.map((p) => {
     const match = order.items.find((i) => i.product_id === p.id);
@@ -282,22 +390,26 @@ export async function submitConfirmedOrder(order: ShopOrder): Promise<{ syncedTo
   return { syncedToDb };
 }
 
+export const submitConfirmedOrder = submitShopOrder;
+
 export async function fetchAllShopOrders(): Promise<ShopOrder[]> {
   try {
-    const { data, error } = await supabase
-      .from("shop_orders")
-      .select("*")
-      .order("created_at", { ascending: false });
+    const { data, error }: any = await withTimeout(
+      supabase
+        .from("shop_orders")
+        .select("*")
+        .order("created_at", { ascending: false })
+    );
 
     if (error) {
       return readLocalJson<ShopOrder[]>(LOCAL_STORAGE_KEYS.ORDERS, []);
     }
 
-    const normalized: ShopOrder[] = (data || []).map((row) => ({
+    const normalized: ShopOrder[] = (data || []).map((row: any) => ({
       ...row,
       total_amount: Number(row.total_amount),
-      payment_method: (row.payment_method as "momo" | "card") || "momo",
-      status: (row.status as OrderStatus) || "payment_confirmed",
+      payment_method: (row.payment_method as ShopOrder["payment_method"]) || "whatsapp",
+      status: (row.status as OrderStatus) || "pending_payment",
       items: Array.isArray(row.items) ? (row.items as any) : [],
     }));
     writeLocalJson(LOCAL_STORAGE_KEYS.ORDERS, normalized);
@@ -314,13 +426,15 @@ export async function updateShopOrderStatus(
 ): Promise<{ syncedToDb: boolean }> {
   let syncedToDb = false;
   try {
-    const { error } = await supabase
-      .from("shop_orders")
-      .update({
-        status,
-        ...(extras || {}),
-      })
-      .eq("id", id);
+    const { error }: any = await withTimeout(
+      supabase
+        .from("shop_orders")
+        .update({
+          status,
+          ...(extras || {}),
+        })
+        .eq("id", id)
+    );
     if (!error) syncedToDb = true;
   } catch {
     syncedToDb = false;
