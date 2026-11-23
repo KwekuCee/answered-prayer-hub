@@ -98,6 +98,12 @@
     background-size: cover;
     background-repeat: no-repeat;
   }
+  @media (max-width: 767px) {
+    .hero-bg {
+      background-size: contain;
+      background-position: center 42%;
+    }
+  }
   .mid-image-container {
     position: relative;
     overflow: hidden;
