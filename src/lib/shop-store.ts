@@ -262,11 +262,7 @@ export async function deleteShopProduct(id: string): Promise<{ syncedToDb: boole
 export async function fetchShopSettings(): Promise<ShopSettings> {
   try {
     const { data, error }: any = await withTimeout(
-      supabase
-        .from("shop_settings")
-        .select("id, whatsapp_number, store_notice, updated_at")
-        .order("updated_at", { ascending: false })
-        .limit(1)
+      (supabase as any).rpc("get_public_shop_settings")
     );
 
     if (error || !data || data.length === 0) {

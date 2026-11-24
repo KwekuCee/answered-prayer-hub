@@ -611,6 +611,14 @@ export type Database = {
     Functions: {
       current_admin_church: { Args: never; Returns: string }
       delete_admin_user: { Args: { target_user_id: string }; Returns: boolean }
+      get_public_shop_settings: {
+        Args: never
+        Returns: {
+          store_notice: string
+          updated_at: string
+          whatsapp_number: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

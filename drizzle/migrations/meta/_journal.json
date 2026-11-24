@@ -22,6 +22,13 @@
       "when": 1795515820508,
       "tag": "0002_create_shop",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1795515888972,
+      "tag": "0003_restrict_shop_settings_reads",
+      "breakpoints": true
     }
   ]
 }
