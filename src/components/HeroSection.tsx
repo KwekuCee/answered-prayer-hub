@@ -4,9 +4,9 @@ import { ArrowRight, ChevronDown, LogIn } from "lucide-react";
 /** Cinematic full-screen hero: venue background with centered call-to-action buttons only. */
 const HeroSection = () => {
   return (
-    <section className="relative min-h-[100svh] flex items-end justify-center overflow-hidden bg-background">
+    <section className="relative min-h-[100svh] flex items-center md:items-end justify-center overflow-hidden bg-background">
       {/* Background with slow cinematic zoom */}
-      <div className="absolute inset-0 hero-bg animate-[heroZoom_20s_ease-out_forwards]" />
+      <div className="absolute inset-0 hero-bg hidden md:block animate-[heroZoom_20s_ease-out_forwards]" />
 
       {/* Cinematic grading: top fade for navbar, vignette, bottom blend into page */}
       <div className="absolute inset-0 bg-gradient-to-b from-background/80 via-background/10 to-background" />
@@ -17,18 +17,27 @@ const HeroSection = () => {
       <div className="absolute top-24 inset-x-0 h-px bg-gradient-to-r from-transparent via-gold/30 to-transparent" />
       <div className="absolute bottom-20 inset-x-0 h-px bg-gradient-to-r from-transparent via-gold/30 to-transparent" />
 
-      <div className="relative z-10 w-full px-6 pb-28 md:pb-32 flex justify-center">
-        <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-5 p-3 rounded-full bg-background/30 border border-gold/20 backdrop-blur-md shadow-2xl animate-fade-up">
+      <div className="relative z-10 w-full px-6 pt-24 pb-28 md:pt-0 md:pb-32 flex flex-col items-center justify-center gap-8">
+        {/* Mobile: event logo only, cropped from the venue artwork */}
+        <img
+          src="/assets/aistudio/ksw-logo-mobile.webp"
+          alt="Korle Bu Stands in Worship 2026"
+          width={792}
+          height={684}
+          fetchPriority="high"
+          className="md:hidden w-[88%] max-w-sm h-auto animate-fade-up [mask-image:radial-gradient(ellipse_at_center,black_55%,transparent_78%)]"
+        />
+        <div className="flex flex-row items-center justify-center gap-3 sm:gap-5 p-3 rounded-full bg-background/30 border border-gold/20 backdrop-blur-md shadow-2xl animate-fade-up">
           <Link
             to="/register"
-            className="group inline-flex items-center gap-2 px-9 py-4 rounded-full bg-gradient-gold text-navy font-bold font-body tracking-wide shadow-gold hover:-translate-y-0.5 hover:shadow-[0_0_40px_hsl(var(--gold)/0.5)] transition-all"
+            className="group inline-flex items-center gap-2 px-6 sm:px-9 py-3.5 sm:py-4 rounded-full bg-gradient-gold text-navy font-bold font-body tracking-wide shadow-gold hover:-translate-y-0.5 hover:shadow-[0_0_40px_hsl(var(--gold)/0.5)] transition-all"
           >
             Register Now
             <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
           </Link>
           <Link
             to="/admin"
-            className="inline-flex items-center gap-2 px-9 py-4 rounded-full border border-foreground/25 text-foreground font-bold font-body tracking-wide hover:border-gold hover:text-gold transition-all"
+            className="inline-flex items-center gap-2 px-6 sm:px-9 py-3.5 sm:py-4 rounded-full border border-foreground/25 text-foreground font-bold font-body tracking-wide hover:border-gold hover:text-gold transition-all"
           >
             <LogIn className="w-4 h-4" />
             Login
