@@ -436,6 +436,129 @@ export type Database = {
         }
         Relationships: []
       }
+      shop_orders: {
+        Row: {
+          created_at: string
+          customer_email: string | null
+          customer_name: string
+          customer_phone: string
+          delivery_address: string
+          delivery_city: string
+          delivery_notes: string | null
+          id: string
+          items: Json
+          order_number: string
+          payment_confirmed: boolean
+          payment_confirmed_at: string | null
+          payment_method: string
+          payment_reference: string | null
+          status: string
+          total_amount: number
+          whatsapp_notified: boolean
+        }
+        Insert: {
+          created_at?: string
+          customer_email?: string | null
+          customer_name: string
+          customer_phone: string
+          delivery_address?: string
+          delivery_city?: string
+          delivery_notes?: string | null
+          id?: string
+          items?: Json
+          order_number: string
+          payment_confirmed?: boolean
+          payment_confirmed_at?: string | null
+          payment_method?: string
+          payment_reference?: string | null
+          status?: string
+          total_amount?: number
+          whatsapp_notified?: boolean
+        }
+        Update: {
+          created_at?: string
+          customer_email?: string | null
+          customer_name?: string
+          customer_phone?: string
+          delivery_address?: string
+          delivery_city?: string
+          delivery_notes?: string | null
+          id?: string
+          items?: Json
+          order_number?: string
+          payment_confirmed?: boolean
+          payment_confirmed_at?: string | null
+          payment_method?: string
+          payment_reference?: string | null
+          status?: string
+          total_amount?: number
+          whatsapp_notified?: boolean
+        }
+        Relationships: []
+      }
+      shop_products: {
+        Row: {
+          category: string
+          created_at: string
+          description: string
+          id: string
+          image_url: string
+          is_active: boolean
+          name: string
+          price: number
+          stock: number
+          updated_at: string
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          description?: string
+          id?: string
+          image_url?: string
+          is_active?: boolean
+          name: string
+          price?: number
+          stock?: number
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          description?: string
+          id?: string
+          image_url?: string
+          is_active?: boolean
+          name?: string
+          price?: number
+          stock?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      shop_settings: {
+        Row: {
+          created_at: string
+          id: string
+          store_notice: string
+          updated_at: string
+          whatsapp_number: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          store_notice?: string
+          updated_at?: string
+          whatsapp_number?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          store_notice?: string
+          updated_at?: string
+          whatsapp_number?: string
+        }
+        Relationships: []
+      }
       testimonials: {
         Row: {
           author_name: string
