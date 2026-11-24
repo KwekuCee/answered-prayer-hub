@@ -9,13 +9,13 @@ const HeroSection = () => {
       <div className="absolute inset-0 hero-bg md:animate-[heroZoom_20s_ease-out_forwards]" />
 
       {/* Cinematic grading: top fade for navbar, vignette, bottom blend into page */}
-      <div className="hidden md:block absolute inset-0 bg-gradient-to-b from-background/80 via-background/10 to-background" />
-      <div className="hidden md:block absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_35%,hsl(var(--background)/0.85)_100%)]" />
-      <div className="hidden md:block absolute left-1/2 top-[85%] -translate-x-1/2 -translate-y-1/2 w-[38rem] h-[14rem] bg-gold/15 rounded-full blur-[110px] pointer-events-none" />
+      <div className="absolute inset-0 bg-gradient-to-b from-background/80 via-background/10 to-background pointer-events-none" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_35%,hsl(var(--background)/0.85)_100%)] pointer-events-none" />
+      <div className="absolute left-1/2 top-[85%] -translate-x-1/2 -translate-y-1/2 w-[24rem] md:w-[38rem] h-[12rem] md:h-[14rem] bg-gold/15 rounded-full blur-[110px] pointer-events-none" />
 
       {/* Letterbox lines */}
-      <div className="hidden md:block absolute top-24 inset-x-0 h-px bg-gradient-to-r from-transparent via-gold/30 to-transparent" />
-      <div className="hidden md:block absolute bottom-20 inset-x-0 h-px bg-gradient-to-r from-transparent via-gold/30 to-transparent" />
+      <div className="absolute top-24 inset-x-0 h-px bg-gradient-to-r from-transparent via-gold/30 to-transparent pointer-events-none" />
+      <div className="absolute bottom-20 inset-x-0 h-px bg-gradient-to-r from-transparent via-gold/30 to-transparent pointer-events-none" />
 
       <div className="relative md:static z-10 w-full px-6 pt-[calc(50svh+225px)] md:pt-0 self-start md:self-auto pb-28 md:pb-32 flex flex-col items-center justify-center gap-8">
         <div className="flex flex-row items-center justify-center gap-3 sm:gap-5 p-3 rounded-full bg-background/30 border border-gold/20 backdrop-blur-md shadow-2xl animate-fade-up">
