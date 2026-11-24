@@ -6,27 +6,18 @@ const HeroSection = () => {
   return (
     <section className="relative min-h-[100svh] flex items-center md:items-end justify-center overflow-hidden bg-background">
       {/* Background with slow cinematic zoom */}
-      <div className="absolute inset-0 hero-bg hidden md:block animate-[heroZoom_20s_ease-out_forwards]" />
+      <div className="absolute inset-0 hero-bg md:animate-[heroZoom_20s_ease-out_forwards]" />
 
       {/* Cinematic grading: top fade for navbar, vignette, bottom blend into page */}
-      <div className="absolute inset-0 bg-gradient-to-b from-background/80 via-background/10 to-background" />
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_35%,hsl(var(--background)/0.85)_100%)]" />
-      <div className="absolute left-1/2 top-[85%] -translate-x-1/2 -translate-y-1/2 w-[38rem] h-[14rem] bg-gold/15 rounded-full blur-[110px] pointer-events-none" />
+      <div className="hidden md:block absolute inset-0 bg-gradient-to-b from-background/80 via-background/10 to-background" />
+      <div className="hidden md:block absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_35%,hsl(var(--background)/0.85)_100%)]" />
+      <div className="hidden md:block absolute left-1/2 top-[85%] -translate-x-1/2 -translate-y-1/2 w-[38rem] h-[14rem] bg-gold/15 rounded-full blur-[110px] pointer-events-none" />
 
       {/* Letterbox lines */}
-      <div className="absolute top-24 inset-x-0 h-px bg-gradient-to-r from-transparent via-gold/30 to-transparent" />
-      <div className="absolute bottom-20 inset-x-0 h-px bg-gradient-to-r from-transparent via-gold/30 to-transparent" />
+      <div className="hidden md:block absolute top-24 inset-x-0 h-px bg-gradient-to-r from-transparent via-gold/30 to-transparent" />
+      <div className="hidden md:block absolute bottom-20 inset-x-0 h-px bg-gradient-to-r from-transparent via-gold/30 to-transparent" />
 
-      <div className="relative z-10 w-full px-6 pt-24 pb-28 md:pt-0 md:pb-32 flex flex-col items-center justify-center gap-8">
-        {/* Mobile: event logo only, cropped from the venue artwork */}
-        <img
-          src="/assets/aistudio/ksw-logo-mobile.webp"
-          alt="Korle Bu Stands in Worship 2026"
-          width={792}
-          height={684}
-          fetchPriority="high"
-          className="md:hidden w-[88%] max-w-sm h-auto animate-fade-up [mask-image:radial-gradient(ellipse_at_center,black_55%,transparent_78%)]"
-        />
+      <div className="relative md:static z-10 w-full px-6 pt-[calc(50svh+225px)] md:pt-0 self-start md:self-auto pb-28 md:pb-32 flex flex-col items-center justify-center gap-8">
         <div className="flex flex-row items-center justify-center gap-3 sm:gap-5 p-3 rounded-full bg-background/30 border border-gold/20 backdrop-blur-md shadow-2xl animate-fade-up">
           <Link
             to="/register"

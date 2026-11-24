@@ -100,8 +100,9 @@
   }
   @media (max-width: 767px) {
     .hero-bg {
-      background-size: contain;
-      background-position: center 42%;
+      /* Zoom into the event logo (x 564-1356, y 204-888 of 1920x1080 artwork) */
+      background-size: 245vw auto;
+      background-position: 50% calc(50% - 60px);
     }
   }
   .mid-image-container {
