@@ -26,11 +26,9 @@ const RegistrationForm = () => {
     queryKey: ["churches-list"],
     queryFn: async () => {
       try {
-        const { data } = await supabase
-          .from("churches")
-          .select("id, name, is_external, privacy_mode")
-          .order("name");
-        return data || [];
+        const { data, error } = await supabase.rpc("list_public_churches" as any);
+        if (error) throw error;
+        return (data as { id: string; name: string; is_external: boolean }[]) || [];
       } catch {
         return [];
       }
@@ -43,18 +41,6 @@ const RegistrationForm = () => {
   });
   const [loading, setLoading] = useState(false);
   const [registeredMember, setRegisteredMember] = useState<{ id: string; name: string } | null>(null);
-
-  const { data: activeProgram } = useQuery({
-    queryKey: ["active-program"],
-    queryFn: async () => {
-      try {
-        const { data } = await supabase.from("programs").select("id").eq("is_active", true).maybeSingle();
-        return data || null;
-      } catch {
-        return null;
-      }
-    },
-  });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -78,31 +64,19 @@ const RegistrationForm = () => {
         resolvedChurchId = churches[0].id;
       }
 
-      // Check if church has privacy protection
-      const associatedChurch = churches.find(c => c.id === resolvedChurchId);
-      const isPrivacyProtected = Boolean(associatedChurch?.is_external && associatedChurch?.privacy_mode === "masked");
-      const shortId = Math.random().toString(36).substring(2, 7).toUpperCase();
-      const maskedId = isPrivacyProtected ? `M-${associatedChurch?.name.substring(0, 3).toUpperCase()}-${shortId}` : null;
-
-      const { data: insertedMember, error } = await supabase
-        .from("members")
-        .insert({
-          full_name: form.fullName.trim(),
-          email: form.email.trim() || null,
-          phone: form.phone.trim(),
-          occupation: form.occupation.trim() || null,
-          location: form.location.trim() || null,
-          date_of_birth: form.dateOfBirth || null,
-          inviter_id: isSelf ? null : form.inviterId,
-          church_id: resolvedChurchId,
-          program_id: activeProgram?.id || null,
-          category: "general",
-          is_privacy_protected: isPrivacyProtected,
-          masked_identifier: maskedId,
-        })
-        .select("id")
-        .single();
+      const { data: memberId, error } = await supabase.rpc("register_member" as any, {
+        p_full_name: form.fullName.trim(),
+        p_phone: form.phone.trim(),
+        p_inviter_id: isSelf ? null : form.inviterId,
+        p_email: form.email.trim() || null,
+        p_occupation: form.occupation.trim() || null,
+        p_location: form.location.trim() || null,
+        p_date_of_birth: form.dateOfBirth || null,
+        p_church_id: isSelf ? resolvedChurchId : null,
+      });
       if (error) throw error;
+
+      const insertedMember = { id: String(memberId) };
 
       const { error: emailError } = await supabase.functions.invoke("send-inviter-email", {
         body: { memberId: insertedMember.id },

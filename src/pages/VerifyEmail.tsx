@@ -23,9 +23,9 @@ const VerifyEmail = () => {
     const { data: churches = [] } = useQuery({
         queryKey: ["churches-list"],
         queryFn: async () => {
-            const { data, error } = await supabase.from("churches").select("id, name").order("name");
+            const { data, error } = await supabase.rpc("list_public_churches" as any);
             if (error) throw error;
-            return data;
+            return (data as { id: string; name: string }[]) || [];
         },
         enabled: status === "onboarding" || status === "success",
     });

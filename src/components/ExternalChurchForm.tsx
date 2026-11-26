@@ -48,38 +48,19 @@ export const ExternalChurchForm = ({ onSuccess }: { onSuccess?: () => void }) =>
 
     setLoading(true);
     try {
-      // 1. Insert church into Supabase
-      const { data: newChurch, error: churchError } = await supabase
-        .from("churches")
-        .insert({
-          name: formData.churchName.trim(),
-          is_external: true,
-          pastor_name: formData.pastorName.trim(),
-          pastor_email: formData.pastorEmail.trim() || null,
-          pastor_phone: formData.pastorPhone.trim(),
-          location: formData.location.trim() || null,
-          target: parseInt(formData.target, 10) || 100,
-          auth_code: formData.authCode.trim(),
-          privacy_mode: formData.privacyMode,
-          delegation_notes: formData.delegationNotes.trim() || null,
-          confirmed: 0,
-        })
-        .select()
-        .single();
+      const { error: churchError } = await supabase.rpc("register_external_church" as any, {
+        p_name: formData.churchName.trim(),
+        p_pastor_name: formData.pastorName.trim(),
+        p_pastor_email: cleanEmail,
+        p_pastor_phone: formData.pastorPhone.trim(),
+        p_location: formData.location.trim() || null,
+        p_target: parseInt(formData.target, 10) || 100,
+        p_auth_code: formData.authCode.trim(),
+        p_privacy_mode: formData.privacyMode,
+        p_delegation_notes: formData.delegationNotes.trim() || null,
+      });
 
       if (churchError) throw churchError;
-
-      // 2. Also record an audit log
-      try {
-        await supabase.from("audit_logs").insert({
-          action: "EXTERNAL_CHURCH_REGISTERED",
-          target_type: "church",
-          target_id: newChurch.id,
-          details: `Registered external church '${formData.churchName.trim()}' with Pastor ${formData.pastorName.trim()}`,
-        });
-      } catch {
-        // non-blocking
-      }
 
       setSubmitted(true);
       toast.success(`Church '${formData.churchName}' registered successfully! Your congregation can now select your church when registering.`);

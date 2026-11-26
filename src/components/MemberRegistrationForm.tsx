@@ -44,24 +44,20 @@ const MemberRegistrationForm = () => {
         throw new Error("Selected inviter is missing church information.");
       }
 
-      const { data: insertedMember, error } = await supabase
-        .from("members")
-        .insert({
-          full_name: form.fullName.trim(),
-          email: form.email.trim() || null,
-          phone: form.phone.trim(),
-          occupation: form.occupation.trim() || null,
-          location: form.location.trim() || null,
-          date_of_birth: form.dateOfBirth || null,
-          inviter_id: form.inviterId,
-          church_id: inviter.church_id,
-        })
-        .select("id")
-        .single();
+      const { data: memberId, error } = await supabase.rpc("register_member" as any, {
+        p_full_name: form.fullName.trim(),
+        p_phone: form.phone.trim(),
+        p_inviter_id: form.inviterId,
+        p_email: form.email.trim() || null,
+        p_occupation: form.occupation.trim() || null,
+        p_location: form.location.trim() || null,
+        p_date_of_birth: form.dateOfBirth || null,
+        p_church_id: null,
+      });
       if (error) throw error;
 
       const { error: emailError } = await supabase.functions.invoke("send-inviter-email", {
-        body: { memberId: insertedMember.id },
+        body: { memberId: String(memberId) },
       });
 
       if (emailError) {

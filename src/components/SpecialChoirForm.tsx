@@ -27,8 +27,9 @@ export const SpecialChoirForm = ({ onSuccess }: { onSuccess?: () => void }) => {
     queryKey: ["churches-list"],
     queryFn: async () => {
       try {
-        const { data } = await supabase.from("churches").select("id, name, is_external").order("name");
-        return data || [];
+        const { data, error } = await supabase.rpc("list_public_churches" as any);
+        if (error) throw error;
+        return (data as { id: string; name: string; is_external: boolean }[]) || [];
       } catch {
         return [];
       }
@@ -56,43 +57,19 @@ export const SpecialChoirForm = ({ onSuccess }: { onSuccess?: () => void }) => {
       const churchNameResolved = selectedChurch ? selectedChurch.name : (formData.churchNameCustom.trim() || null);
       const count = parseInt(formData.estimatedMembers, 10) || 1;
 
-      // 1. Insert into special_choirs table
-      const { data: choir, error: choirError } = await supabase
-        .from("special_choirs")
-        .insert({
-          choir_name: formData.choirName.trim(),
-          church_id: selectedChurch ? selectedChurch.id : null,
-          church_name: churchNameResolved,
-          leader_name: formData.leaderName.trim(),
-          leader_phone: formData.leaderPhone.trim(),
-          leader_email: formData.leaderEmail.trim() || null,
-          estimated_members: count,
-          confirmed_members: count,
-          instrument_requirements: formData.instrumentRequirements.trim() || null,
-          rehearsal_schedule: formData.rehearsalSchedule.trim() || null,
-          status: "confirmed",
-        })
-        .select()
-        .single();
+      const { error: choirError } = await supabase.rpc("register_special_choir" as any, {
+        p_choir_name: formData.choirName.trim(),
+        p_church_id: selectedChurch ? selectedChurch.id : null,
+        p_church_name: churchNameResolved,
+        p_leader_name: formData.leaderName.trim(),
+        p_leader_phone: formData.leaderPhone.trim(),
+        p_leader_email: formData.leaderEmail.trim() || null,
+        p_estimated_members: count,
+        p_instrument_requirements: formData.instrumentRequirements.trim() || null,
+        p_rehearsal_schedule: formData.rehearsalSchedule.trim() || null,
+      });
 
       if (choirError) throw choirError;
-
-      // 2. Also register the leader into members table flagged as category 'choir_member'
-      try {
-        await supabase.from("members").insert({
-          full_name: `${formData.leaderName.trim()} (Director - ${formData.choirName.trim()})`,
-          phone: formData.leaderPhone.trim(),
-          email: formData.leaderEmail.trim() || null,
-          category: "choir_member",
-          occupation: "Music Director / Choir Leader",
-          location: churchNameResolved,
-          church_id: selectedChurch ? selectedChurch.id : null,
-          choir_delegation_id: choir.id,
-          confirmed: true,
-        });
-      } catch (e) {
-        console.warn("Choir leader member registration note:", e);
-      }
 
       setSubmitted(true);
       toast.success(`Choir '${formData.choirName}' registered successfully with ${count} singers!`);

@@ -41,49 +41,21 @@ export const DignitaryRegistrationForm = ({ onSuccess }: { onSuccess?: () => voi
 
     setLoading(true);
     try {
-      // 1. Create a member record flagged as category 'dignitary' so total attendee counts update
-      const { data: member, error: memberError } = await supabase
-        .from("members")
-        .insert({
-          full_name: `${formData.title} ${formData.fullName.trim()}`,
-          phone: formData.contactPhone.trim(),
-          email: formData.contactEmail.trim() || null,
-          category: "dignitary",
-          occupation: formData.officeOrPortfolio.trim(),
-          location: formData.constituency.trim() || null,
-          dignitary_title: formData.title,
-          dignitary_office: formData.officeOrPortfolio.trim(),
-          dignitary_constituency: formData.constituency.trim() || null,
-          vip_tier: "vip",
-          confirmed: true,
-        })
-        .select()
-        .single();
+      const { error: digError } = await supabase.rpc("register_dignitary" as any, {
+        p_title: formData.title,
+        p_full_name: formData.fullName.trim(),
+        p_office_or_portfolio: formData.officeOrPortfolio.trim(),
+        p_constituency: formData.constituency.trim() || null,
+        p_contact_phone: formData.contactPhone.trim(),
+        p_contact_email: formData.contactEmail.trim() || null,
+        p_protocol_officer_name: formData.protocolOfficerName.trim() || null,
+        p_protocol_officer_phone: formData.protocolOfficerPhone.trim() || null,
+        p_security_detail_count: parseInt(formData.securityDetailCount, 10) || 0,
+        p_special_seating_zone: formData.specialSeatingZone,
+        p_arrival_window: formData.arrivalWindow,
+      });
 
-      if (memberError) throw memberError;
-
-      // 2. Insert into dignitaries table for protocol tracking
-      const { error: digError } = await supabase
-        .from("dignitaries")
-        .insert({
-          member_id: member.id,
-          title: formData.title,
-          full_name: formData.fullName.trim(),
-          office_or_portfolio: formData.officeOrPortfolio.trim(),
-          organization_or_constituency: formData.constituency.trim() || null,
-          contact_phone: formData.contactPhone.trim(),
-          contact_email: formData.contactEmail.trim() || null,
-          protocol_officer_name: formData.protocolOfficerName.trim() || null,
-          protocol_officer_phone: formData.protocolOfficerPhone.trim() || null,
-          security_detail_count: parseInt(formData.securityDetailCount, 10) || 0,
-          special_seating_zone: formData.specialSeatingZone,
-          arrivalWindow: formData.arrivalWindow,
-          status: "confirmed",
-        });
-
-      if (digError) {
-        console.warn("Dignitary protocol log note:", digError);
-      }
+      if (digError) throw digError;
 
       setSubmitted(true);
       toast.success(`${formData.title} ${formData.fullName} successfully registered for VIP protocol seating!`);
