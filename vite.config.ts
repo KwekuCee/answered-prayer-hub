@@ -9,13 +9,13 @@ export default defineConfig(({ mode }) => ({
   server: {
     host: "0.0.0.0",
     port: 3000,
-    hmr: {
-      overlay: false,
-    },
+    allowedHosts: true,
+    hmr: process.env.DISABLE_HMR === "true" ? false : { overlay: false },
   },
   preview: {
     host: "0.0.0.0",
     port: 3000,
+    allowedHosts: true,
   },
   plugins: [
     react(),
