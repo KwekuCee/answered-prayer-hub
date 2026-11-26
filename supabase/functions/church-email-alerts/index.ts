@@ -43,7 +43,7 @@ Deno.serve(async req => {
 
     const resendKey = Deno.env.get("RESEND_API_KEY");
     const sender = Deno.env.get("RESEND_FROM_EMAIL");
-    const siteUrl = (Deno.env.get("APP_SITE_URL") ?? "https://cekbu.lovable.app").replace(/\/$/, "");
+    const siteUrl = (Deno.env.get("APP_SITE_URL") ?? "https://korlebustandsinworship.org").replace(/\/$/, "");
     const logoUrl = Deno.env.get("EMAIL_LOGO_URL") ?? `${siteUrl}/images/email-logo.webp`;
     if (!resendKey || !sender || sender.includes("@resend.dev")) {
       return json({ error: "Configure RESEND_API_KEY and a Resend-verified RESEND_FROM_EMAIL before activating church alerts" }, 503);

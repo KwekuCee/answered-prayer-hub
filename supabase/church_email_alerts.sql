@@ -2,7 +2,7 @@
 -- Apply only after approval. HTTP scheduling/webhooks must be configured separately.
 BEGIN;
 
-CREATE TABLE public.church_email_alerts (
+CREATE TABLE IF NOT EXISTS public.church_email_alerts (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   event_key text NOT NULL UNIQUE,
   kind text NOT NULL CHECK (kind IN ('inviter_registered', 'daily_attendees')),
@@ -24,7 +24,7 @@ GRANT ALL ON public.church_email_alerts TO service_role;
 REVOKE ALL ON public.church_email_alerts FROM anon, authenticated;
 ALTER TABLE public.church_email_alerts ENABLE ROW LEVEL SECURITY;
 -- No browser policies: recipient addresses and operational records are server-only.
-CREATE INDEX church_email_alerts_pending ON public.church_email_alerts (available_at)
+CREATE INDEX IF NOT EXISTS church_email_alerts_pending ON public.church_email_alerts (available_at)
   WHERE status IN ('pending', 'processing');
 
 CREATE OR REPLACE FUNCTION public.queue_church_inviter_alert()
@@ -46,9 +46,11 @@ BEGIN
 END;
 $$;
 REVOKE ALL ON FUNCTION public.queue_church_inviter_alert() FROM PUBLIC, anon, authenticated;
+DROP TRIGGER IF EXISTS church_inviter_email_after_insert ON public.inviters;
 CREATE TRIGGER church_inviter_email_after_insert AFTER INSERT ON public.inviters
 FOR EACH ROW EXECUTE FUNCTION public.queue_church_inviter_alert();
 
+DROP FUNCTION IF EXISTS public.queue_church_daily_alerts();
 CREATE OR REPLACE FUNCTION public.queue_church_daily_alerts()
 RETURNS integer LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
 AS $$
@@ -78,6 +80,7 @@ $$;
 REVOKE ALL ON FUNCTION public.queue_church_daily_alerts() FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.queue_church_daily_alerts() TO service_role;
 
+DROP FUNCTION IF EXISTS public.claim_church_email_alerts();
 CREATE OR REPLACE FUNCTION public.claim_church_email_alerts()
 RETURNS SETOF public.church_email_alerts LANGUAGE plpgsql SECURITY DEFINER SET search_path = public
 AS $$
@@ -103,6 +106,7 @@ $$;
 REVOKE ALL ON FUNCTION public.claim_church_email_alerts() FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.claim_church_email_alerts() TO service_role;
 
+DROP FUNCTION IF EXISTS public.church_alert_recipient_is_current(uuid);
 CREATE OR REPLACE FUNCTION public.church_alert_recipient_is_current(alert_id uuid)
 RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public
 AS $$

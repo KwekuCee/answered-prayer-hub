@@ -36,6 +36,11 @@ export const ExternalChurchForm = ({ onSuccess }: { onSuccess?: () => void }) =>
       toast.error("Please enter the Pastor's contact phone number.");
       return;
     }
+    const cleanEmail = formData.pastorEmail.trim();
+    if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) {
+      toast.error("Please enter a valid Church Administrator / Pastor email address for alerts.");
+      return;
+    }
     if (!formData.authCode.trim()) {
       toast.error("Please create an authentication / password code for your church admin access.");
       return;
@@ -108,6 +113,10 @@ export const ExternalChurchForm = ({ onSuccess }: { onSuccess?: () => void }) =>
             <span className="font-semibold text-foreground">{formData.pastorName}</span>
           </div>
           <div className="flex justify-between border-b border-zinc-800 pb-2">
+            <span className="text-muted-foreground">Administrator Email:</span>
+            <span className="font-semibold text-foreground">{formData.pastorEmail}</span>
+          </div>
+          <div className="flex justify-between border-b border-zinc-800 pb-2">
             <span className="text-muted-foreground">Privacy Protection:</span>
             <span className="font-semibold text-gold capitalize">{formData.privacyMode} (Member data protected)</span>
           </div>
@@ -116,6 +125,9 @@ export const ExternalChurchForm = ({ onSuccess }: { onSuccess?: () => void }) =>
             <span className="font-mono text-gold font-bold">••••••••</span>
           </div>
         </div>
+        <p className="text-xs text-muted-foreground font-body max-w-md mx-auto">
+          Sign up and verify your administrator account in the Admin Portal with <span className="text-foreground font-medium">{formData.pastorEmail}</span> to activate inviter registration alerts and daily attendee summary emails.
+        </p>
 
         <div className="pt-4 flex flex-wrap justify-center gap-4">
           <Button
@@ -204,16 +216,20 @@ export const ExternalChurchForm = ({ onSuccess }: { onSuccess?: () => void }) =>
 
         <div className="space-y-2">
           <Label htmlFor="pastorEmail" className="font-body text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-            <Mail className="w-3.5 h-3.5 text-gold" /> Pastor Email (Optional)
+            <Mail className="w-3.5 h-3.5 text-gold" /> Church Administrator Email *
           </Label>
           <Input
             id="pastorEmail"
             type="email"
-            placeholder="pastor@churchdomain.org"
+            placeholder="admin@churchdomain.org"
             value={formData.pastorEmail}
             onChange={(e) => setFormData({ ...formData, pastorEmail: e.target.value })}
             className="h-12 bg-background/50 border-border/60 focus:border-gold rounded-xl font-body"
+            required
           />
+          <p className="text-[11px] text-muted-foreground font-body">
+            Used for inviter alerts and daily attendee summaries once verified in the Admin Portal.
+          </p>
         </div>
 
         <div className="space-y-2">

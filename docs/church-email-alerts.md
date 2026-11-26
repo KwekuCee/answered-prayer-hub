@@ -20,17 +20,17 @@ Enter private values through **Project Settings → Secrets**; never commit an A
 | Name | Purpose |
 | --- | --- |
 | `RESEND_API_KEY` | Your own Resend API key, used only by the server. |
-| `RESEND_FROM_EMAIL` | Your Resend-verified sender address, optionally `100% Answered Prayer <address>`. Do not use `onboarding@resend.dev` for church administrators. |
-| `APP_SITE_URL` | Optional HTTPS public application URL; defaults to `https://cekbu.lovable.app`. |
+| `RESEND_FROM_EMAIL` | Your Resend-verified sender address, e.g. `Korle Bu Stands in Worship <alerts@yourdomain.com>`. Do not use `onboarding@resend.dev` for church administrators. |
+| `APP_SITE_URL` | Public HTTPS application URL; defaults to `https://korlebustandsinworship.org`. |
 | `EMAIL_LOGO_URL` | Optional HTTPS image address; defaults to `/images/email-logo.webp` under the application URL. |
 
 The managed backend supplies its own server credentials. They are never provided to visitors or requested from you.
 
 ## Database installation
 
-The additive SQL is in `supabase/church_email_alerts.sql`. It creates only one new server-only delivery table, an inviter insert trigger, and protected helpers. Existing registration, church access, and administrator policies are not changed. Apply the file once; it is a migration, not the full consolidated `my_all.sql` schema.
+The additive SQL is in `supabase/church_email_alerts.sql` (also consolidated into `my_all.sql`). It creates one new server-only delivery table, an inviter insert trigger, and protected helpers. Existing registration, church access, and administrator policies are not changed.
 
-Churches need at least one linked, verified administrator with the protected `church_admin` role to receive alerts. The Super Admin's existing church assignment control remains the fallback. Creating a church record without linking an administrator does not establish an alert recipient.
+Churches need at least one linked, verified administrator with the protected `church_admin` role to receive alerts. The external church registration form collects the administrator/pastor email, and the Super Admin's existing church assignment control or verified admin account linkage completes the server-side recipient join. Creating a church record without a verified linked administrator account does not establish an alert recipient.
 
 ## Delivery configuration after approval
 
