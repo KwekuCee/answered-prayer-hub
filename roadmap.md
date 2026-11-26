@@ -1,4 +1,6 @@
 # Security and database review
+- [ ] Add branded church administrator inviter alerts and daily attendee summaries.
+- [ ] Activate and verify church email delivery (requires database approval, Resend credentials, and verified sender).
 - [x] Add church assignment in the Super Admin administrator list; four saving tests pass.
 - [ ] Verify church assignment with a real Super Admin session (blocked: preview has no session for the requesting account).
 - [x] Run quick security, dependency, and database consistency checks.

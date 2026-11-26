@@ -1,0 +1,28 @@
+{
+  "activation": "pending_approval_and_resend_configuration",
+  "function": "church-email-alerts",
+  "authorization": "managed_server_to_server",
+  "timezone": "Africa/Accra",
+  "daily": {
+    "name": "church-daily-attendee-summary",
+    "schedule": "5 0 * * *",
+    "body": { "action": "daily" },
+    "report": "previous_completed_local_day"
+  },
+  "registrationWebhook": {
+    "schema": "public",
+    "table": "church_email_alerts",
+    "event": "INSERT",
+    "body": "native_database_webhook_payload"
+  },
+  "drain": {
+    "body": { "action": "drain" },
+    "wake": "on_enqueue",
+    "continueWhile": "pending_or_processing_records_exist",
+    "retryTiming": "respect_available_at_and_locked_until",
+    "stop": "after_queue_drain",
+    "batchSize": 25,
+    "maxAttempts": 5,
+    "maxRetryAgeHours": 23
+  }
+}
