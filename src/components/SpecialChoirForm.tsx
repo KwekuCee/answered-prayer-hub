@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Music, Users, Phone, Mail, Church, Calendar, UserCheck } from "lucide-react";
+import { Music } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
 export const SpecialChoirForm = ({ onSuccess }: { onSuccess?: () => void }) => {
@@ -148,8 +148,8 @@ export const SpecialChoirForm = ({ onSuccess }: { onSuccess?: () => void }) => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         <div className="space-y-2 md:col-span-2">
-          <Label htmlFor="choirName" className="font-body text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-            <Music className="w-3.5 h-3.5 text-gold" /> Choir / Music Ministry Name *
+          <Label htmlFor="choirName" className="font-body text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Choir / Music Ministry Name *
           </Label>
           <Input
             id="choirName"
@@ -162,8 +162,8 @@ export const SpecialChoirForm = ({ onSuccess }: { onSuccess?: () => void }) => {
         </div>
 
         <div className="space-y-2">
-          <Label className="font-body text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-            <Church className="w-3.5 h-3.5 text-gold" /> Affiliated Church / Fellowship
+          <Label className="font-body text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Affiliated Church / Fellowship
           </Label>
           <Select
             value={formData.churchId}
@@ -199,8 +199,8 @@ export const SpecialChoirForm = ({ onSuccess }: { onSuccess?: () => void }) => {
         )}
 
         <div className="space-y-2">
-          <Label htmlFor="leaderName" className="font-body text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-            <UserCheck className="w-3.5 h-3.5 text-gold" /> Choir Leader / Music Director *
+          <Label htmlFor="leaderName" className="font-body text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Choir Leader / Music Director *
           </Label>
           <Input
             id="leaderName"
@@ -213,8 +213,8 @@ export const SpecialChoirForm = ({ onSuccess }: { onSuccess?: () => void }) => {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="leaderPhone" className="font-body text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-            <Phone className="w-3.5 h-3.5 text-gold" /> Leader Phone Number *
+          <Label htmlFor="leaderPhone" className="font-body text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Leader Phone Number *
           </Label>
           <Input
             id="leaderPhone"
@@ -228,8 +228,8 @@ export const SpecialChoirForm = ({ onSuccess }: { onSuccess?: () => void }) => {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="leaderEmail" className="font-body text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-            <Mail className="w-3.5 h-3.5 text-gold" /> Leader Email (Optional)
+          <Label htmlFor="leaderEmail" className="font-body text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Leader Email (Optional)
           </Label>
           <Input
             id="leaderEmail"
@@ -242,8 +242,8 @@ export const SpecialChoirForm = ({ onSuccess }: { onSuccess?: () => void }) => {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="estimatedMembers" className="font-body text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-            <Users className="w-3.5 h-3.5 text-gold" /> Number of Choir Members *
+          <Label htmlFor="estimatedMembers" className="font-body text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Number of Choir Members *
           </Label>
           <Input
             id="estimatedMembers"

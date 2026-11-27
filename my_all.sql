@@ -676,7 +676,7 @@ BEGIN
   SELECT id INTO chosen_church FROM public.churches WHERE id = p_church_id;
   IF chosen_church IS NULL THEN RAISE EXCEPTION 'Selected church was not found'; END IF;
  ELSE
-  SELECT id INTO chosen_church FROM public.churches ORDER BY name LIMIT 1;
+  chosen_church := NULL;
  END IF;
 
  IF chosen_church IS NOT NULL THEN

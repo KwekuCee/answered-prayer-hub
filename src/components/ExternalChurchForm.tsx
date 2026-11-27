@@ -4,7 +4,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Church, Shield, Lock, Eye, EyeOff, Sparkles, MapPin, Mail, Phone, User } from "lucide-react";
+import { Church, Shield, Eye, EyeOff } from "lucide-react";
 
 export const ExternalChurchForm = ({ onSuccess }: { onSuccess?: () => void }) => {
   const [loading, setLoading] = useState(false);
@@ -153,8 +153,8 @@ export const ExternalChurchForm = ({ onSuccess }: { onSuccess?: () => void }) =>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         <div className="space-y-2 md:col-span-2">
-          <Label htmlFor="churchName" className="font-body text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-            <Church className="w-3.5 h-3.5 text-gold" /> Church / Ministry Name *
+          <Label htmlFor="churchName" className="font-body text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Church / Ministry Name *
           </Label>
           <Input
             id="churchName"
@@ -167,8 +167,8 @@ export const ExternalChurchForm = ({ onSuccess }: { onSuccess?: () => void }) =>
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="pastorName" className="font-body text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-            <User className="w-3.5 h-3.5 text-gold" /> Senior Pastor / Lead Minister *
+          <Label htmlFor="pastorName" className="font-body text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Senior Pastor / Lead Minister *
           </Label>
           <Input
             id="pastorName"
@@ -181,8 +181,8 @@ export const ExternalChurchForm = ({ onSuccess }: { onSuccess?: () => void }) =>
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="pastorPhone" className="font-body text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-            <Phone className="w-3.5 h-3.5 text-gold" /> Pastor Contact Phone *
+          <Label htmlFor="pastorPhone" className="font-body text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Pastor Contact Phone *
           </Label>
           <Input
             id="pastorPhone"
@@ -196,8 +196,8 @@ export const ExternalChurchForm = ({ onSuccess }: { onSuccess?: () => void }) =>
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="pastorEmail" className="font-body text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-            <Mail className="w-3.5 h-3.5 text-gold" /> Church Administrator Email *
+          <Label htmlFor="pastorEmail" className="font-body text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Church Administrator Email *
           </Label>
           <Input
             id="pastorEmail"
@@ -214,8 +214,8 @@ export const ExternalChurchForm = ({ onSuccess }: { onSuccess?: () => void }) =>
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="location" className="font-body text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-            <MapPin className="w-3.5 h-3.5 text-gold" /> Church Location / Branch
+          <Label htmlFor="location" className="font-body text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Church Location / Branch
           </Label>
           <Input
             id="location"
@@ -227,8 +227,8 @@ export const ExternalChurchForm = ({ onSuccess }: { onSuccess?: () => void }) =>
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="target" className="font-body text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-gold" /> Mobilization Target (Estimated Attendees)
+          <Label htmlFor="target" className="font-body text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Mobilization Target (Estimated Attendees)
           </Label>
           <Input
             id="target"
@@ -243,8 +243,8 @@ export const ExternalChurchForm = ({ onSuccess }: { onSuccess?: () => void }) =>
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="authCode" className="font-body text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-            <Lock className="w-3.5 h-3.5 text-gold" /> Admin Portal Password / Access Code *
+          <Label htmlFor="authCode" className="font-body text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Admin Portal Password / Access Code *
           </Label>
           <div className="relative">
             <Input

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Award, ShieldAlert, Phone, Mail, User, Building, MapPin, CheckCircle2 } from "lucide-react";
+import { Award } from "lucide-react";
 
 export const DignitaryRegistrationForm = ({ onSuccess }: { onSuccess?: () => void }) => {
   const [loading, setLoading] = useState(false);
@@ -158,8 +158,8 @@ export const DignitaryRegistrationForm = ({ onSuccess }: { onSuccess?: () => voi
         </div>
 
         <div className="md:col-span-9 space-y-2">
-          <Label htmlFor="dignitaryName" className="font-body text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-            <User className="w-3.5 h-3.5 text-gold" /> Full Name *
+          <Label htmlFor="dignitaryName" className="font-body text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Full Name *
           </Label>
           <Input
             id="dignitaryName"
@@ -172,8 +172,8 @@ export const DignitaryRegistrationForm = ({ onSuccess }: { onSuccess?: () => voi
         </div>
 
         <div className="md:col-span-6 space-y-2">
-          <Label htmlFor="office" className="font-body text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-            <Building className="w-3.5 h-3.5 text-gold" /> Portfolio / Ministry / Office *
+          <Label htmlFor="office" className="font-body text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Portfolio / Ministry / Office *
           </Label>
           <Input
             id="office"
@@ -186,8 +186,8 @@ export const DignitaryRegistrationForm = ({ onSuccess }: { onSuccess?: () => voi
         </div>
 
         <div className="md:col-span-6 space-y-2">
-          <Label htmlFor="constituency" className="font-body text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-            <MapPin className="w-3.5 h-3.5 text-gold" /> Constituency / Region / Organization
+          <Label htmlFor="constituency" className="font-body text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Constituency / Region / Organization
           </Label>
           <Input
             id="constituency"
@@ -199,8 +199,8 @@ export const DignitaryRegistrationForm = ({ onSuccess }: { onSuccess?: () => voi
         </div>
 
         <div className="md:col-span-6 space-y-2">
-          <Label htmlFor="phone" className="font-body text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-            <Phone className="w-3.5 h-3.5 text-gold" /> Contact Phone Number *
+          <Label htmlFor="phone" className="font-body text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Contact Phone Number *
           </Label>
           <Input
             id="phone"
@@ -214,8 +214,8 @@ export const DignitaryRegistrationForm = ({ onSuccess }: { onSuccess?: () => voi
         </div>
 
         <div className="md:col-span-6 space-y-2">
-          <Label htmlFor="email" className="font-body text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-            <Mail className="w-3.5 h-3.5 text-gold" /> Official Email (Optional)
+          <Label htmlFor="email" className="font-body text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Official Email (Optional)
           </Label>
           <Input
             id="email"
@@ -228,8 +228,8 @@ export const DignitaryRegistrationForm = ({ onSuccess }: { onSuccess?: () => voi
         </div>
 
         <div className="md:col-span-6 space-y-2">
-          <Label htmlFor="protocolName" className="font-body text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-            <User className="w-3.5 h-3.5 text-gold" /> Protocol Officer / Aide Name
+          <Label htmlFor="protocolName" className="font-body text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Protocol Officer / Aide Name
           </Label>
           <Input
             id="protocolName"
@@ -241,8 +241,8 @@ export const DignitaryRegistrationForm = ({ onSuccess }: { onSuccess?: () => voi
         </div>
 
         <div className="md:col-span-6 space-y-2">
-          <Label htmlFor="protocolPhone" className="font-body text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-            <Phone className="w-3.5 h-3.5 text-gold" /> Protocol Officer Phone
+          <Label htmlFor="protocolPhone" className="font-body text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Protocol Officer Phone
           </Label>
           <Input
             id="protocolPhone"
@@ -272,8 +272,8 @@ export const DignitaryRegistrationForm = ({ onSuccess }: { onSuccess?: () => voi
         </div>
 
         <div className="md:col-span-4 space-y-2">
-          <Label className="font-body text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-            <ShieldAlert className="w-3.5 h-3.5 text-gold" /> Security Detail Count
+          <Label className="font-body text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Security Detail Count
           </Label>
           <Input
             type="number"

@@ -61,7 +61,7 @@ BEGIN
       RAISE EXCEPTION 'Selected church was not found';
     END IF;
   ELSE
-    SELECT id INTO chosen_church FROM public.churches ORDER BY name LIMIT 1;
+    chosen_church := NULL;
   END IF;
 
   SELECT id INTO current_program FROM public.programs WHERE is_active LIMIT 1;

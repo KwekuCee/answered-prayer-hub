@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
 import { QRCodeCanvas } from "qrcode.react";
 import { Download } from "lucide-react";
+import { BIRTHDAY_MONTHS, buildBirthdayDateString, getDaysInBirthdayMonth } from "@/utils/birthday";
 
 const RegistrationForm = () => {
   const { data: inviters = [] } = useQuery({
@@ -22,25 +23,17 @@ const RegistrationForm = () => {
     },
   });
 
-  const { data: churches = [] } = useQuery({
-    queryKey: ["churches-list"],
-    queryFn: async () => {
-      try {
-        const { data, error } = await supabase.rpc("list_public_churches" as any);
-        if (error) throw error;
-        return (data as { id: string; name: string; is_external: boolean }[]) || [];
-      } catch {
-        return [];
-      }
-    },
-  });
-
   const [form, setForm] = useState({
     fullName: "", email: "", phone: "", occupation: "",
-    location: "", dateOfBirth: "", inviterId: "", churchId: "",
+    location: "", birthMonth: "", birthDay: "", inviterId: "",
   });
   const [loading, setLoading] = useState(false);
   const [registeredMember, setRegisteredMember] = useState<{ id: string; name: string } | null>(null);
+
+  const birthdayDays = Array.from(
+    { length: getDaysInBirthdayMonth(form.birthMonth || "01") },
+    (_, index) => String(index + 1).padStart(2, "0"),
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,20 +42,18 @@ const RegistrationForm = () => {
       return;
     }
     if (!form.inviterId) {
-      toast.error("Please select who invited you or choose self-registration.");
+      toast.error("Please select who invited you or choose direct self-registration.");
+      return;
+    }
+    if ((form.birthMonth && !form.birthDay) || (!form.birthMonth && form.birthDay)) {
+      toast.error("Please select both month and day for your birthday, or leave both empty.");
       return;
     }
 
     setLoading(true);
     try {
       const isSelf = form.inviterId === "self";
-      const inviter = isSelf ? null : inviters.find(i => i.id === form.inviterId);
-
-      // Determine church ID: either from inviter or from direct church selection if self
-      let resolvedChurchId = inviter?.church_id || form.churchId || null;
-      if (!resolvedChurchId && isSelf && churches.length > 0) {
-        resolvedChurchId = churches[0].id;
-      }
+      const birthdayDate = buildBirthdayDateString(form.birthMonth, form.birthDay);
 
       const { data: memberId, error } = await supabase.rpc("register_member" as any, {
         p_full_name: form.fullName.trim(),
@@ -71,8 +62,8 @@ const RegistrationForm = () => {
         p_email: form.email.trim() || null,
         p_occupation: form.occupation.trim() || null,
         p_location: form.location.trim() || null,
-        p_date_of_birth: form.dateOfBirth || null,
-        p_church_id: isSelf ? resolvedChurchId : null,
+        p_date_of_birth: birthdayDate,
+        p_church_id: null,
       });
       if (error) throw error;
 
@@ -119,7 +110,7 @@ const RegistrationForm = () => {
 
       toast.success("Registration successful! Save your QR Code.");
       setRegisteredMember({ id: insertedMember.id, name: form.fullName });
-      setForm({ fullName: "", email: "", phone: "", occupation: "", location: "", dateOfBirth: "", inviterId: "", churchId: "" });
+      setForm({ fullName: "", email: "", phone: "", occupation: "", location: "", birthMonth: "", birthDay: "", inviterId: "" });
     } catch (err: any) {
       toast.error(err.message || "Registration failed.");
     } finally {
@@ -190,45 +181,55 @@ const RegistrationForm = () => {
           <Input id="location" value={form.location} onChange={e => setForm(p => ({ ...p, location: e.target.value }))} placeholder="City, State" />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="dob">Date of Birth</Label>
-          <Input id="dob" type="date" value={form.dateOfBirth} onChange={e => setForm(p => ({ ...p, dateOfBirth: e.target.value }))} />
-        </div>
-      </div>
-
-      <div className="space-y-4">
-        <div className="space-y-2">
-          <Label>Who Invited You? *</Label>
-          <Select value={form.inviterId} onValueChange={v => setForm(p => ({ ...p, inviterId: v }))}>
-            <SelectTrigger><SelectValue placeholder="Select your inviter" /></SelectTrigger>
-            <SelectContent className="max-h-[300px]">
-              <SelectItem value="self" className="font-bold text-gold">Direct Self Registration (Select Your Church Below)</SelectItem>
-              {inviters.map(inv => (
-                <SelectItem key={inv.id} value={inv.id}>
-                  {inv.full_name} ({(inv.churches as any)?.name || "Unknown"})
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {form.inviterId === "self" && (
-          <div className="space-y-2 p-4 rounded-2xl bg-zinc-950/60 border border-gold/30 animate-fade-down">
-            <Label className="text-xs font-semibold uppercase tracking-wider text-gold">Your Church / Fellowship</Label>
-            <Select value={form.churchId} onValueChange={v => setForm(p => ({ ...p, churchId: v }))}>
-              <SelectTrigger className="bg-background/80"><SelectValue placeholder="Choose your church from the list" /></SelectTrigger>
-              <SelectContent className="max-h-[300px]">
-                {churches.map(c => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.name} {c.is_external ? "✦ (External Church - Privacy Protected)" : ""}
-                  </SelectItem>
+          <Label>Birthday</Label>
+          <div className="grid grid-cols-2 gap-2">
+            <Select
+              value={form.birthMonth}
+              onValueChange={(month) => {
+                const maxDay = getDaysInBirthdayMonth(month);
+                const nextDay = form.birthDay && Number(form.birthDay) > maxDay ? "" : form.birthDay;
+                setForm(p => ({ ...p, birthMonth: month, birthDay: nextDay }));
+              }}
+            >
+              <SelectTrigger aria-label="Birthday month">
+                <SelectValue placeholder="Month" />
+              </SelectTrigger>
+              <SelectContent className="max-h-[280px]">
+                {BIRTHDAY_MONTHS.map(month => (
+                  <SelectItem key={month.value} value={month.value}>{month.label}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            <p className="text-[11px] text-muted-foreground">
-              If your church is an external partner, your personal information is kept confidential from public or central lists.
-            </p>
+            <Select
+              value={form.birthDay}
+              onValueChange={(day) => setForm(p => ({ ...p, birthDay: day }))}
+            >
+              <SelectTrigger aria-label="Birthday day">
+                <SelectValue placeholder="Day" />
+              </SelectTrigger>
+              <SelectContent className="max-h-[280px]">
+                {birthdayDays.map(day => (
+                  <SelectItem key={day} value={day}>{Number(day)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-        )}
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label>Who Invited You? *</Label>
+        <Select value={form.inviterId} onValueChange={v => setForm(p => ({ ...p, inviterId: v }))}>
+          <SelectTrigger><SelectValue placeholder="Select your inviter" /></SelectTrigger>
+          <SelectContent className="max-h-[300px]">
+            <SelectItem value="self" className="font-bold text-gold">Direct self-registration</SelectItem>
+            {inviters.map(inv => (
+              <SelectItem key={inv.id} value={inv.id}>
+                {inv.full_name} ({(inv.churches as any)?.name || "Unknown"})
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <Button type="submit" disabled={loading} className="w-full bg-gradient-gold text-accent-foreground font-semibold shadow-gold hover:opacity-90 transition-opacity h-12 text-base">

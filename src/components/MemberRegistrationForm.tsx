@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
+import { BIRTHDAY_MONTHS, buildBirthdayDateString, getDaysInBirthdayMonth } from "@/utils/birthday";
 
 const MemberRegistrationForm = () => {
   const { data: inviters = [] } = useQuery({
@@ -22,9 +23,14 @@ const MemberRegistrationForm = () => {
 
   const [form, setForm] = useState({
     fullName: "", email: "", phone: "", occupation: "",
-    location: "", dateOfBirth: "", inviterId: "",
+    location: "", birthMonth: "", birthDay: "", inviterId: "",
   });
   const [loading, setLoading] = useState(false);
+
+  const birthdayDays = Array.from(
+    { length: getDaysInBirthdayMonth(form.birthMonth || "01") },
+    (_, index) => String(index + 1).padStart(2, "0"),
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,6 +42,10 @@ const MemberRegistrationForm = () => {
       toast.error("Please select who invited you.");
       return;
     }
+    if ((form.birthMonth && !form.birthDay) || (!form.birthMonth && form.birthDay)) {
+      toast.error("Please select both month and day for your birthday, or leave both empty.");
+      return;
+    }
 
     setLoading(true);
     try {
@@ -44,6 +54,8 @@ const MemberRegistrationForm = () => {
         throw new Error("Selected inviter is missing church information.");
       }
 
+      const birthdayDate = buildBirthdayDateString(form.birthMonth, form.birthDay);
+
       const { data: memberId, error } = await supabase.rpc("register_member" as any, {
         p_full_name: form.fullName.trim(),
         p_phone: form.phone.trim(),
@@ -51,7 +63,7 @@ const MemberRegistrationForm = () => {
         p_email: form.email.trim() || null,
         p_occupation: form.occupation.trim() || null,
         p_location: form.location.trim() || null,
-        p_date_of_birth: form.dateOfBirth || null,
+        p_date_of_birth: birthdayDate,
         p_church_id: null,
       });
       if (error) throw error;
@@ -65,7 +77,7 @@ const MemberRegistrationForm = () => {
       }
 
       toast.success("Registration successful! Welcome to Korle Bu Stands in Worship.");
-      setForm({ fullName: "", email: "", phone: "", occupation: "", location: "", dateOfBirth: "", inviterId: "" });
+      setForm({ fullName: "", email: "", phone: "", occupation: "", location: "", birthMonth: "", birthDay: "", inviterId: "" });
     } catch (err: any) {
       toast.error(err.message || "Registration failed.");
     } finally {
@@ -97,8 +109,39 @@ const MemberRegistrationForm = () => {
           <Input id="location" value={form.location} onChange={e => setForm(p => ({ ...p, location: e.target.value }))} placeholder="City, State" />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="dob">Date of Birth</Label>
-          <Input id="dob" type="date" value={form.dateOfBirth} onChange={e => setForm(p => ({ ...p, dateOfBirth: e.target.value }))} />
+          <Label>Birthday</Label>
+          <div className="grid grid-cols-2 gap-2">
+            <Select
+              value={form.birthMonth}
+              onValueChange={(month) => {
+                const maxDay = getDaysInBirthdayMonth(month);
+                const nextDay = form.birthDay && Number(form.birthDay) > maxDay ? "" : form.birthDay;
+                setForm(p => ({ ...p, birthMonth: month, birthDay: nextDay }));
+              }}
+            >
+              <SelectTrigger aria-label="Birthday month">
+                <SelectValue placeholder="Month" />
+              </SelectTrigger>
+              <SelectContent className="max-h-[280px]">
+                {BIRTHDAY_MONTHS.map(month => (
+                  <SelectItem key={month.value} value={month.value}>{month.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={form.birthDay}
+              onValueChange={(day) => setForm(p => ({ ...p, birthDay: day }))}
+            >
+              <SelectTrigger aria-label="Birthday day">
+                <SelectValue placeholder="Day" />
+              </SelectTrigger>
+              <SelectContent className="max-h-[280px]">
+                {birthdayDays.map(day => (
+                  <SelectItem key={day} value={day}>{Number(day)}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
 
