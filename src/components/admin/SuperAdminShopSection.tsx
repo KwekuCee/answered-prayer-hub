@@ -22,6 +22,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ExternalLink,
+  AlertTriangle,
   Upload,
   Loader2,
 } from "lucide-react";
@@ -31,14 +32,12 @@ import {
   ShopProduct,
   ShopSettings,
   DEFAULT_SHOP_SETTINGS,
-  SEED_SHOP_PRODUCTS,
-  LOCAL_STORAGE_KEYS,
-  readLocalJson,
   formatGHS,
   buildWhatsAppUrl,
+  resolveProductImageUrl,
 } from "@/utils/shop";
 import {
-  fetchAllAdminProducts,
+  fetchAdminProductsWithStatus,
   fetchShopSettings,
   fetchAllShopOrders,
   upsertShopProduct,
@@ -68,25 +67,30 @@ export const SuperAdminShopSection: React.FC = () => {
   const queryClient = useQueryClient();
   const [subTab, setSubTab] = useState<"products" | "orders" | "config">("products");
 
-  const { data: products = [] } = useQuery({
+  const { data: productsResult } = useQuery({
     queryKey: ["admin-shop-products"],
-    queryFn: fetchAllAdminProducts,
-    initialData: () => readLocalJson<ShopProduct[]>(LOCAL_STORAGE_KEYS.PRODUCTS, SEED_SHOP_PRODUCTS),
-    retry: false,
+    queryFn: fetchAdminProductsWithStatus,
+    staleTime: 0,
+    refetchOnMount: "always",
+    retry: 1,
   });
+  const products = productsResult?.products ?? [];
+  const isUsingFallbackProducts = productsResult?.source === "fallback";
 
   const { data: settings = DEFAULT_SHOP_SETTINGS } = useQuery({
     queryKey: ["admin-shop-settings"],
     queryFn: fetchShopSettings,
-    initialData: () => readLocalJson<ShopSettings>(LOCAL_STORAGE_KEYS.SETTINGS, DEFAULT_SHOP_SETTINGS),
-    retry: false,
+    staleTime: 0,
+    refetchOnMount: "always",
+    retry: 1,
   });
 
   const { data: orders = [] } = useQuery({
     queryKey: ["admin-shop-orders"],
     queryFn: fetchAllShopOrders,
-    initialData: () => readLocalJson(LOCAL_STORAGE_KEYS.ORDERS, []),
-    retry: false,
+    staleTime: 0,
+    refetchOnMount: "always",
+    retry: 1,
   });
 
   // Payment & WhatsApp Settings form state
@@ -107,6 +111,7 @@ export const SuperAdminShopSection: React.FC = () => {
   });
   const [savingProduct, setSavingProduct] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [productSaveError, setProductSaveError] = useState("");
 
   // Orders filter & pagination
   const [orderStatusFilter, setOrderStatusFilter] = useState<string>("all");
@@ -125,6 +130,7 @@ export const SuperAdminShopSection: React.FC = () => {
   );
 
   const openNewProduct = () => {
+    setProductSaveError("");
     setEditingProduct({
       name: "",
       description: "",
@@ -138,6 +144,7 @@ export const SuperAdminShopSection: React.FC = () => {
   };
 
   const openEditProduct = (product: ShopProduct) => {
+    setProductSaveError("");
     setEditingProduct({ ...product });
     setProductModalOpen(true);
   };
@@ -150,13 +157,14 @@ export const SuperAdminShopSection: React.FC = () => {
       return;
     }
     setUploadingImage(true);
+    setProductSaveError("");
     try {
       const { url, uploadedToStorage } = await uploadShopProductImage(file);
       setEditingProduct((p) => ({ ...p, image_url: url }));
       toast.success(
         uploadedToStorage
-          ? "Product image uploaded and converted to WebP!"
-          : "Product image optimized to WebP and attached!"
+          ? "Image uploaded to store storage! Click Save Product to publish."
+          : "Image optimized and attached! Click Save Product to publish across all devices."
       );
     } catch {
       toast.error("Could not process the selected image. Please try another file.");
@@ -173,19 +181,26 @@ export const SuperAdminShopSection: React.FC = () => {
       return;
     }
     setSavingProduct(true);
+    setProductSaveError("");
     try {
-      const { syncedToDb } = await upsertShopProduct({
+      const { syncedToDb, dbError } = await upsertShopProduct({
         ...editingProduct,
         name: editingProduct.name.trim(),
         price: Number(editingProduct.price) || 0,
       });
+
+      if (!syncedToDb) {
+        const msg =
+          dbError ||
+          "Could not save product to the live Supabase database. Check your Super Admin permissions and ensure supabase_shop_migration.sql has been applied.";
+        setProductSaveError(msg);
+        toast.error(msg);
+        return;
+      }
+
       await queryClient.invalidateQueries({ queryKey: ["admin-shop-products"] });
       await queryClient.invalidateQueries({ queryKey: ["shop-products-public"] });
-      toast.success(
-        syncedToDb
-          ? "Product saved to store catalog!"
-          : "Product saved locally (run the Shop SQL migration in Supabase to sync online)."
-      );
+      toast.success("Product saved and published across all devices!");
       setProductModalOpen(false);
     } finally {
       setSavingProduct(false);
@@ -194,9 +209,13 @@ export const SuperAdminShopSection: React.FC = () => {
 
   const handleDeleteProduct = async (id: string) => {
     if (!window.confirm("Remove this product from the store?")) return;
-    await deleteShopProduct(id);
+    const { syncedToDb, dbError } = await deleteShopProduct(id);
     await queryClient.invalidateQueries({ queryKey: ["admin-shop-products"] });
     await queryClient.invalidateQueries({ queryKey: ["shop-products-public"] });
+    if (!syncedToDb && dbError) {
+      toast.error(`Could not delete product online: ${dbError}`);
+      return;
+    }
     toast.success("Product removed.");
   };
 
@@ -302,17 +321,30 @@ export const SuperAdminShopSection: React.FC = () => {
 
       {/* SUBTAB 1: PRODUCTS */}
       {subTab === "products" && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {products.map((product) => (
-            <Card key={product.id} className="bg-card/80 backdrop-blur-xl border-border/60 rounded-3xl overflow-hidden flex flex-col">
-              <div className="aspect-[16/10] bg-zinc-950 relative overflow-hidden">
-                <img
-                  src={product.image_url}
-                  alt={product.name}
-                  loading="lazy"
-                  decoding="async"
-                  className="w-full h-full object-cover"
-                />
+        <div className="space-y-4">
+          {isUsingFallbackProducts && (
+            <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 flex items-start gap-3 text-xs text-amber-200">
+              <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+              <div className="space-y-0.5">
+                <p className="font-semibold text-amber-300">Showing Default Preview Items (Not Yet Published Online)</p>
+                <p className="text-amber-200/85">
+                  {productsResult?.error ||
+                    "Your live database catalog is currently empty. Edit a product below or add a new item and click Save Product so customers on mobile, tablets, and laptops see your uploaded photos."}
+                </p>
+              </div>
+            </div>
+          )}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {products.map((product) => (
+              <Card key={product.id} className="bg-card/80 backdrop-blur-xl border-border/60 rounded-3xl overflow-hidden flex flex-col">
+                <div className="aspect-[16/10] bg-zinc-950 relative overflow-hidden">
+                  <img
+                    src={resolveProductImageUrl(product)}
+                    alt={product.name}
+                    loading="lazy"
+                    decoding="async"
+                    className="w-full h-full object-cover"
+                  />
                 <Badge
                   variant="outline"
                   className={`absolute top-3 left-3 text-[10px] ${
@@ -364,6 +396,7 @@ export const SuperAdminShopSection: React.FC = () => {
               </CardContent>
             </Card>
           ))}
+          </div>
         </div>
       )}
 
@@ -581,6 +614,11 @@ export const SuperAdminShopSection: React.FC = () => {
           </DialogHeader>
 
           <form onSubmit={handleSaveProduct} className="space-y-4">
+            {productSaveError && (
+              <div role="alert" className="rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                {productSaveError}
+              </div>
+            )}
             <div className="space-y-1.5">
               <Label htmlFor="prod-name" className="text-xs">Product Name *</Label>
               <Input

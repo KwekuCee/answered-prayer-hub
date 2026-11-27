@@ -9,6 +9,11 @@ import {
   validateDeliveryForm,
   buildWhatsAppOrderMessage,
   buildWhatsAppUrl,
+  isUuid,
+  appendImageVersion,
+  resolveProductImageUrl,
+  normalizeShopProductRow,
+  syncCartWithProducts,
 } from "./shop";
 
 test("formatGHS formats currency cleanly with cedis symbol", () => {
@@ -89,3 +94,53 @@ test("buildWhatsAppOrderMessage & buildWhatsAppUrl include items, total, and del
   assert.ok(url.startsWith("https://wa.me/233249998888?text="));
   assert.ok(decodeURIComponent(url).includes("KSW-20261218-Z9K1"));
 });
+
+test("isUuid distinguishes real database UUIDs from local seed IDs", () => {
+  assert.equal(isUuid("550e8400-e29b-41d4-a716-446655440000"), true);
+  assert.equal(isUuid("ksw-prod-tee-01"), false);
+  assert.equal(isUuid(""), false);
+});
+
+test("appendImageVersion versions HTTPS URLs cleanly and preserves data/static URLs", () => {
+  const storageUrl = "https://example.supabase.co/storage/v1/object/public/shop-images/products/tee.webp";
+  const versioned = appendImageVersion(storageUrl, "2026-11-27T08:00:00.000Z");
+  assert.match(versioned, /^https:\/\/example\.supabase\.co\/storage\/v1\/object\/public\/shop-images\/products\/tee\.webp\?v=\d+$/);
+
+  const dataUrl = "data:image/webp;base64,AAAA";
+  assert.equal(appendImageVersion(dataUrl, "2026-11-27T08:00:00.000Z"), dataUrl);
+  assert.equal(appendImageVersion("/images/shop/worship-tee.webp", "2026-11-27T08:00:00.000Z"), "/images/shop/worship-tee.webp");
+});
+
+test("normalizeShopProductRow and syncCartWithProducts update stale cart thumbnails with live uploaded images", () => {
+  const product = normalizeShopProductRow({
+    id: "550e8400-e29b-41d4-a716-446655440000",
+    name: "KSW Worship Tee",
+    description: "Updated shirt",
+    category: "Apparel",
+    price: "160.00",
+    stock: 25,
+    image_url: "https://cdn.example.com/new-tee.webp",
+    is_active: true,
+    updated_at: "2026-11-27T09:00:00.000Z",
+  });
+
+  assert.equal(resolveProductImageUrl(product), "https://cdn.example.com/new-tee.webp?v=" + Date.parse("2026-11-27T09:00:00.000Z"));
+
+  const synced = syncCartWithProducts(
+    [
+      {
+        product_id: "550e8400-e29b-41d4-a716-446655440000",
+        name: "Old Tee",
+        price: 150,
+        quantity: 2,
+        image_url: "/images/shop/worship-tee.webp",
+      },
+    ],
+    [product]
+  );
+
+  assert.equal(synced[0].name, "KSW Worship Tee");
+  assert.equal(synced[0].price, 160);
+  assert.ok(synced[0].image_url.startsWith("https://cdn.example.com/new-tee.webp?v="));
+});
+

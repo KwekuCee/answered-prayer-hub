@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 
 import BackToTop from "./components/BackToTop";
 import OfflineIndicator from "./components/OfflineIndicator";
+import DeploymentUpdatePrompt from "./components/DeploymentUpdatePrompt";
 import RouteErrorBoundary from "./components/RouteErrorBoundary";
 import Index from "./pages/Index";
 import Register from "./pages/Register";
@@ -30,6 +31,7 @@ const App = () => (
       <Sonner />
       <BackToTop />
       <OfflineIndicator />
+      <DeploymentUpdatePrompt />
       <BrowserRouter>
         <RouteErrorBoundary>
           <Routes>

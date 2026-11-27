@@ -266,3 +266,95 @@ export function writeLocalJson<T>(key: string, value: T): void {
     // ignore storage quota limits
   }
 }
+
+export function isUuid(value?: string | null): boolean {
+  return Boolean(
+    value && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value.trim())
+  );
+}
+
+/**
+ * Appends a version cache-buster query param (`v=...`) to remote HTTP/HTTPS
+ * product image URLs using the product's `updated_at` timestamp so mobile,
+ * tablet, and desktop browsers never hold onto stale CDN/browser cached images.
+ * Leaves `data:`, `blob:`, and relative static paths untouched.
+ */
+export function appendImageVersion(imageUrl?: string | null, version?: string | null): string {
+  const trimmed = (imageUrl || "").trim();
+  if (!trimmed) return "";
+  if (trimmed.startsWith("data:") || trimmed.startsWith("blob:") || !/^https?:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+
+  const versionTag = (version || "").trim();
+  if (!versionTag) return trimmed;
+
+  const parsedMs = Date.parse(versionTag);
+  const token = Number.isFinite(parsedMs) ? String(parsedMs) : versionTag.replace(/[^a-zA-Z0-9_-]/g, "");
+  if (!token) return trimmed;
+
+  try {
+    const url = new URL(trimmed);
+    url.searchParams.set("v", token);
+    return url.toString();
+  } catch {
+    const separator = trimmed.includes("?") ? "&" : "?";
+    return `${trimmed}${separator}v=${encodeURIComponent(token)}`;
+  }
+}
+
+export function resolveProductImageUrl(
+  product: Pick<ShopProduct, "image_url" | "updated_at" | "created_at">
+): string {
+  return appendImageVersion(product.image_url, product.updated_at || product.created_at);
+}
+
+export function normalizeShopProductRow(row: any): ShopProduct {
+  return {
+    id: String(row.id || ""),
+    name: String(row.name || ""),
+    description: String(row.description || ""),
+    category: String(row.category || "Apparel"),
+    price: Number(row.price) || 0,
+    stock: Math.max(0, Math.floor(Number(row.stock) || 0)),
+    image_url: String(row.image_url || ""),
+    is_active: row.is_active !== false,
+    created_at: row.created_at ? String(row.created_at) : undefined,
+    updated_at: row.updated_at ? String(row.updated_at) : undefined,
+  };
+}
+
+/**
+ * Keeps cart items' display metadata (`name`, `price`, `image_url`) synced with
+ * the latest server catalog so items added prior to an image update reflect
+ * the newly uploaded product photo.
+ */
+export function syncCartWithProducts(cart: CartItem[], products: ShopProduct[]): CartItem[] {
+  if (!cart.length || !products.length) return cart;
+  const byId = new Map(products.map((p) => [p.id, p]));
+  let changed = false;
+
+  const next = cart.map((item) => {
+    const live = byId.get(item.product_id);
+    if (!live) return item;
+    const nextImage = resolveProductImageUrl(live);
+    const nextPrice = Number(live.price);
+    if (
+      item.name === live.name &&
+      item.price === nextPrice &&
+      item.image_url === nextImage
+    ) {
+      return item;
+    }
+    changed = true;
+    return {
+      ...item,
+      name: live.name,
+      price: nextPrice,
+      image_url: nextImage,
+    };
+  });
+
+  return changed ? next : cart;
+}
+

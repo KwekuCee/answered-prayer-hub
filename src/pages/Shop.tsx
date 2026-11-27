@@ -29,13 +29,12 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 import {
   CartItem,
   ShopOrder,
   ShopProduct,
   LOCAL_STORAGE_KEYS,
-  SEED_SHOP_PRODUCTS,
-  DEFAULT_SHOP_SETTINGS,
   calculateCartItemCount,
   calculateCartTotal,
   formatGHS,
@@ -43,6 +42,8 @@ import {
   validateDeliveryForm,
   buildWhatsAppOrderMessage,
   buildWhatsAppUrl,
+  resolveProductImageUrl,
+  syncCartWithProducts,
   readLocalJson,
   writeLocalJson,
 } from "@/utils/shop";
@@ -72,6 +73,10 @@ const ProductThumbnail: React.FC<{ src: string; alt: string; className?: string 
 }) => {
   const [failed, setFailed] = useState(false);
 
+  useEffect(() => {
+    setFailed(false);
+  }, [src]);
+
   if (failed || !src) {
     return (
       <div className={`flex flex-col items-center justify-center bg-zinc-900/90 text-gold/70 ${className}`}>
@@ -99,20 +104,21 @@ const Shop = () => {
   const { data: products = [], isLoading: productsLoading } = useQuery({
     queryKey: ["shop-products-public"],
     queryFn: fetchPublicProducts,
-    initialData: () =>
-      readLocalJson<ShopProduct[]>(LOCAL_STORAGE_KEYS.PRODUCTS, SEED_SHOP_PRODUCTS).filter(
-        (p) => p.is_active
-      ),
-    retry: false,
-    staleTime: 60_000,
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+    retry: 1,
   });
 
   const { data: settings } = useQuery({
     queryKey: ["shop-settings-public"],
     queryFn: fetchShopSettings,
-    initialData: () => readLocalJson(LOCAL_STORAGE_KEYS.SETTINGS, DEFAULT_SHOP_SETTINGS),
-    retry: false,
-    staleTime: 60_000,
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+    retry: 1,
   });
 
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
@@ -146,6 +152,39 @@ const Shop = () => {
   useEffect(() => {
     writeLocalJson(LOCAL_STORAGE_KEYS.CART, cart);
   }, [cart]);
+
+  useEffect(() => {
+    if (products.length > 0) {
+      setCart((prev) => syncCartWithProducts(prev, products));
+    }
+  }, [products]);
+
+  useEffect(() => {
+    if (typeof supabase.channel !== "function") return;
+    const channel = supabase
+      .channel("public-shop-catalog-sync")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "shop_products" },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["shop-products-public"] });
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "shop_settings" },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["shop-settings-public"] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      if (typeof supabase.removeChannel === "function") {
+        supabase.removeChannel(channel);
+      }
+    };
+  }, [queryClient]);
 
   const categories = useMemo(() => {
     const unique = Array.from(new Set(products.map((p) => p.category).filter(Boolean)));
@@ -199,7 +238,7 @@ const Shop = () => {
           name: product.name,
           price: Number(product.price),
           quantity: Math.min(product.stock, Math.max(1, quantity)),
-          image_url: product.image_url,
+          image_url: resolveProductImageUrl(product),
         },
       ];
     });
@@ -230,7 +269,7 @@ const Shop = () => {
         name: product.name,
         price: Number(product.price),
         quantity: Math.min(product.stock, Math.max(1, qty)),
-        image_url: product.image_url,
+        image_url: resolveProductImageUrl(product),
       },
     ]);
     setIsDirectBuy(true);
@@ -436,7 +475,7 @@ const Shop = () => {
                     }}
                     className="relative aspect-[4/3] w-full overflow-hidden bg-zinc-950 text-left focus:outline-none"
                   >
-                    <ProductThumbnail src={product.image_url} alt={product.name} />
+                    <ProductThumbnail src={resolveProductImageUrl(product)} alt={product.name} />
                     {outOfStock && (
                       <span className="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-background/90 text-destructive text-[11px] font-semibold border border-destructive/40">
                         Sold Out
@@ -508,7 +547,7 @@ const Shop = () => {
             <div className="grid grid-cols-1 md:grid-cols-2">
               <div className="aspect-[4/3] md:aspect-auto md:h-full bg-zinc-950">
                 <ProductThumbnail
-                  src={inspectingProduct.image_url}
+                  src={resolveProductImageUrl(inspectingProduct)}
                   alt={inspectingProduct.name}
                 />
               </div>

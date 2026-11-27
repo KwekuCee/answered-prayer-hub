@@ -7,11 +7,17 @@ import {
   SEED_SHOP_PRODUCTS,
   DEFAULT_SHOP_SETTINGS,
   LOCAL_STORAGE_KEYS,
+  isUuid,
+  normalizeShopProductRow,
   readLocalJson,
   writeLocalJson,
 } from "@/utils/shop";
 
-function withTimeout<T>(promise: PromiseLike<T>, ms = 2500): Promise<T> {
+const QUERY_TIMEOUT_MS = 12_000;
+const UPLOAD_TIMEOUT_MS = 20_000;
+const MAX_INLINE_WEBP_DATA_URL_LENGTH = 95_000;
+
+function withTimeout<T>(promise: PromiseLike<T>, ms = QUERY_TIMEOUT_MS): Promise<T> {
   return Promise.race([
     Promise.resolve(promise),
     new Promise<T>((_, reject) =>
@@ -33,6 +39,15 @@ function isMissingRelationError(error: any): boolean {
   );
 }
 
+function isValidRemoteRow(row: any): boolean {
+  return Boolean(
+    row &&
+      typeof row.id === "string" &&
+      row.id.length > 0 &&
+      !row.id.startsWith("offline-")
+  );
+}
+
 export async function fetchPublicProducts(): Promise<ShopProduct[]> {
   try {
     const { data, error }: any = await withTimeout(
@@ -51,8 +66,8 @@ export async function fetchPublicProducts(): Promise<ShopProduct[]> {
       return local.filter((p) => p.is_active);
     }
 
-    if (data && data.length > 0) {
-      const normalized = data.map((row: any) => ({ ...row, price: Number(row.price) }));
+    if (Array.isArray(data) && data.length > 0) {
+      const normalized = data.map(normalizeShopProductRow);
       writeLocalJson(LOCAL_STORAGE_KEYS.PRODUCTS, normalized);
       return normalized;
     }
@@ -65,7 +80,13 @@ export async function fetchPublicProducts(): Promise<ShopProduct[]> {
   }
 }
 
-export async function fetchAllAdminProducts(): Promise<ShopProduct[]> {
+export interface AdminProductsResult {
+  products: ShopProduct[];
+  source: "database" | "fallback";
+  error?: string;
+}
+
+export async function fetchAdminProductsWithStatus(): Promise<AdminProductsResult> {
   try {
     const { data, error }: any = await withTimeout(
       supabase
@@ -75,19 +96,39 @@ export async function fetchAllAdminProducts(): Promise<ShopProduct[]> {
     );
 
     if (error) {
-      return readLocalJson<ShopProduct[]>(LOCAL_STORAGE_KEYS.PRODUCTS, SEED_SHOP_PRODUCTS);
+      return {
+        products: readLocalJson<ShopProduct[]>(LOCAL_STORAGE_KEYS.PRODUCTS, SEED_SHOP_PRODUCTS),
+        source: "fallback",
+        error: error.message || "Could not load products from Supabase.",
+      };
     }
 
-    if (data && data.length > 0) {
-      const normalized = data.map((row: any) => ({ ...row, price: Number(row.price) }));
+    if (Array.isArray(data) && data.length > 0) {
+      const normalized = data.map(normalizeShopProductRow);
       writeLocalJson(LOCAL_STORAGE_KEYS.PRODUCTS, normalized);
-      return normalized;
+      return {
+        products: normalized,
+        source: "database",
+      };
     }
 
-    return readLocalJson<ShopProduct[]>(LOCAL_STORAGE_KEYS.PRODUCTS, SEED_SHOP_PRODUCTS);
-  } catch {
-    return readLocalJson<ShopProduct[]>(LOCAL_STORAGE_KEYS.PRODUCTS, SEED_SHOP_PRODUCTS);
+    return {
+      products: readLocalJson<ShopProduct[]>(LOCAL_STORAGE_KEYS.PRODUCTS, SEED_SHOP_PRODUCTS),
+      source: "fallback",
+      error: "No live products saved in the database yet. Edit or create a product below to publish it across all devices.",
+    };
+  } catch (err: any) {
+    return {
+      products: readLocalJson<ShopProduct[]>(LOCAL_STORAGE_KEYS.PRODUCTS, SEED_SHOP_PRODUCTS),
+      source: "fallback",
+      error: err?.message || "Timed out connecting to Supabase.",
+    };
   }
+}
+
+export async function fetchAllAdminProducts(): Promise<ShopProduct[]> {
+  const result = await fetchAdminProductsWithStatus();
+  return result.products;
 }
 
 function readFileAsDataUrl(file: File): Promise<string> {
@@ -99,19 +140,13 @@ function readFileAsDataUrl(file: File): Promise<string> {
   });
 }
 
-async function compressImageToWebP(
-  file: File,
-  maxDimension = 900,
-  quality = 0.84
+async function renderScaledWebP(
+  img: HTMLImageElement,
+  maxDimension: number,
+  quality: number,
+  fallbackFile: File,
+  fallbackDataUrl: string
 ): Promise<{ blob: Blob; dataUrl: string }> {
-  const srcDataUrl = await readFileAsDataUrl(file);
-  const img = new Image();
-  await new Promise<void>((resolve, reject) => {
-    img.onload = () => resolve();
-    img.onerror = () => reject(new Error("Invalid image file"));
-    img.src = srcDataUrl;
-  });
-
   const scale = Math.min(1, maxDimension / Math.max(img.width || 1, img.height || 1));
   const targetWidth = Math.max(1, Math.round((img.width || maxDimension) * scale));
   const targetHeight = Math.max(1, Math.round((img.height || maxDimension) * scale));
@@ -121,14 +156,14 @@ async function compressImageToWebP(
   canvas.height = targetHeight;
   const ctx = canvas.getContext("2d");
   if (!ctx) {
-    return { blob: file, dataUrl: srcDataUrl };
+    return { blob: fallbackFile, dataUrl: fallbackDataUrl };
   }
   ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
 
   const webpDataUrl = canvas.toDataURL("image/webp", quality);
   const blob = await new Promise<Blob>((resolve) => {
     canvas.toBlob(
-      (b) => resolve(b || file),
+      (b) => resolve(b || fallbackFile),
       "image/webp",
       quality
     );
@@ -136,18 +171,46 @@ async function compressImageToWebP(
 
   return {
     blob,
-    dataUrl: webpDataUrl.startsWith("data:image/") ? webpDataUrl : srcDataUrl,
+    dataUrl: webpDataUrl.startsWith("data:image/") ? webpDataUrl : fallbackDataUrl,
   };
+}
+
+async function compressImageToWebP(
+  file: File
+): Promise<{ blob: Blob; compactDataUrl: string }> {
+  const srcDataUrl = await readFileAsDataUrl(file);
+  const img = new Image();
+  await new Promise<void>((resolve, reject) => {
+    img.onload = () => resolve();
+    img.onerror = () => reject(new Error("Invalid image file"));
+    img.src = srcDataUrl;
+  });
+
+  const primary = await renderScaledWebP(img, 900, 0.82, file, srcDataUrl);
+  if (primary.dataUrl.length <= MAX_INLINE_WEBP_DATA_URL_LENGTH) {
+    return { blob: primary.blob, compactDataUrl: primary.dataUrl };
+  }
+
+  // Keep storage blob high-res while stepping down inline Data URL fallback so
+  // Postgres saves stay fast (< 1s) even before `shop-images` Storage bucket exists.
+  const medium = await renderScaledWebP(img, 720, 0.72, file, srcDataUrl);
+  if (medium.dataUrl.length <= MAX_INLINE_WEBP_DATA_URL_LENGTH) {
+    return { blob: primary.blob, compactDataUrl: medium.dataUrl };
+  }
+
+  const compact = await renderScaledWebP(img, 540, 0.64, file, srcDataUrl);
+  return { blob: primary.blob, compactDataUrl: compact.dataUrl };
 }
 
 /**
  * Compresses a selected product image to WebP and uploads it to the `shop-images`
- * Supabase Storage bucket when available, with a compressed WebP Data URL fallback.
+ * Supabase Storage bucket when available, falling back to a compact WebP Data URL
+ * so saving to `shop_products` still works across all devices.
  */
 export async function uploadShopProductImage(
   file: File
-): Promise<{ url: string; uploadedToStorage: boolean }> {
-  const { blob, dataUrl } = await compressImageToWebP(file);
+): Promise<{ url: string; uploadedToStorage: boolean; storageError?: string }> {
+  const { blob, compactDataUrl } = await compressImageToWebP(file);
   const filePath = `products/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.webp`;
 
   try {
@@ -158,7 +221,7 @@ export async function uploadShopProductImage(
           contentType: "image/webp",
           upsert: true,
         }),
-      5000
+      UPLOAD_TIMEOUT_MS
     );
 
     if (!error) {
@@ -169,16 +232,24 @@ export async function uploadShopProductImage(
         return { url: pub.publicUrl, uploadedToStorage: true };
       }
     }
-  } catch {
-    // Fall through to compressed WebP Data URL fallback
-  }
 
-  return { url: dataUrl, uploadedToStorage: false };
+    return {
+      url: compactDataUrl,
+      uploadedToStorage: false,
+      storageError: error?.message || "Could not upload to shop-images storage bucket",
+    };
+  } catch (err: any) {
+    return {
+      url: compactDataUrl,
+      uploadedToStorage: false,
+      storageError: err?.message || "Storage upload timed out",
+    };
+  }
 }
 
 export async function upsertShopProduct(
   product: Partial<ShopProduct> & { name: string; price: number }
-): Promise<{ saved: ShopProduct; syncedToDb: boolean }> {
+): Promise<{ saved: ShopProduct; syncedToDb: boolean; dbError?: string }> {
   const payload = {
     name: product.name.trim(),
     description: (product.description || "").trim(),
@@ -190,6 +261,7 @@ export async function upsertShopProduct(
   };
 
   let syncedToDb = false;
+  let dbError: string | undefined;
   let savedRow: ShopProduct = {
     id: product.id || `ksw-prod-${Date.now()}`,
     ...payload,
@@ -197,7 +269,7 @@ export async function upsertShopProduct(
   };
 
   try {
-    if (product.id && /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(product.id)) {
+    if (isUuid(product.id)) {
       const { data, error }: any = await withTimeout(
         supabase
           .from("shop_products")
@@ -206,9 +278,13 @@ export async function upsertShopProduct(
           .select()
           .single()
       );
-      if (!error && data) {
-        savedRow = { ...data, price: Number(data.price) };
+      if (!error && isValidRemoteRow(data)) {
+        savedRow = normalizeShopProductRow(data);
         syncedToDb = true;
+      } else if (error) {
+        dbError = error.message || "Failed to update product in database.";
+      } else {
+        dbError = "Database did not return the updated product row.";
       }
     } else {
       const { data, error }: any = await withTimeout(
@@ -218,37 +294,46 @@ export async function upsertShopProduct(
           .select()
           .single()
       );
-      if (!error && data) {
-        savedRow = { ...data, price: Number(data.price) };
+      if (!error && isValidRemoteRow(data)) {
+        savedRow = normalizeShopProductRow(data);
         syncedToDb = true;
+      } else if (error) {
+        dbError = error.message || "Failed to insert product into database.";
+      } else {
+        dbError = "Database did not return the saved product row.";
       }
     }
-  } catch {
+  } catch (err: any) {
     syncedToDb = false;
+    dbError = err?.message || "Timed out while saving product to database.";
   }
 
-  const current = readLocalJson<ShopProduct[]>(LOCAL_STORAGE_KEYS.PRODUCTS, SEED_SHOP_PRODUCTS);
-  const existsIdx = current.findIndex((p) => p.id === product.id || p.id === savedRow.id);
-  const updated =
-    existsIdx >= 0
-      ? current.map((p, i) => (i === existsIdx ? savedRow : p))
-      : [savedRow, ...current];
-  writeLocalJson(LOCAL_STORAGE_KEYS.PRODUCTS, updated);
+  if (syncedToDb) {
+    const current = readLocalJson<ShopProduct[]>(LOCAL_STORAGE_KEYS.PRODUCTS, []);
+    const filtered = current.filter((p) => p.id !== product.id && p.id !== savedRow.id);
+    writeLocalJson(LOCAL_STORAGE_KEYS.PRODUCTS, [savedRow, ...filtered]);
+  }
 
-  return { saved: savedRow, syncedToDb };
+  return { saved: savedRow, syncedToDb, dbError };
 }
 
-export async function deleteShopProduct(id: string): Promise<{ syncedToDb: boolean }> {
+export async function deleteShopProduct(id: string): Promise<{ syncedToDb: boolean; dbError?: string }> {
   let syncedToDb = false;
+  let dbError: string | undefined;
   try {
-    if (/^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(id)) {
+    if (isUuid(id)) {
       const { error }: any = await withTimeout(
         supabase.from("shop_products").delete().eq("id", id)
       );
-      if (!error) syncedToDb = true;
+      if (!error) {
+        syncedToDb = true;
+      } else {
+        dbError = error.message;
+      }
     }
-  } catch {
+  } catch (err: any) {
     syncedToDb = false;
+    dbError = err?.message;
   }
 
   const current = readLocalJson<ShopProduct[]>(LOCAL_STORAGE_KEYS.PRODUCTS, SEED_SHOP_PRODUCTS);
@@ -256,7 +341,7 @@ export async function deleteShopProduct(id: string): Promise<{ syncedToDb: boole
     LOCAL_STORAGE_KEYS.PRODUCTS,
     current.filter((p) => p.id !== id)
   );
-  return { syncedToDb };
+  return { syncedToDb, dbError };
 }
 
 export async function fetchShopSettings(): Promise<ShopSettings> {
@@ -305,7 +390,7 @@ export async function saveShopSettings(
         .limit(1)
     );
 
-    if (existing && existing.length > 0) {
+    if (existing && existing.length > 0 && isValidRemoteRow(existing[0])) {
       const { data, error }: any = await withTimeout(
         supabase
           .from("shop_settings")
@@ -314,7 +399,7 @@ export async function saveShopSettings(
           .select("id, whatsapp_number, store_notice, updated_at")
           .single()
       );
-      if (!error && data) {
+      if (!error && isValidRemoteRow(data)) {
         savedRow = data;
         syncedToDb = true;
       }
@@ -326,7 +411,7 @@ export async function saveShopSettings(
           .select("id, whatsapp_number, store_notice, updated_at")
           .single()
       );
-      if (!error && data) {
+      if (!error && isValidRemoteRow(data)) {
         savedRow = data;
         syncedToDb = true;
       }
@@ -374,7 +459,6 @@ export async function submitShopOrder(order: ShopOrder): Promise<{ syncedToDb: b
   const localOrders = readLocalJson<ShopOrder[]>(LOCAL_STORAGE_KEYS.ORDERS, []);
   writeLocalJson(LOCAL_STORAGE_KEYS.ORDERS, [order, ...localOrders]);
 
-  // Decrement stock in local cache immediately
   const localProducts = readLocalJson<ShopProduct[]>(LOCAL_STORAGE_KEYS.PRODUCTS, SEED_SHOP_PRODUCTS);
   const updatedProducts = localProducts.map((p) => {
     const match = order.items.find((i) => i.product_id === p.id);
