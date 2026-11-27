@@ -13,7 +13,7 @@ const Register = () => {
         <div className="min-h-screen bg-background relative selection:bg-gold/30 selection:text-gold-light flex flex-col">
             <Navbar />
 
-            <main className="flex-1 flex items-center justify-center pt-24 pb-16 px-4 relative overflow-hidden">
+            <main className="flex-1 flex items-center justify-center pt-28 md:pt-32 pb-16 px-4 relative overflow-hidden">
                 {/* Decorative Backgrounds */}
                 <div className="fixed top-1/4 left-0 w-[60%] h-[60%] bg-gold/5 rounded-full blur-[140px] pointer-events-none -z-10"></div>
                 <div className="fixed bottom-0 right-0 w-[50%] h-[50%] bg-indigo-500/5 rounded-full blur-[140px] pointer-events-none -z-10"></div>

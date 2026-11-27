@@ -77,7 +77,7 @@ const Donate = () => {
         <div className="min-h-screen bg-background relative selection:bg-gold/30 selection:text-gold-light flex flex-col">
             <Navbar />
 
-            <main className="flex-1 flex items-center justify-center pt-24 pb-12 px-4 relative overflow-hidden">
+            <main className="flex-1 flex items-center justify-center pt-28 md:pt-32 pb-12 px-4 relative overflow-hidden">
                 <div className="fixed top-1/4 left-0 w-[60%] h-[60%] bg-gold/5 rounded-full blur-[140px] pointer-events-none -z-10"></div>
 
                 <div className="max-w-4xl w-full mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 items-center relative z-10">

@@ -10,6 +10,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
+import {
+  mergeChatMessages,
+  removeChatMessage,
+  upsertChatMessage,
+  type LiveChatMessage,
+} from "@/utils/liveChat";
 const LiveStream = () => {
     const { data: liveStreamSettings, isLoading } = useQuery({
         queryKey: ["live-stream-settings"],
@@ -153,7 +159,7 @@ const LiveStream = () => {
     }, []);
 
     // Chat state
-    const [messages, setMessages] = useState<any[]>([]);
+    const [messages, setMessages] = useState<LiveChatMessage[]>([]);
     const chatRef = useRef<HTMLDivElement | null>(null);
     const [userName, setUserName] = useState<string>(localStorage.getItem("chatName") || "");
     const [newMessage, setNewMessage] = useState<string>("");
@@ -176,20 +182,58 @@ const LiveStream = () => {
         }
     };
 
-    // Load recent chat messages once
+    // Load recent chat messages, subscribe to realtime changes, and keep in sync
     useEffect(() => {
         let mounted = true;
-        (async () => {
+
+        const fetchChats = async () => {
             try {
-                const { data, error } = await supabase.from("live_chats").select("*").order("created_at", { ascending: true }).limit(200);
+                const { data, error } = await supabase
+                    .from("live_chats")
+                    .select("*")
+                    .eq("is_deleted", false)
+                    .order("created_at", { ascending: true })
+                    .limit(200);
                 if (error) throw error;
-                if (mounted && data) setMessages(data as any[]);
+                if (mounted && data) {
+                    setMessages((prev) => mergeChatMessages(prev, data as LiveChatMessage[]));
+                }
             } catch (err) {
                 console.debug("Failed to load messages", err);
             }
-        })();
+        };
 
-        return () => { mounted = false; };
+        fetchChats();
+
+        const chatChannel = supabase
+            .channel("live-chats-realtime")
+            .on(
+                "postgres_changes",
+                { event: "*", schema: "public", table: "live_chats" },
+                (payload) => {
+                    if (!mounted) return;
+                    if (payload.eventType === "DELETE") {
+                        const deletedId = (payload.old as { id?: string } | null)?.id;
+                        if (deletedId) {
+                            setMessages((prev) => removeChatMessage(prev, deletedId));
+                        }
+                        return;
+                    }
+                    const row = payload.new as LiveChatMessage | null;
+                    if (row?.id) {
+                        setMessages((prev) => upsertChatMessage(prev, row));
+                    }
+                },
+            )
+            .subscribe();
+
+        const pollInterval = setInterval(fetchChats, 5000);
+
+        return () => {
+            mounted = false;
+            clearInterval(pollInterval);
+            supabase.removeChannel(chatChannel);
+        };
     }, []);
 
     // Auto-scroll chat when messages update
@@ -201,28 +245,47 @@ const LiveStream = () => {
 
     const handleSendMessage = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!newMessage.trim()) return;
+        const msgToSend = newMessage.trim();
+        if (!msgToSend) return;
 
         let finalName = userName.trim();
         if (!finalName) {
             finalName = "Anonymous " + Math.floor(Math.random() * 1000);
             setUserName(finalName);
-            localStorage.setItem("chatName", finalName);
-        } else {
-            localStorage.setItem("chatName", finalName);
         }
+        localStorage.setItem("chatName", finalName);
 
-        const msgToSend = newMessage;
-        setNewMessage("");
-
-        const { error } = await supabase.from("live_chats").insert({
+        const tempId = `temp-${crypto.randomUUID()}`;
+        const optimisticMessage: LiveChatMessage = {
+            id: tempId,
             user_name: finalName,
-            message: msgToSend
-        });
+            message: msgToSend,
+            created_at: new Date().toISOString(),
+            optimistic: true,
+        };
+
+        setNewMessage("");
+        setMessages((prev) => upsertChatMessage(prev, optimisticMessage));
+
+        const { data, error } = await supabase
+            .from("live_chats")
+            .insert({
+                user_name: finalName,
+                message: msgToSend,
+            })
+            .select("*")
+            .single();
 
         if (error) {
             console.error(error);
+            setMessages((prev) => removeChatMessage(prev, tempId));
+            setNewMessage(msgToSend);
             toast.error("Failed to send message");
+            return;
+        }
+
+        if (data) {
+            setMessages((prev) => upsertChatMessage(prev, data as LiveChatMessage, tempId));
         }
     };
 
@@ -339,22 +402,25 @@ const LiveStream = () => {
     };
 
     return (
-        <div className="min-h-screen bg-navy text-foreground flex flex-col selection:bg-gold/30 selection:text-gold-light">
+        <div className="min-h-screen lg:h-dvh lg:overflow-hidden bg-navy text-foreground flex flex-col selection:bg-gold/30 selection:text-gold-light">
             <Navbar />
 
-            <main className="flex-1 flex justify-center w-full pt-20 lg:pt-24 pb-8 px-2 md:px-4 lg:px-6 relative overflow-hidden">
+            <main className="flex-1 min-h-0 flex justify-center w-full pt-28 lg:pt-[118px] pb-4 lg:pb-6 px-3 md:px-4 lg:px-6 relative overflow-hidden">
                 {/* Abstract Background Elements */}
                 <div className="absolute inset-0 z-0 pointer-events-none">
                     <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-gold/5 rounded-full blur-[120px] animate-pulse-slow" />
                     <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-indigo-500/5 rounded-full blur-[120px] animate-pulse-slow" style={{ animationDelay: "2s" }} />
                 </div>
 
-                <div className="relative z-10 w-full max-w-[1800px] flex flex-col lg:flex-row gap-4 lg:gap-6 items-start">
+                <div className="relative z-10 w-full max-w-[1800px] h-full min-h-0 flex flex-col lg:flex-row gap-4 lg:gap-6 items-stretch">
 
-                    {/* Left Column: Video & Details */}
-                    <div className="flex-1 w-full flex flex-col gap-4 animate-fade-up min-w-0">
+                    {/* Left Column: Video & Details (Only scrollable region on desktop) */}
+                    <div
+                        data-testid="live-video-scroll-pane"
+                        className="flex-1 w-full min-w-0 min-h-0 lg:h-full lg:overflow-y-auto lg:pr-2 flex flex-col gap-4 custom-scrollbar animate-fade-up"
+                    >
                         {/* 16:9 Video Player */}
-                        <div className="w-full aspect-video rounded-xl md:rounded-2xl overflow-hidden bg-black relative shadow-2xl border border-border/10">
+                        <div className="w-full shrink-0 aspect-video rounded-xl md:rounded-2xl overflow-hidden bg-black relative shadow-2xl border border-border/10">
                             {isLoading ? (
                                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 text-gold">
                                     <Loader2 className="h-10 w-10 animate-spin" />
@@ -391,7 +457,7 @@ const LiveStream = () => {
                         </div>
 
                         {/* Video Details / Description Box */}
-                        <div className="w-full bg-card/40 backdrop-blur-xl border border-border/30 rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg">
+                        <div className="w-full shrink-0 bg-card/40 backdrop-blur-xl border border-border/30 rounded-xl md:rounded-2xl p-4 md:p-6 shadow-lg">
                             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
                                 <div>
                                     <h1 className="text-2xl md:text-3xl font-display font-bold text-foreground leading-tight">
@@ -418,11 +484,14 @@ const LiveStream = () => {
                         </div>
                     </div>
 
-                    {/* Right Column: Interaction Panel (Sticky on Desktop) */}
-                    <div className="w-full lg:w-[380px] xl:w-[420px] shrink-0 flex flex-col bg-card border border-border/50 rounded-xl md:rounded-2xl shadow-2xl h-[550px] lg:h-[calc(100vh-120px)] lg:sticky lg:top-[90px] overflow-hidden">
+                    {/* Right Column: Fixed-Height Interaction Panel */}
+                    <div
+                        data-testid="live-chat-panel"
+                        className="w-full lg:w-[380px] xl:w-[420px] shrink-0 flex flex-col bg-card border border-border/50 rounded-xl md:rounded-2xl shadow-2xl h-[540px] lg:h-full lg:min-h-0 overflow-hidden"
+                    >
 
-                        <Tabs defaultValue="chat" className="flex flex-col h-full w-full">
-                            <div className="px-4 pt-4 pb-2 border-b border-border/50 bg-muted/20">
+                        <Tabs defaultValue="chat" className="flex flex-col flex-1 min-h-0 h-full w-full">
+                            <div className="px-4 pt-4 pb-2 border-b border-border/50 bg-muted/20 shrink-0">
                                 <TabsList className="grid w-full grid-cols-3 bg-background border border-border/50 h-10">
                                     <TabsTrigger value="chat" className="text-xs sm:text-sm font-semibold data-[state=active]:bg-gradient-gold data-[state=active]:text-foreground"><MessageCircle className="w-3.5 h-3.5 mr-1" />Chat</TabsTrigger>
                                     <TabsTrigger value="qa" className="text-xs sm:text-sm font-semibold data-[state=active]:bg-gradient-gold data-[state=active]:text-foreground"><HelpCircle className="w-3.5 h-3.5 mr-1" />Q&A</TabsTrigger>
@@ -431,10 +500,10 @@ const LiveStream = () => {
                             </div>
 
                             {/* Chat Tab */}
-                            <TabsContent value="chat" className="flex-1 flex flex-col mt-0 h-full overflow-hidden data-[state=inactive]:hidden">
+                            <TabsContent value="chat" className="flex-1 min-h-0 flex flex-col mt-0 overflow-hidden data-[state=inactive]:hidden">
 
                                 {/* Chat Messages */}
-                                <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar bg-background/30" ref={chatRef}>
+                                <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4 custom-scrollbar bg-background/30" ref={chatRef}>
                                     {messages.map((msg, i) => (
                                         <div key={msg.id || i} className="group animate-fade-in flex gap-3 items-start">
                                             <div className="w-8 h-8 rounded-full bg-gradient-navy shrink-0 flex items-center justify-center text-xs font-bold text-gold-light border border-gold/20">
@@ -482,8 +551,8 @@ const LiveStream = () => {
                             </TabsContent>
 
                             {/* Q&A Tab */}
-                            <TabsContent value="qa" className="flex-1 flex flex-col mt-0 h-full overflow-hidden data-[state=inactive]:hidden p-4">
-                                <div className="flex-1 overflow-y-auto space-y-4 custom-scrollbar flex flex-col bg-background/30 rounded-lg border border-border/50 p-4">
+                            <TabsContent value="qa" className="flex-1 min-h-0 flex flex-col mt-0 overflow-hidden data-[state=inactive]:hidden p-4">
+                                <div className="flex-1 min-h-0 overflow-y-auto space-y-4 custom-scrollbar flex flex-col bg-background/30 rounded-lg border border-border/50 p-4">
                                     {questions.length === 0 ? (
                                         <div className="flex-1 flex flex-col justify-center items-center text-center opacity-50 space-y-2">
                                             <HelpCircle className="w-10 h-10 mx-auto text-muted-foreground" />
@@ -537,8 +606,8 @@ const LiveStream = () => {
                             </TabsContent>
 
                             {/* Polls Tab */}
-                            <TabsContent value="polls" className="flex-1 flex flex-col mt-0 h-full overflow-hidden data-[state=inactive]:hidden p-4">
-                                <div className="flex-1 overflow-y-auto space-y-4 custom-scrollbar bg-background/30 border border-border/50 rounded-lg p-3">
+                            <TabsContent value="polls" className="flex-1 min-h-0 flex flex-col mt-0 overflow-hidden data-[state=inactive]:hidden p-4">
+                                <div className="flex-1 min-h-0 overflow-y-auto space-y-4 custom-scrollbar bg-background/30 border border-border/50 rounded-lg p-3">
                                     {polls.length === 0 ? (
                                         <div className="h-full flex flex-col justify-center items-center text-center opacity-50 space-y-2">
                                             <BarChart2 className="w-10 h-10 mx-auto text-muted-foreground mb-2" />
