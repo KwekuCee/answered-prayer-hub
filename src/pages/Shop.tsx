@@ -26,6 +26,8 @@ import {
   MessageSquare,
   Truck,
   Package,
+  ChevronLeft,
+  ChevronRight,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -43,6 +45,8 @@ import {
   buildWhatsAppOrderMessage,
   buildWhatsAppUrl,
   resolveProductImageUrl,
+  resolveProductGalleryUrls,
+  getDiscountInfo,
   syncCartWithProducts,
   readLocalJson,
   writeLocalJson,
@@ -90,11 +94,96 @@ const ProductThumbnail: React.FC<{ src: string; alt: string; className?: string 
     <img
       src={src}
       alt={alt}
-      loading="lazy"
+      loading="eager"
       decoding="async"
+      referrerPolicy="no-referrer"
       onError={() => setFailed(true)}
       className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 ${className}`}
     />
+  );
+};
+
+const ProductCardGallery: React.FC<{
+  product: ShopProduct;
+  onInspect: (activeIndex: number) => void;
+}> = ({ product, onInspect }) => {
+  const gallery = useMemo(() => resolveProductGalleryUrls(product), [product]);
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  useEffect(() => {
+    setActiveIndex(0);
+  }, [product.id, gallery.length]);
+
+  const currentSrc = gallery[activeIndex] || gallery[0] || resolveProductImageUrl(product);
+  const outOfStock = product.stock <= 0;
+
+  return (
+    <div className="relative aspect-[4/3] w-full overflow-hidden bg-zinc-950">
+      <button
+        type="button"
+        onClick={() => onInspect(activeIndex)}
+        aria-label={`Inspect ${product.name}`}
+        className="block w-full h-full text-left focus:outline-none"
+      >
+        <ProductThumbnail src={currentSrc} alt={product.name} />
+      </button>
+
+      {gallery.length > 1 && (
+        <>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setActiveIndex((idx) => (idx - 1 + gallery.length) % gallery.length);
+            }}
+            aria-label={`Previous image of ${product.name}`}
+            data-testid={`card-prev-img-${product.id}`}
+            className="absolute left-2.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/70 border border-white/15 text-white flex items-center justify-center opacity-90 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100 transition-opacity hover:border-gold hover:text-gold"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setActiveIndex((idx) => (idx + 1) % gallery.length);
+            }}
+            aria-label={`Next image of ${product.name}`}
+            data-testid={`card-next-img-${product.id}`}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/70 border border-white/15 text-white flex items-center justify-center opacity-90 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100 transition-opacity hover:border-gold hover:text-gold"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+
+          <div className="absolute bottom-2.5 inset-x-0 flex items-center justify-center gap-1.5 pointer-events-none">
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/65 backdrop-blur-sm pointer-events-auto">
+              {gallery.map((_, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActiveIndex(idx);
+                  }}
+                  aria-label={`View image ${idx + 1} of ${gallery.length} for ${product.name}`}
+                  className={`h-1.5 rounded-full transition-all ${
+                    idx === activeIndex
+                      ? "w-4 bg-gold"
+                      : "w-1.5 bg-white/45 hover:bg-white/75"
+                  }`}
+                />
+              ))}
+            </div>
+          </div>
+        </>
+      )}
+
+      {outOfStock && (
+        <span className="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-background/90 text-destructive text-[11px] font-semibold border border-destructive/40">
+          Sold Out
+        </span>
+      )}
+    </div>
   );
 };
 
@@ -129,6 +218,7 @@ const Shop = () => {
 
   const [isBagOpen, setIsBagOpen] = useState(false);
   const [inspectingProduct, setInspectingProduct] = useState<ShopProduct | null>(null);
+  const [inspectImageIdx, setInspectImageIdx] = useState(0);
   const [inspectQty, setInspectQty] = useState(1);
 
   // Checkout Modal State
@@ -461,27 +551,21 @@ const Shop = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredProducts.map((product) => {
               const outOfStock = product.stock <= 0;
+              const discount = getDiscountInfo(product);
               return (
                 <article
                   key={product.id}
                   data-testid={`product-card-${product.id}`}
                   className="group rounded-3xl border border-border/60 bg-card/80 backdrop-blur-xl overflow-hidden flex flex-col hover:border-gold/45 hover:shadow-gold/10 transition-all duration-300"
                 >
-                  <button
-                    type="button"
-                    onClick={() => {
+                  <ProductCardGallery
+                    product={product}
+                    onInspect={(idx) => {
                       setInspectQty(1);
+                      setInspectImageIdx(idx);
                       setInspectingProduct(product);
                     }}
-                    className="relative aspect-[4/3] w-full overflow-hidden bg-zinc-950 text-left focus:outline-none"
-                  >
-                    <ProductThumbnail src={resolveProductImageUrl(product)} alt={product.name} />
-                    {outOfStock && (
-                      <span className="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-background/90 text-destructive text-[11px] font-semibold border border-destructive/40">
-                        Sold Out
-                      </span>
-                    )}
-                  </button>
+                  />
 
                   <div className="p-5 flex-1 flex flex-col justify-between gap-4">
                     <div className="space-y-1.5">
@@ -494,6 +578,7 @@ const Shop = () => {
                       <h2
                         onClick={() => {
                           setInspectQty(1);
+                          setInspectImageIdx(0);
                           setInspectingProduct(product);
                         }}
                         className="font-display font-bold text-lg text-foreground leading-snug cursor-pointer group-hover:text-gold transition-colors line-clamp-2"
@@ -506,11 +591,28 @@ const Shop = () => {
                     </div>
 
                     <div className="space-y-3 pt-2 border-t border-border/40">
-                      <div className="flex items-baseline justify-between">
-                        <span className="text-xs text-muted-foreground font-body">Price</span>
-                        <span className="text-xl font-display font-bold text-foreground tabular-nums">
-                          {formatGHS(product.price)}
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className="text-xs text-muted-foreground font-body">
+                          {discount.hasDiscount
+                            ? `Price · Save ${discount.discountPercent}%`
+                            : "Price"}
                         </span>
+                        <div className="flex items-baseline gap-2 tabular-nums">
+                          {discount.hasDiscount && discount.oldPrice !== null && (
+                            <span
+                              data-testid={`product-old-price-${product.id}`}
+                              className="text-sm text-muted-foreground/80 line-through"
+                            >
+                              {formatGHS(discount.oldPrice)}
+                            </span>
+                          )}
+                          <span
+                            data-testid={`product-active-price-${product.id}`}
+                            className="text-xl font-display font-bold text-foreground"
+                          >
+                            {formatGHS(discount.activePrice)}
+                          </span>
+                        </div>
                       </div>
                       <div className="grid grid-cols-2 gap-2">
                         <Button
@@ -543,83 +645,161 @@ const Shop = () => {
       {/* Product Detail Quick View Modal */}
       <Dialog open={!!inspectingProduct} onOpenChange={(open) => !open && setInspectingProduct(null)}>
         <DialogContent className="sm:max-w-2xl bg-card border-gold/30 rounded-3xl p-0 overflow-hidden">
-          {inspectingProduct && (
-            <div className="grid grid-cols-1 md:grid-cols-2">
-              <div className="aspect-[4/3] md:aspect-auto md:h-full bg-zinc-950">
-                <ProductThumbnail
-                  src={resolveProductImageUrl(inspectingProduct)}
-                  alt={inspectingProduct.name}
-                />
-              </div>
-              <div className="p-6 md:p-7 flex flex-col justify-between space-y-5">
-                <div className="space-y-2">
-                  <DialogHeader className="text-left space-y-1">
-                    <span className="text-xs uppercase tracking-widest text-gold font-semibold">
-                      {inspectingProduct.category}
-                    </span>
-                    <DialogTitle className="font-display text-2xl font-bold text-foreground">
-                      {inspectingProduct.name}
-                    </DialogTitle>
-                    <DialogDescription className="text-sm font-body text-muted-foreground leading-relaxed pt-1">
-                      {inspectingProduct.description}
-                    </DialogDescription>
-                  </DialogHeader>
+          {inspectingProduct && (() => {
+            const modalGallery = resolveProductGalleryUrls(inspectingProduct);
+            const activeModalSrc =
+              modalGallery[inspectImageIdx] ||
+              modalGallery[0] ||
+              resolveProductImageUrl(inspectingProduct);
+            const modalDiscount = getDiscountInfo(inspectingProduct);
+
+            return (
+              <div className="grid grid-cols-1 md:grid-cols-2">
+                <div className="bg-zinc-950 flex flex-col">
+                  <div className="relative aspect-[4/3] md:flex-1 md:min-h-[280px] overflow-hidden">
+                    <ProductThumbnail
+                      src={activeModalSrc}
+                      alt={inspectingProduct.name}
+                    />
+                    {modalGallery.length > 1 && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setInspectImageIdx(
+                              (idx) => (idx - 1 + modalGallery.length) % modalGallery.length
+                            )
+                          }
+                          aria-label="Previous product photo"
+                          className="absolute left-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/75 border border-white/20 text-white flex items-center justify-center hover:border-gold hover:text-gold"
+                        >
+                          <ChevronLeft className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setInspectImageIdx((idx) => (idx + 1) % modalGallery.length)
+                          }
+                          aria-label="Next product photo"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-black/75 border border-white/20 text-white flex items-center justify-center hover:border-gold hover:text-gold"
+                        >
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                      </>
+                    )}
+                  </div>
+
+                  {modalGallery.length > 1 && (
+                    <div className="p-2.5 bg-zinc-950/90 border-t border-border/40 flex items-center gap-2 overflow-x-auto">
+                      {modalGallery.map((thumbUrl, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => setInspectImageIdx(idx)}
+                          aria-label={`Select photo ${idx + 1}`}
+                          data-testid={`modal-thumb-${idx}`}
+                          className={`w-14 h-12 rounded-lg overflow-hidden border-2 shrink-0 transition-opacity ${
+                            idx === inspectImageIdx
+                              ? "border-gold opacity-100"
+                              : "border-transparent opacity-60 hover:opacity-90"
+                          }`}
+                        >
+                          <img
+                            src={thumbUrl}
+                            alt={`${inspectingProduct.name} photo ${idx + 1}`}
+                            referrerPolicy="no-referrer"
+                            className="w-full h-full object-cover"
+                          />
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between pt-3 border-t border-border/50">
-                    <span className="text-2xl font-display font-bold text-foreground tabular-nums">
-                      {formatGHS(inspectingProduct.price)}
-                    </span>
-                    <div className="flex items-center gap-2 border border-border/70 rounded-full px-2 py-1">
-                      <button
-                        type="button"
-                        aria-label="Decrease quantity"
-                        onClick={() => setInspectQty((q) => Math.max(1, q - 1))}
-                        className="p-1 text-muted-foreground hover:text-foreground"
-                      >
-                        <Minus className="w-3.5 h-3.5" />
-                      </button>
-                      <span className="w-6 text-center text-sm font-semibold tabular-nums">
-                        {inspectQty}
+                <div className="p-6 md:p-7 flex flex-col justify-between space-y-5">
+                  <div className="space-y-2">
+                    <DialogHeader className="text-left space-y-1">
+                      <span className="text-xs uppercase tracking-widest text-gold font-semibold">
+                        {inspectingProduct.category}
                       </span>
-                      <button
-                        type="button"
-                        aria-label="Increase quantity"
-                        onClick={() =>
-                          setInspectQty((q) => Math.min(inspectingProduct.stock || 1, q + 1))
-                        }
-                        className="p-1 text-muted-foreground hover:text-foreground"
+                      <DialogTitle className="font-display text-2xl font-bold text-foreground">
+                        {inspectingProduct.name}
+                      </DialogTitle>
+                      <DialogDescription className="text-sm font-body text-muted-foreground leading-relaxed pt-1">
+                        {inspectingProduct.description}
+                      </DialogDescription>
+                    </DialogHeader>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between pt-3 border-t border-border/50 gap-3">
+                      <div>
+                        <div className="flex items-baseline gap-2.5 tabular-nums">
+                          {modalDiscount.hasDiscount && modalDiscount.oldPrice !== null && (
+                            <span className="text-base text-muted-foreground/80 line-through">
+                              {formatGHS(modalDiscount.oldPrice)}
+                            </span>
+                          )}
+                          <span className="text-2xl font-display font-bold text-foreground">
+                            {formatGHS(modalDiscount.activePrice)}
+                          </span>
+                        </div>
+                        {modalDiscount.hasDiscount && (
+                          <p className="text-xs text-gold font-medium mt-0.5">
+                            Save {modalDiscount.discountPercent}%
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 border border-border/70 rounded-full px-2 py-1 shrink-0">
+                        <button
+                          type="button"
+                          aria-label="Decrease quantity"
+                          onClick={() => setInspectQty((q) => Math.max(1, q - 1))}
+                          className="p-1 text-muted-foreground hover:text-foreground"
+                        >
+                          <Minus className="w-3.5 h-3.5" />
+                        </button>
+                        <span className="w-6 text-center text-sm font-semibold tabular-nums">
+                          {inspectQty}
+                        </span>
+                        <button
+                          type="button"
+                          aria-label="Increase quantity"
+                          onClick={() =>
+                            setInspectQty((q) => Math.min(inspectingProduct.stock || 1, q + 1))
+                          }
+                          className="p-1 text-muted-foreground hover:text-foreground"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <Button
+                        variant="outline"
+                        disabled={inspectingProduct.stock <= 0}
+                        onClick={() => {
+                          addToBag(inspectingProduct, inspectQty);
+                          setInspectingProduct(null);
+                        }}
+                        className="rounded-xl"
                       >
-                        <Plus className="w-3.5 h-3.5" />
-                      </button>
+                        Add to Bag
+                      </Button>
+                      <Button
+                        disabled={inspectingProduct.stock <= 0}
+                        onClick={() => openBuyNow(inspectingProduct, inspectQty)}
+                        className="rounded-xl bg-gradient-gold text-navy font-bold shadow-gold"
+                      >
+                        Buy Now · {formatGHS(inspectingProduct.price * inspectQty)}
+                      </Button>
                     </div>
                   </div>
-
-                  <div className="grid grid-cols-2 gap-2.5">
-                    <Button
-                      variant="outline"
-                      disabled={inspectingProduct.stock <= 0}
-                      onClick={() => {
-                        addToBag(inspectingProduct, inspectQty);
-                        setInspectingProduct(null);
-                      }}
-                      className="rounded-xl"
-                    >
-                      Add to Bag
-                    </Button>
-                    <Button
-                      disabled={inspectingProduct.stock <= 0}
-                      onClick={() => openBuyNow(inspectingProduct, inspectQty)}
-                      className="rounded-xl bg-gradient-gold text-navy font-bold shadow-gold"
-                    >
-                      Buy Now · {formatGHS(inspectingProduct.price * inspectQty)}
-                    </Button>
-                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
         </DialogContent>
       </Dialog>
 
@@ -669,6 +849,7 @@ const Shop = () => {
                         alt={item.name}
                         loading="lazy"
                         decoding="async"
+                        referrerPolicy="no-referrer"
                         className="w-16 h-16 rounded-xl object-cover shrink-0 bg-zinc-900"
                       />
                       <div className="flex-1 min-w-0">

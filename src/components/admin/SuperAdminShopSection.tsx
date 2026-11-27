@@ -25,6 +25,9 @@ import {
   AlertTriangle,
   Upload,
   Loader2,
+  X,
+  Star,
+  Images,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -35,6 +38,9 @@ import {
   formatGHS,
   buildWhatsAppUrl,
   resolveProductImageUrl,
+  resolveProductGalleryUrls,
+  normalizeProductImages,
+  getDiscountInfo,
 } from "@/utils/shop";
 import {
   fetchAdminProductsWithStatus,
@@ -105,10 +111,13 @@ export const SuperAdminShopSection: React.FC = () => {
     description: "",
     category: "Apparel",
     price: 100,
+    compare_at_price: null,
     stock: 50,
     image_url: "/images/shop/worship-tee.webp",
+    images: ["/images/shop/worship-tee.webp"],
     is_active: true,
   });
+  const [extraImageUrl, setExtraImageUrl] = useState("");
   const [savingProduct, setSavingProduct] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [productSaveError, setProductSaveError] = useState("");
@@ -129,15 +138,23 @@ export const SuperAdminShopSection: React.FC = () => {
     [filteredOrders, orderPage]
   );
 
+  const editingGallery = useMemo(
+    () => normalizeProductImages(editingProduct.images, editingProduct.image_url),
+    [editingProduct.images, editingProduct.image_url]
+  );
+
   const openNewProduct = () => {
     setProductSaveError("");
+    setExtraImageUrl("");
     setEditingProduct({
       name: "",
       description: "",
       category: "Apparel",
       price: 100,
+      compare_at_price: null,
       stock: 50,
       image_url: "/images/shop/worship-tee.webp",
+      images: ["/images/shop/worship-tee.webp"],
       is_active: true,
     });
     setProductModalOpen(true);
@@ -145,33 +162,83 @@ export const SuperAdminShopSection: React.FC = () => {
 
   const openEditProduct = (product: ShopProduct) => {
     setProductSaveError("");
-    setEditingProduct({ ...product });
+    setExtraImageUrl("");
+    const gallery = normalizeProductImages(product.images, product.image_url);
+    setEditingProduct({
+      ...product,
+      image_url: gallery[0] || product.image_url,
+      images: gallery,
+      compare_at_price: product.compare_at_price ?? null,
+    });
     setProductModalOpen(true);
   };
 
+  const setProductGallery = (nextUrls: string[]) => {
+    const cleaned = normalizeProductImages(nextUrls);
+    setEditingProduct((p) => ({
+      ...p,
+      images: cleaned,
+      image_url: cleaned[0] || "",
+    }));
+  };
+
   const handleProductImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      toast.error("Please select an image file (JPG, PNG, or WebP).");
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    const imageFiles = files.filter((file) => file.type.startsWith("image/"));
+    if (imageFiles.length === 0) {
+      toast.error("Please select image files (JPG, PNG, or WebP).");
+      e.target.value = "";
       return;
     }
+
     setUploadingImage(true);
     setProductSaveError("");
     try {
-      const { url, uploadedToStorage } = await uploadShopProductImage(file);
-      setEditingProduct((p) => ({ ...p, image_url: url }));
+      const results = await Promise.all(imageFiles.map((file) => uploadShopProductImage(file)));
+      const newUrls = results.map((r) => r.url);
+      const hadStorageSuccess = results.some((r) => r.uploadedToStorage);
+
+      // Replace single untouched default placeholder if the admin is adding their first real upload
+      const existingWithoutDefaultSeed =
+        editingGallery.length === 1 && editingGallery[0].startsWith("/images/shop/")
+          ? []
+          : editingGallery;
+
+      setProductGallery([...existingWithoutDefaultSeed, ...newUrls]);
+
+      const countLabel = newUrls.length === 1 ? "Image" : `${newUrls.length} images`;
       toast.success(
-        uploadedToStorage
-          ? "Image uploaded to store storage! Click Save Product to publish."
-          : "Image optimized and attached! Click Save Product to publish across all devices."
+        hadStorageSuccess
+          ? `${countLabel} uploaded to store storage! Click Save Product to publish.`
+          : `${countLabel} optimized and added to gallery! Click Save Product to publish across all devices.`
       );
     } catch {
-      toast.error("Could not process the selected image. Please try another file.");
+      toast.error("Could not process the selected images. Please try another file.");
     } finally {
       setUploadingImage(false);
       e.target.value = "";
     }
+  };
+
+  const handleAddExtraImageUrl = () => {
+    const trimmed = extraImageUrl.trim();
+    if (!trimmed) return;
+    setProductGallery([...editingGallery, trimmed]);
+    setExtraImageUrl("");
+  };
+
+  const handleSetCoverImage = (index: number) => {
+    if (index <= 0 || index >= editingGallery.length) return;
+    const selected = editingGallery[index];
+    const reordered = [selected, ...editingGallery.filter((_, i) => i !== index)];
+    setProductGallery(reordered);
+  };
+
+  const handleRemoveImage = (index: number) => {
+    const next = editingGallery.filter((_, i) => i !== index);
+    setProductGallery(next);
   };
 
   const handleSaveProduct = async (e: React.FormEvent) => {
@@ -180,13 +247,29 @@ export const SuperAdminShopSection: React.FC = () => {
       toast.error("Product name is required.");
       return;
     }
+    const activePrice = Math.max(0, Number(editingProduct.price) || 0);
+    const rawCompare =
+      editingProduct.compare_at_price === null ||
+      editingProduct.compare_at_price === undefined ||
+      editingProduct.compare_at_price === ("" as any)
+        ? null
+        : Number(editingProduct.compare_at_price);
+    if (rawCompare !== null && Number.isFinite(rawCompare) && rawCompare <= activePrice) {
+      toast.error("Old price must be higher than the active selling price to show as a discount.");
+      return;
+    }
+
     setSavingProduct(true);
     setProductSaveError("");
     try {
+      const galleryToSave = normalizeProductImages(editingProduct.images, editingProduct.image_url);
       const { syncedToDb, dbError } = await upsertShopProduct({
         ...editingProduct,
         name: editingProduct.name.trim(),
-        price: Number(editingProduct.price) || 0,
+        price: activePrice,
+        compare_at_price: rawCompare,
+        image_url: galleryToSave[0] || "/images/shop/worship-tee.webp",
+        images: galleryToSave,
       });
 
       if (!syncedToDb) {
@@ -335,44 +418,61 @@ export const SuperAdminShopSection: React.FC = () => {
             </div>
           )}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {products.map((product) => (
-              <Card key={product.id} className="bg-card/80 backdrop-blur-xl border-border/60 rounded-3xl overflow-hidden flex flex-col">
-                <div className="aspect-[16/10] bg-zinc-950 relative overflow-hidden">
-                  <img
-                    src={resolveProductImageUrl(product)}
-                    alt={product.name}
-                    loading="lazy"
-                    decoding="async"
-                    className="w-full h-full object-cover"
-                  />
-                <Badge
-                  variant="outline"
-                  className={`absolute top-3 left-3 text-[10px] ${
-                    product.is_active
-                      ? "bg-emerald-950/85 text-emerald-300 border-emerald-500/40"
-                      : "bg-zinc-950/85 text-zinc-400 border-zinc-700"
-                  }`}
-                >
-                  {product.is_active ? "Visible in Store" : "Hidden"}
-                </Badge>
-              </div>
-              <CardContent className="p-5 flex-1 flex flex-col justify-between space-y-4">
-                <div>
-                  <div className="flex items-center justify-between text-xs text-gold font-semibold uppercase tracking-wider mb-1">
-                    <span>{product.category}</span>
-                    <span className="tabular-nums text-muted-foreground">{product.stock} left</span>
-                  </div>
-                  <h4 className="font-display font-bold text-lg text-foreground leading-snug">{product.name}</h4>
-                  <p className="text-xs text-muted-foreground font-body line-clamp-2 mt-1">
-                    {product.description}
-                  </p>
+            {products.map((product) => {
+              const gallery = resolveProductGalleryUrls(product);
+              const discount = getDiscountInfo(product);
+              return (
+                <Card key={product.id} className="bg-card/80 backdrop-blur-xl border-border/60 rounded-3xl overflow-hidden flex flex-col">
+                  <div className="aspect-[16/10] bg-zinc-950 relative overflow-hidden">
+                    <img
+                      src={gallery[0] || resolveProductImageUrl(product)}
+                      alt={product.name}
+                      loading="lazy"
+                      decoding="async"
+                      referrerPolicy="no-referrer"
+                      className="w-full h-full object-cover"
+                    />
+                  <Badge
+                    variant="outline"
+                    className={`absolute top-3 left-3 text-[10px] ${
+                      product.is_active
+                        ? "bg-emerald-950/85 text-emerald-300 border-emerald-500/40"
+                        : "bg-zinc-950/85 text-zinc-400 border-zinc-700"
+                    }`}
+                  >
+                    {product.is_active ? "Visible in Store" : "Hidden"}
+                  </Badge>
+                  {gallery.length > 1 && (
+                    <span className="absolute bottom-2.5 right-2.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-black/75 text-white text-[10px] font-medium">
+                      <Images className="w-3 h-3 text-gold" />
+                      {gallery.length} photos
+                    </span>
+                  )}
                 </div>
+                <CardContent className="p-5 flex-1 flex flex-col justify-between space-y-4">
+                  <div>
+                    <div className="flex items-center justify-between text-xs text-gold font-semibold uppercase tracking-wider mb-1">
+                      <span>{product.category}</span>
+                      <span className="tabular-nums text-muted-foreground">{product.stock} left</span>
+                    </div>
+                    <h4 className="font-display font-bold text-lg text-foreground leading-snug">{product.name}</h4>
+                    <p className="text-xs text-muted-foreground font-body line-clamp-2 mt-1">
+                      {product.description}
+                    </p>
+                  </div>
 
-                <div className="pt-3 border-t border-border/50 flex items-center justify-between">
-                  <span className="text-xl font-display font-bold text-foreground tabular-nums">
-                    {formatGHS(product.price)}
-                  </span>
-                  <div className="flex items-center gap-1.5">
+                  <div className="pt-3 border-t border-border/50 flex items-center justify-between gap-2">
+                    <div className="flex items-baseline gap-2 tabular-nums">
+                      {discount.hasDiscount && discount.oldPrice !== null && (
+                        <span className="text-sm text-muted-foreground line-through">
+                          {formatGHS(discount.oldPrice)}
+                        </span>
+                      )}
+                      <span className="text-xl font-display font-bold text-foreground">
+                        {formatGHS(discount.activePrice)}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
                     <Button
                       size="icon"
                       variant="outline"
@@ -395,7 +495,8 @@ export const SuperAdminShopSection: React.FC = () => {
                 </div>
               </CardContent>
             </Card>
-          ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -630,9 +731,9 @@ export const SuperAdminShopSection: React.FC = () => {
               />
             </div>
 
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label htmlFor="prod-price" className="text-xs">Price (GHS ₵) *</Label>
+                <Label htmlFor="prod-price" className="text-xs">Active Price (New Price, GHS ₵) *</Label>
                 <Input
                   id="prod-price"
                   type="number"
@@ -645,6 +746,64 @@ export const SuperAdminShopSection: React.FC = () => {
                   required
                 />
               </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="prod-compare-price" className="text-xs">
+                  Old Price (Cancelled, GHS ₵ — Optional)
+                </Label>
+                <Input
+                  id="prod-compare-price"
+                  data-testid="admin-product-compare-price"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={editingProduct.compare_at_price ?? ""}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setEditingProduct((p) => ({
+                      ...p,
+                      compare_at_price: val === "" ? null : parseFloat(val),
+                    }));
+                  }}
+                  placeholder="Leave empty if no discount"
+                />
+              </div>
+            </div>
+
+            {(() => {
+              const previewDiscount = getDiscountInfo({
+                price: Number(editingProduct.price) || 0,
+                compare_at_price: editingProduct.compare_at_price ?? null,
+              });
+              const rawOld = editingProduct.compare_at_price;
+              if (rawOld !== null && rawOld !== undefined && rawOld !== ("" as any)) {
+                if (previewDiscount.hasDiscount && previewDiscount.oldPrice !== null) {
+                  return (
+                    <div className="flex items-center justify-between rounded-xl border border-gold/25 bg-gold/5 px-3 py-2 text-xs">
+                      <span className="text-muted-foreground">Storefront price preview:</span>
+                      <span className="flex items-baseline gap-2 tabular-nums">
+                        <span className="line-through text-muted-foreground">
+                          {formatGHS(previewDiscount.oldPrice)}
+                        </span>
+                        <span className="font-bold text-foreground">
+                          {formatGHS(previewDiscount.activePrice)}
+                        </span>
+                        <span className="text-gold font-semibold">
+                          ({previewDiscount.discountPercent}% off)
+                        </span>
+                      </span>
+                    </div>
+                  );
+                }
+                return (
+                  <p className="text-[11px] text-amber-400">
+                    Old price should be greater than the active selling price to display as a cancelled discount.
+                  </p>
+                );
+              }
+              return null;
+            })()}
+
+            <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor="prod-stock" className="text-xs">Stock Qty</Label>
                 <Input
@@ -678,69 +837,124 @@ export const SuperAdminShopSection: React.FC = () => {
               />
             </div>
 
-            <div className="space-y-2">
-              <Label className="text-xs">Product Image (Upload Photo or Choose Preset)</Label>
-              <div className="flex items-center gap-3.5 p-3 rounded-2xl border border-border/70 bg-zinc-900/60">
-                <div className="w-20 h-20 rounded-xl overflow-hidden bg-zinc-950 border border-border/60 shrink-0 flex items-center justify-center">
-                  {editingProduct.image_url ? (
-                    <img
-                      src={editingProduct.image_url}
-                      alt="Product preview"
-                      className="w-full h-full object-cover"
-                    />
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between gap-2">
+                <Label className="text-xs">
+                  Product Gallery ({editingGallery.length} {editingGallery.length === 1 ? "image" : "images"})
+                </Label>
+                <label
+                  htmlFor="prod-image-upload"
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-gold/40 bg-gold/10 text-gold text-xs font-semibold cursor-pointer hover:bg-gold/20 transition-colors ${
+                    uploadingImage ? "opacity-60 pointer-events-none" : ""
+                  }`}
+                >
+                  {uploadingImage ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   ) : (
-                    <Package className="w-6 h-6 text-muted-foreground" />
+                    <Upload className="w-3.5 h-3.5" />
                   )}
-                </div>
-                <div className="flex-1 space-y-2">
-                  <label
-                    htmlFor="prod-image-upload"
-                    className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-gold/40 bg-gold/10 text-gold text-xs font-semibold cursor-pointer hover:bg-gold/20 transition-colors ${
-                      uploadingImage ? "opacity-60 pointer-events-none" : ""
-                    }`}
-                  >
-                    {uploadingImage ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <Upload className="w-3.5 h-3.5" />
-                    )}
-                    <span>{uploadingImage ? "Uploading & Converting..." : "Upload Product Image"}</span>
-                    <input
-                      id="prod-image-upload"
-                      data-testid="admin-product-image-upload"
-                      type="file"
-                      accept="image/*"
-                      onChange={handleProductImageUpload}
-                      disabled={uploadingImage}
-                      className="sr-only"
-                    />
-                  </label>
-                  <p className="text-[11px] text-muted-foreground">
-                    Automatically compressed to fast WebP for instant storefront loading.
-                  </p>
-                </div>
+                  <span>{uploadingImage ? "Uploading..." : "Upload Photos"}</span>
+                  <input
+                    id="prod-image-upload"
+                    data-testid="admin-product-image-upload"
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={handleProductImageUpload}
+                    disabled={uploadingImage}
+                    className="sr-only"
+                  />
+                </label>
               </div>
 
-              <Input
-                id="prod-image"
-                value={editingProduct.image_url || ""}
-                onChange={(e) => setEditingProduct((p) => ({ ...p, image_url: e.target.value }))}
-                placeholder="Or paste an image URL (/images/shop/worship-tee.webp)"
-                className="text-xs"
-              />
+              {editingGallery.length > 0 ? (
+                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5">
+                  {editingGallery.map((imgUrl, idx) => (
+                    <div
+                      key={`${imgUrl}-${idx}`}
+                      className={`group relative rounded-xl overflow-hidden border bg-zinc-900 aspect-square ${
+                        idx === 0 ? "border-gold" : "border-border/60"
+                      }`}
+                    >
+                      <img
+                        src={imgUrl}
+                        alt={`Product photo ${idx + 1}`}
+                        referrerPolicy="no-referrer"
+                        className="w-full h-full object-cover"
+                      />
+                      {idx === 0 && (
+                        <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded bg-gold text-navy text-[10px] font-bold leading-none">
+                          Cover
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveImage(idx)}
+                        aria-label={`Remove image ${idx + 1}`}
+                        className="absolute top-1.5 right-1.5 w-6 h-6 rounded-full bg-black/80 text-white hover:text-red-400 flex items-center justify-center transition-colors"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                      {idx > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => handleSetCoverImage(idx)}
+                          aria-label={`Set image ${idx + 1} as cover photo`}
+                          className="absolute inset-x-1.5 bottom-1.5 py-1 rounded-lg bg-black/80 text-[10px] font-semibold text-gold hover:bg-black flex items-center justify-center gap-1"
+                        >
+                          <Star className="w-2.5 h-2.5" />
+                          Make Cover
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-dashed border-border/70 bg-zinc-900/50 py-6 text-center space-y-1">
+                  <Package className="w-6 h-6 text-muted-foreground mx-auto" />
+                  <p className="text-xs text-muted-foreground">
+                    No photos selected yet. Click Upload Photos above to add one or multiple angles.
+                  </p>
+                </div>
+              )}
+
+              <div className="flex items-center gap-2">
+                <Input
+                  id="prod-image"
+                  value={extraImageUrl}
+                  onChange={(e) => setExtraImageUrl(e.target.value)}
+                  placeholder="Or paste an image URL to add to gallery"
+                  className="text-xs"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAddExtraImageUrl}
+                  className="rounded-xl shrink-0 text-xs"
+                >
+                  Add URL
+                </Button>
+              </div>
               <div className="flex flex-wrap gap-1.5 pt-0.5">
                 {PRESET_PRODUCT_IMAGES.map((preset) => (
                   <button
                     key={preset.url}
                     type="button"
-                    onClick={() => setEditingProduct((p) => ({ ...p, image_url: preset.url }))}
+                    onClick={() => {
+                      const withoutDefault =
+                        editingGallery.length === 1 && editingGallery[0].startsWith("/images/shop/")
+                          ? []
+                          : editingGallery;
+                      setProductGallery([...withoutDefault, preset.url]);
+                    }}
                     className={`text-[10px] px-2.5 py-1 rounded-lg border transition-colors ${
-                      editingProduct.image_url === preset.url
+                      editingGallery.includes(preset.url)
                         ? "border-gold bg-gold/15 text-gold font-semibold"
                         : "border-border/60 text-muted-foreground hover:text-foreground"
                     }`}
                   >
-                    {preset.label}
+                    + {preset.label}
                   </button>
                 ))}
               </div>

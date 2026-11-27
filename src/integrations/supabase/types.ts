@@ -499,10 +499,12 @@ export type Database = {
       shop_products: {
         Row: {
           category: string
+          compare_at_price: number | null
           created_at: string
           description: string
           id: string
           image_url: string
+          images: Json
           is_active: boolean
           name: string
           price: number
@@ -511,10 +513,12 @@ export type Database = {
         }
         Insert: {
           category?: string
+          compare_at_price?: number | null
           created_at?: string
           description?: string
           id?: string
           image_url?: string
+          images?: Json
           is_active?: boolean
           name: string
           price?: number
@@ -523,10 +527,12 @@ export type Database = {
         }
         Update: {
           category?: string
+          compare_at_price?: number | null
           created_at?: string
           description?: string
           id?: string
           image_url?: string
+          images?: Json
           is_active?: boolean
           name?: string
           price?: number

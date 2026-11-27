@@ -340,7 +340,12 @@ ALTER TABLE public.members ADD COLUMN IF NOT EXISTS checked_in boolean NOT NULL 
 
 ALTER TABLE public.members ADD COLUMN IF NOT EXISTS check_in_time timestamptz;
 
-ALTER TABLE public.members ADD COLUMN IF NOT EXISTS category text NOT NULL DEFAULT 'member';
+ALTER TABLE public.members ADD COLUMN IF NOT EXISTS category text NOT NULL DEFAULT 'general';
+
+ALTER TABLE public.members DROP CONSTRAINT IF EXISTS members_category_check;
+UPDATE public.members SET category = 'general' WHERE category IS NULL OR category = 'member';
+ALTER TABLE public.members ALTER COLUMN category SET DEFAULT 'general';
+ALTER TABLE public.members ADD CONSTRAINT members_category_check CHECK (category IN ('general', 'dignitary', 'choir_member'));
 
 ALTER TABLE public.members ADD COLUMN IF NOT EXISTS choir_delegation_id uuid;
 
@@ -685,7 +690,7 @@ BEGIN
 
  SELECT id INTO current_program FROM public.programs WHERE is_active LIMIT 1;
  INSERT INTO public.members(full_name,phone,email,occupation,location,date_of_birth,inviter_id,church_id,program_id,category)
- VALUES(btrim(p_full_name),btrim(p_phone),NULLIF(btrim(COALESCE(p_email,'')),''),NULLIF(btrim(COALESCE(p_occupation,'')),''),NULLIF(btrim(COALESCE(p_location,'')),''),p_date_of_birth,p_inviter_id,chosen_church,current_program,'member')
+ VALUES(btrim(p_full_name),btrim(p_phone),NULLIF(btrim(COALESCE(p_email,'')),''),NULLIF(btrim(COALESCE(p_occupation,'')),''),NULLIF(btrim(COALESCE(p_location,'')),''),p_date_of_birth,p_inviter_id,chosen_church,current_program,'general')
  RETURNING id INTO new_id;
  RETURN new_id;
 END $$;
@@ -982,12 +987,18 @@ CREATE TABLE IF NOT EXISTS public.shop_products (
   description text NOT NULL DEFAULT '',
   category text NOT NULL DEFAULT 'Apparel',
   price numeric(10,2) NOT NULL CHECK (price >= 0),
+  compare_at_price numeric(10,2) CHECK (compare_at_price IS NULL OR compare_at_price >= 0),
   stock integer NOT NULL DEFAULT 50 CHECK (stock >= 0),
   image_url text NOT NULL DEFAULT '/images/shop/worship-tee.webp',
+  images jsonb NOT NULL DEFAULT '[]'::jsonb,
   is_active boolean NOT NULL DEFAULT true,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
+
+ALTER TABLE public.shop_products
+  ADD COLUMN IF NOT EXISTS compare_at_price numeric(10,2) CHECK (compare_at_price IS NULL OR compare_at_price >= 0),
+  ADD COLUMN IF NOT EXISTS images jsonb NOT NULL DEFAULT '[]'::jsonb;
 
 CREATE TABLE IF NOT EXISTS public.shop_settings (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

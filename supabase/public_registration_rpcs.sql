@@ -2,6 +2,12 @@
 -- Run this in Supabase SQL Editor (or run the full consolidated my_all.sql).
 BEGIN;
 
+ALTER TABLE public.members ADD COLUMN IF NOT EXISTS category text NOT NULL DEFAULT 'general';
+ALTER TABLE public.members DROP CONSTRAINT IF EXISTS members_category_check;
+UPDATE public.members SET category = 'general' WHERE category IS NULL OR category = 'member';
+ALTER TABLE public.members ALTER COLUMN category SET DEFAULT 'general';
+ALTER TABLE public.members ADD CONSTRAINT members_category_check CHECK (category IN ('general', 'dignitary', 'choir_member'));
+
 DROP FUNCTION IF EXISTS public.list_public_inviters();
 CREATE OR REPLACE FUNCTION public.list_public_inviters()
 RETURNS TABLE(id uuid, full_name text, church_id uuid, church_name text) LANGUAGE sql STABLE
@@ -80,7 +86,7 @@ BEGIN
     p_inviter_id,
     chosen_church,
     current_program,
-    'member'
+    'general'
   )
   RETURNING id INTO new_id;
 

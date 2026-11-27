@@ -8,6 +8,9 @@ import {
   DEFAULT_SHOP_SETTINGS,
   LOCAL_STORAGE_KEYS,
   isUuid,
+  normalizeProductImages,
+  decodeLegacyShopMetadata,
+  encodeLegacyShopMetadata,
   normalizeShopProductRow,
   readLocalJson,
   writeLocalJson,
@@ -39,6 +42,18 @@ function isMissingRelationError(error: any): boolean {
   );
 }
 
+function isMissingColumnError(error: any): boolean {
+  if (!error) return false;
+  const code = String(error.code || "");
+  const msg = String(error.message || "").toLowerCase();
+  return (
+    code === "PGRST204" ||
+    code === "42703" ||
+    msg.includes("could not find the") ||
+    (msg.includes("column") && (msg.includes("does not exist") || msg.includes("schema cache")))
+  );
+}
+
 function isValidRemoteRow(row: any): boolean {
   return Boolean(
     row &&
@@ -63,7 +78,7 @@ export async function fetchPublicProducts(): Promise<ShopProduct[]> {
         console.warn("fetchPublicProducts note:", error.message);
       }
       const local = readLocalJson<ShopProduct[]>(LOCAL_STORAGE_KEYS.PRODUCTS, SEED_SHOP_PRODUCTS);
-      return local.filter((p) => p.is_active);
+      return local.map(normalizeShopProductRow).filter((p) => p.is_active);
     }
 
     if (Array.isArray(data) && data.length > 0) {
@@ -73,10 +88,10 @@ export async function fetchPublicProducts(): Promise<ShopProduct[]> {
     }
 
     const local = readLocalJson<ShopProduct[]>(LOCAL_STORAGE_KEYS.PRODUCTS, SEED_SHOP_PRODUCTS);
-    return local.filter((p) => p.is_active);
+    return local.map(normalizeShopProductRow).filter((p) => p.is_active);
   } catch {
     const local = readLocalJson<ShopProduct[]>(LOCAL_STORAGE_KEYS.PRODUCTS, SEED_SHOP_PRODUCTS);
-    return local.filter((p) => p.is_active);
+    return local.map(normalizeShopProductRow).filter((p) => p.is_active);
   }
 }
 
@@ -97,7 +112,9 @@ export async function fetchAdminProductsWithStatus(): Promise<AdminProductsResul
 
     if (error) {
       return {
-        products: readLocalJson<ShopProduct[]>(LOCAL_STORAGE_KEYS.PRODUCTS, SEED_SHOP_PRODUCTS),
+        products: readLocalJson<ShopProduct[]>(LOCAL_STORAGE_KEYS.PRODUCTS, SEED_SHOP_PRODUCTS).map(
+          normalizeShopProductRow
+        ),
         source: "fallback",
         error: error.message || "Could not load products from Supabase.",
       };
@@ -113,13 +130,17 @@ export async function fetchAdminProductsWithStatus(): Promise<AdminProductsResul
     }
 
     return {
-      products: readLocalJson<ShopProduct[]>(LOCAL_STORAGE_KEYS.PRODUCTS, SEED_SHOP_PRODUCTS),
+      products: readLocalJson<ShopProduct[]>(LOCAL_STORAGE_KEYS.PRODUCTS, SEED_SHOP_PRODUCTS).map(
+        normalizeShopProductRow
+      ),
       source: "fallback",
       error: "No live products saved in the database yet. Edit or create a product below to publish it across all devices.",
     };
   } catch (err: any) {
     return {
-      products: readLocalJson<ShopProduct[]>(LOCAL_STORAGE_KEYS.PRODUCTS, SEED_SHOP_PRODUCTS),
+      products: readLocalJson<ShopProduct[]>(LOCAL_STORAGE_KEYS.PRODUCTS, SEED_SHOP_PRODUCTS).map(
+        normalizeShopProductRow
+      ),
       source: "fallback",
       error: err?.message || "Timed out connecting to Supabase.",
     };
@@ -191,8 +212,6 @@ async function compressImageToWebP(
     return { blob: primary.blob, compactDataUrl: primary.dataUrl };
   }
 
-  // Keep storage blob high-res while stepping down inline Data URL fallback so
-  // Postgres saves stay fast (< 1s) even before `shop-images` Storage bucket exists.
   const medium = await renderScaledWebP(img, 720, 0.72, file, srcDataUrl);
   if (medium.dataUrl.length <= MAX_INLINE_WEBP_DATA_URL_LENGTH) {
     return { blob: primary.blob, compactDataUrl: medium.dataUrl };
@@ -250,58 +269,90 @@ export async function uploadShopProductImage(
 export async function upsertShopProduct(
   product: Partial<ShopProduct> & { name: string; price: number }
 ): Promise<{ saved: ShopProduct; syncedToDb: boolean; dbError?: string }> {
-  const payload = {
+  const cleanDescription = decodeLegacyShopMetadata(product.description).cleanDescription.trim();
+  const normalizedImages = normalizeProductImages(
+    product.images,
+    product.image_url || "/images/shop/worship-tee.webp"
+  );
+  const primaryImage = normalizedImages[0] || "/images/shop/worship-tee.webp";
+  const activePrice = Math.max(0, Number(product.price) || 0);
+  const rawCompare =
+    product.compare_at_price === null ||
+    product.compare_at_price === undefined ||
+    product.compare_at_price === ("" as any)
+      ? null
+      : Number(product.compare_at_price);
+  const compareAtPrice =
+    rawCompare !== null && Number.isFinite(rawCompare) && rawCompare > activePrice
+      ? rawCompare
+      : null;
+
+  const nativePayload = {
     name: product.name.trim(),
-    description: (product.description || "").trim(),
+    description: cleanDescription,
     category: (product.category || "Apparel").trim(),
-    price: Math.max(0, Number(product.price) || 0),
+    price: activePrice,
+    compare_at_price: compareAtPrice,
     stock: Math.max(0, Math.floor(Number(product.stock) || 0)),
-    image_url: (product.image_url || "/images/shop/worship-tee.webp").trim(),
+    image_url: primaryImage,
+    images: normalizedImages,
     is_active: product.is_active ?? true,
+  };
+
+  const legacyPayload = {
+    name: nativePayload.name,
+    description: encodeLegacyShopMetadata(cleanDescription, normalizedImages, compareAtPrice),
+    category: nativePayload.category,
+    price: nativePayload.price,
+    stock: nativePayload.stock,
+    image_url: nativePayload.image_url,
+    is_active: nativePayload.is_active,
   };
 
   let syncedToDb = false;
   let dbError: string | undefined;
   let savedRow: ShopProduct = {
     id: product.id || `ksw-prod-${Date.now()}`,
-    ...payload,
+    ...nativePayload,
     created_at: product.created_at || new Date().toISOString(),
   };
 
-  try {
+  const writeProduct = async (payloadToWrite: Record<string, any>) => {
     if (isUuid(product.id)) {
-      const { data, error }: any = await withTimeout(
+      return withTimeout(
         supabase
           .from("shop_products")
-          .update(payload)
+          .update(payloadToWrite)
           .eq("id", product.id)
           .select()
           .single()
       );
-      if (!error && isValidRemoteRow(data)) {
-        savedRow = normalizeShopProductRow(data);
-        syncedToDb = true;
-      } else if (error) {
-        dbError = error.message || "Failed to update product in database.";
-      } else {
-        dbError = "Database did not return the updated product row.";
-      }
+    }
+    return withTimeout(
+      supabase
+        .from("shop_products")
+        .insert(payloadToWrite)
+        .select()
+        .single()
+    );
+  };
+
+  try {
+    let { data, error }: any = await writeProduct(nativePayload);
+
+    if (error && isMissingColumnError(error)) {
+      const retry = await writeProduct(legacyPayload);
+      data = retry.data;
+      error = retry.error;
+    }
+
+    if (!error && isValidRemoteRow(data)) {
+      savedRow = normalizeShopProductRow(data);
+      syncedToDb = true;
+    } else if (error) {
+      dbError = error.message || "Failed to save product in database.";
     } else {
-      const { data, error }: any = await withTimeout(
-        supabase
-          .from("shop_products")
-          .insert(payload)
-          .select()
-          .single()
-      );
-      if (!error && isValidRemoteRow(data)) {
-        savedRow = normalizeShopProductRow(data);
-        syncedToDb = true;
-      } else if (error) {
-        dbError = error.message || "Failed to insert product into database.";
-      } else {
-        dbError = "Database did not return the saved product row.";
-      }
+      dbError = "Database did not return the saved product row.";
     }
   } catch (err: any) {
     syncedToDb = false;

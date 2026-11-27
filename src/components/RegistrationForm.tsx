@@ -9,6 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { QRCodeCanvas } from "qrcode.react";
 import { Download } from "lucide-react";
 import { BIRTHDAY_MONTHS, buildBirthdayDateString, getDaysInBirthdayMonth } from "@/utils/birthday";
+import { formatMemberRegistrationError } from "@/utils/registration";
 
 const RegistrationForm = () => {
   const { data: inviters = [] } = useQuery({
@@ -111,8 +112,8 @@ const RegistrationForm = () => {
       toast.success("Registration successful! Save your QR Code.");
       setRegisteredMember({ id: insertedMember.id, name: form.fullName });
       setForm({ fullName: "", email: "", phone: "", occupation: "", location: "", birthMonth: "", birthDay: "", inviterId: "" });
-    } catch (err: any) {
-      toast.error(err.message || "Registration failed.");
+    } catch (err: unknown) {
+      toast.error(formatMemberRegistrationError(err));
     } finally {
       setLoading(false);
     }

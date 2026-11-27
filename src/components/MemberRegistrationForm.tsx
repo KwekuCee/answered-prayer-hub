@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQuery } from "@tanstack/react-query";
 import { BIRTHDAY_MONTHS, buildBirthdayDateString, getDaysInBirthdayMonth } from "@/utils/birthday";
+import { formatMemberRegistrationError } from "@/utils/registration";
 
 const MemberRegistrationForm = () => {
   const { data: inviters = [] } = useQuery({
@@ -78,8 +79,8 @@ const MemberRegistrationForm = () => {
 
       toast.success("Registration successful! Welcome to Korle Bu Stands in Worship.");
       setForm({ fullName: "", email: "", phone: "", occupation: "", location: "", birthMonth: "", birthDay: "", inviterId: "" });
-    } catch (err: any) {
-      toast.error(err.message || "Registration failed.");
+    } catch (err: unknown) {
+      toast.error(formatMemberRegistrationError(err));
     } finally {
       setLoading(false);
     }

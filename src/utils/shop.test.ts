@@ -12,6 +12,11 @@ import {
   isUuid,
   appendImageVersion,
   resolveProductImageUrl,
+  normalizeProductImages,
+  resolveProductGalleryUrls,
+  getDiscountInfo,
+  encodeLegacyShopMetadata,
+  decodeLegacyShopMetadata,
   normalizeShopProductRow,
   syncCartWithProducts,
 } from "./shop";
@@ -142,5 +147,89 @@ test("normalizeShopProductRow and syncCartWithProducts update stale cart thumbna
   assert.equal(synced[0].name, "KSW Worship Tee");
   assert.equal(synced[0].price, 160);
   assert.ok(synced[0].image_url.startsWith("https://cdn.example.com/new-tee.webp?v="));
+});
+
+test("normalizeProductImages and resolveProductGalleryUrls deduplicate and version multi-image galleries", () => {
+  const urls = normalizeProductImages(
+    [
+      "https://cdn.example.com/front.webp",
+      "https://cdn.example.com/back.webp",
+      "https://cdn.example.com/front.webp",
+      " ",
+    ],
+    "https://cdn.example.com/detail.webp"
+  );
+  assert.deepEqual(urls, [
+    "https://cdn.example.com/front.webp",
+    "https://cdn.example.com/back.webp",
+    "https://cdn.example.com/detail.webp",
+  ]);
+
+  const gallery = resolveProductGalleryUrls({
+    image_url: "https://cdn.example.com/front.webp",
+    images: ["https://cdn.example.com/front.webp", "data:image/webp;base64,ABC"],
+    updated_at: "2026-11-27T10:00:00.000Z",
+  });
+  assert.equal(gallery.length, 2);
+  assert.ok(gallery[0].startsWith("https://cdn.example.com/front.webp?v="));
+  assert.equal(gallery[1], "data:image/webp;base64,ABC");
+});
+
+test("getDiscountInfo identifies valid discounts and ignores invalid or non-discounted old prices", () => {
+  assert.deepEqual(getDiscountInfo({ price: 120, compare_at_price: 160 }), {
+    hasDiscount: true,
+    activePrice: 120,
+    oldPrice: 160,
+    discountPercent: 25,
+  });
+
+  assert.deepEqual(getDiscountInfo({ price: 150, compare_at_price: 150 }), {
+    hasDiscount: false,
+    activePrice: 150,
+    oldPrice: null,
+    discountPercent: 0,
+  });
+
+  assert.deepEqual(getDiscountInfo({ price: 150, compare_at_price: null }), {
+    hasDiscount: false,
+    activePrice: 150,
+    oldPrice: null,
+    discountPercent: 0,
+  });
+});
+
+test("legacy metadata codec preserves multi-images and discount price cleanly when DB columns are absent", () => {
+  const encoded = encodeLegacyShopMetadata(
+    "Heavyweight worship tee.",
+    ["https://cdn.example.com/1.webp", "https://cdn.example.com/2.webp"],
+    180
+  );
+  assert.ok(encoded.includes("Heavyweight worship tee."));
+  assert.ok(encoded.includes("<!--ksw-shop:"));
+
+  const decoded = decodeLegacyShopMetadata(encoded);
+  assert.equal(decoded.cleanDescription, "Heavyweight worship tee.");
+  assert.deepEqual(decoded.metaImages, [
+    "https://cdn.example.com/1.webp",
+    "https://cdn.example.com/2.webp",
+  ]);
+  assert.equal(decoded.metaCompareAtPrice, 180);
+
+  const normalized = normalizeShopProductRow({
+    id: "550e8400-e29b-41d4-a716-446655440000",
+    name: "Tee",
+    description: encoded,
+    category: "Apparel",
+    price: 140,
+    stock: 10,
+    image_url: "https://cdn.example.com/1.webp",
+    is_active: true,
+  });
+  assert.equal(normalized.description, "Heavyweight worship tee.");
+  assert.equal(normalized.compare_at_price, 180);
+  assert.deepEqual(normalized.images, [
+    "https://cdn.example.com/1.webp",
+    "https://cdn.example.com/2.webp",
+  ]);
 });
 

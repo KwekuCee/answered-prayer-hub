@@ -9,12 +9,18 @@ CREATE TABLE IF NOT EXISTS public.shop_products (
   description text NOT NULL DEFAULT '',
   category text NOT NULL DEFAULT 'Apparel',
   price numeric(10,2) NOT NULL CHECK (price >= 0),
+  compare_at_price numeric(10,2) CHECK (compare_at_price IS NULL OR compare_at_price >= 0),
   stock integer NOT NULL DEFAULT 50 CHECK (stock >= 0),
   image_url text NOT NULL DEFAULT '/images/shop/worship-tee.webp',
+  images jsonb NOT NULL DEFAULT '[]'::jsonb,
   is_active boolean NOT NULL DEFAULT true,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
+
+ALTER TABLE public.shop_products
+  ADD COLUMN IF NOT EXISTS compare_at_price numeric(10,2) CHECK (compare_at_price IS NULL OR compare_at_price >= 0),
+  ADD COLUMN IF NOT EXISTS images jsonb NOT NULL DEFAULT '[]'::jsonb;
 
 CREATE TABLE IF NOT EXISTS public.shop_settings (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),

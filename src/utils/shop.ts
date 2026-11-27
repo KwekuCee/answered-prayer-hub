@@ -4,8 +4,10 @@ export interface ShopProduct {
   description: string;
   category: string;
   price: number;
+  compare_at_price?: number | null;
   stock: number;
   image_url: string;
+  images?: string[];
   is_active: boolean;
   created_at?: string;
   updated_at?: string;
@@ -309,15 +311,157 @@ export function resolveProductImageUrl(
   return appendImageVersion(product.image_url, product.updated_at || product.created_at);
 }
 
+export function normalizeProductImages(
+  images?: unknown,
+  fallbackImageUrl?: string | null
+): string[] {
+  const result: string[] = [];
+  const seen = new Set<string>();
+
+  const pushUnique = (val: unknown) => {
+    if (typeof val !== "string") return;
+    const trimmed = val.trim();
+    if (!trimmed || seen.has(trimmed)) return;
+    seen.add(trimmed);
+    result.push(trimmed);
+  };
+
+  if (Array.isArray(images)) {
+    for (const entry of images) {
+      pushUnique(entry);
+    }
+  }
+  pushUnique(fallbackImageUrl);
+
+  return result;
+}
+
+export function resolveProductGalleryUrls(
+  product: Pick<ShopProduct, "image_url" | "images" | "updated_at" | "created_at">
+): string[] {
+  const rawList = normalizeProductImages(product.images, product.image_url);
+  const version = product.updated_at || product.created_at;
+  return rawList.map((url) => appendImageVersion(url, version)).filter(Boolean);
+}
+
+export interface ProductDiscountInfo {
+  hasDiscount: boolean;
+  activePrice: number;
+  oldPrice: number | null;
+  discountPercent: number;
+}
+
+export function getDiscountInfo(
+  product: Pick<ShopProduct, "price" | "compare_at_price">
+): ProductDiscountInfo {
+  const activePrice = Math.max(0, Number(product.price) || 0);
+  const rawOld =
+    product.compare_at_price === null || product.compare_at_price === undefined || product.compare_at_price === ("" as any)
+      ? null
+      : Number(product.compare_at_price);
+
+  const hasDiscount =
+    rawOld !== null &&
+    Number.isFinite(rawOld) &&
+    rawOld > activePrice &&
+    rawOld > 0;
+
+  const discountPercent = hasDiscount
+    ? Math.max(1, Math.round(((rawOld - activePrice) / rawOld) * 100))
+    : 0;
+
+  return {
+    hasDiscount,
+    activePrice,
+    oldPrice: hasDiscount ? rawOld : null,
+    discountPercent,
+  };
+}
+
+const LEGACY_META_REGEX = /\n?<!--ksw-shop:([\s\S]*?)-->\s*$/;
+
+export function decodeLegacyShopMetadata(rawDescription?: string | null): {
+  cleanDescription: string;
+  metaImages: string[];
+  metaCompareAtPrice: number | null;
+} {
+  const raw = String(rawDescription || "");
+  const match = raw.match(LEGACY_META_REGEX);
+  if (!match) {
+    return { cleanDescription: raw, metaImages: [], metaCompareAtPrice: null };
+  }
+
+  const cleanDescription = raw.replace(LEGACY_META_REGEX, "").trimEnd();
+  try {
+    const parsed = JSON.parse(match[1]);
+    const metaImages = Array.isArray(parsed?.images)
+      ? parsed.images.filter((v: unknown) => typeof v === "string" && v.trim().length > 0)
+      : [];
+    const cap = parsed?.compare_at_price;
+    const metaCompareAtPrice =
+      typeof cap === "number" && Number.isFinite(cap) && cap > 0 ? cap : null;
+    return { cleanDescription, metaImages, metaCompareAtPrice };
+  } catch {
+    return { cleanDescription, metaImages: [], metaCompareAtPrice: null };
+  }
+}
+
+export function encodeLegacyShopMetadata(
+  description: string,
+  images: string[],
+  compareAtPrice?: number | null
+): string {
+  const clean = decodeLegacyShopMetadata(description).cleanDescription.trim();
+  const normalizedImages = normalizeProductImages(images);
+  const validCompare =
+    compareAtPrice !== null &&
+    compareAtPrice !== undefined &&
+    Number.isFinite(Number(compareAtPrice)) &&
+    Number(compareAtPrice) > 0
+      ? Number(compareAtPrice)
+      : null;
+
+  if (normalizedImages.length <= 1 && validCompare === null) {
+    return clean;
+  }
+
+  const meta = JSON.stringify({
+    ...(normalizedImages.length > 1 ? { images: normalizedImages } : {}),
+    ...(validCompare !== null ? { compare_at_price: validCompare } : {}),
+  });
+  return clean ? `${clean}\n<!--ksw-shop:${meta}-->` : `<!--ksw-shop:${meta}-->`;
+}
+
 export function normalizeShopProductRow(row: any): ShopProduct {
+  const { cleanDescription, metaImages, metaCompareAtPrice } = decodeLegacyShopMetadata(
+    row.description
+  );
+
+  const primaryUrl = String(row.image_url || metaImages[0] || "");
+  const images = normalizeProductImages(
+    Array.isArray(row.images) && row.images.length > 0 ? row.images : metaImages,
+    primaryUrl
+  );
+
+  const rawCompare =
+    row.compare_at_price !== undefined && row.compare_at_price !== null
+      ? Number(row.compare_at_price)
+      : metaCompareAtPrice;
+  const compareAtPrice =
+    rawCompare !== null && Number.isFinite(rawCompare) && rawCompare > 0
+      ? rawCompare
+      : null;
+
   return {
     id: String(row.id || ""),
     name: String(row.name || ""),
-    description: String(row.description || ""),
+    description: cleanDescription,
     category: String(row.category || "Apparel"),
     price: Number(row.price) || 0,
+    compare_at_price: compareAtPrice,
     stock: Math.max(0, Math.floor(Number(row.stock) || 0)),
-    image_url: String(row.image_url || ""),
+    image_url: images[0] || primaryUrl,
+    images,
     is_active: row.is_active !== false,
     created_at: row.created_at ? String(row.created_at) : undefined,
     updated_at: row.updated_at ? String(row.updated_at) : undefined,
@@ -337,7 +481,8 @@ export function syncCartWithProducts(cart: CartItem[], products: ShopProduct[]):
   const next = cart.map((item) => {
     const live = byId.get(item.product_id);
     if (!live) return item;
-    const nextImage = resolveProductImageUrl(live);
+    const gallery = resolveProductGalleryUrls(live);
+    const nextImage = gallery[0] || resolveProductImageUrl(live);
     const nextPrice = Number(live.price);
     if (
       item.name === live.name &&
