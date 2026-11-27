@@ -84,7 +84,7 @@ export function renderChurchAlert(alert: ChurchAlert, siteUrl: string, logoUrl: 
       <td align="center" style="padding:36px 16px;">
         <table role="presentation" width="600" cellspacing="0" cellpadding="0" style="width:100%;max-width:600px;background:${t.surface};border:1px solid ${t.border};border-top:3px solid ${t.gold};border-radius:16px;overflow:hidden;">
           <tr>
-            <td align="center" style="padding:32px 24px 20px;background:${t.background};border-bottom:1px solid ${t.border};">
+            <td align="center" bgcolor="${t.background}" style="padding:32px 24px 20px;background-color:${t.background};background:${t.background};border-bottom:1px solid ${t.border};">
               <img src="${e(logoUrl)}" alt="Korle Bu Stands in Worship 2026" width="190" style="display:block;width:190px;max-width:100%;height:auto;margin:0 auto;">
             </td>
           </tr>
