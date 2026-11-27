@@ -11,6 +11,8 @@ import { ArrowLeft, LogIn, UserPlus, ShieldAlert, Eye, EyeOff } from "lucide-rea
 import { Link } from "react-router-dom";
 import logo from "@/assets/logo.webp";
 
+import { isInvalidLoginCredentialError } from "@/utils/externalChurchAuth";
+
 const AUTH_CODE = "100PRAYER";
 
 const AdminAuth = () => {
@@ -32,25 +34,81 @@ const AdminAuth = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email: loginForm.email,
-        password: loginForm.password,
-      });
-      if (error) throw error;
+      const cleanEmail = loginForm.email.trim();
+      const rawPassword = loginForm.password;
+      const trimmedPassword = rawPassword.trim();
 
-      // Check role
-      const { data: { user } } = await supabase.auth.getUser();
+      let { data: signInData, error } = await supabase.auth.signInWithPassword({
+        email: cleanEmail,
+        password: rawPassword,
+      });
+
+      if (error) {
+        if (isInvalidLoginCredentialError(error.message)) {
+          const { data: matchesExternal, error: verifyErr } = await (supabase as any).rpc(
+            "verify_external_church_credentials",
+            { p_email: cleanEmail, p_password: trimmedPassword }
+          );
+
+          if (!verifyErr && matchesExternal === true) {
+            if (trimmedPassword.length < 6) {
+              throw new Error(
+                "This church's legacy portal password is shorter than 6 characters. Please contact a Super Admin to set a 6+ character password."
+              );
+            }
+
+            const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
+              email: cleanEmail,
+              password: trimmedPassword,
+              options: {
+                emailRedirectTo: `${window.location.origin}/verify-email`,
+              },
+            });
+
+            if (signUpErr) {
+              throw new Error(
+                signUpErr.message?.toLowerCase().includes("already registered")
+                  ? "Invalid login credentials. Please double-check your password or verify your email."
+                  : signUpErr.message
+              );
+            }
+
+            if (!signUpData.session) {
+              toast.success("Verification email sent! Confirm your email address, then sign in here.");
+              return;
+            }
+
+            signInData = signUpData as any;
+          } else {
+            throw error;
+          }
+        } else {
+          throw error;
+        }
+      }
+
+      const user = signInData?.user || (await supabase.auth.getUser()).data.user;
       if (!user) throw new Error("No user found");
 
-      const { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", user.id);
+      let { data: roles } = await supabase.from("user_roles").select("role").eq("user_id", user.id);
 
-      // Roles are granted only by the server at sign-up; never self-assign here.
+      // If this user matches an external church pastor_email & hashed portal password, link their church_admin role server-side
+      if (!roles || roles.length === 0) {
+        const { error: claimErr } = await (supabase as any).rpc("claim_external_church_role", {
+          p_password: trimmedPassword,
+        });
+        if (!claimErr) {
+          const refreshed = await supabase.from("user_roles").select("role").eq("user_id", user.id);
+          roles = refreshed.data;
+        }
+      }
+
       if (!roles || roles.length === 0) {
         await supabase.auth.signOut();
         throw new Error("This account does not have administrator access.");
       }
 
-      const isSuperAdmin = roles?.some(r => r.role === "super_admin");
+      const isSuperAdmin = roles.some(r => r.role === "super_admin");
 
       toast.success("Welcome back, Administrator!");
       navigate(isSuperAdmin ? "/super-admin" : "/church-admin");

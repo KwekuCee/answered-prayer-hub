@@ -17,13 +17,20 @@ import { toast } from "sonner";
 import {
   LayoutDashboard, Church, Shield, UserCheck, Users, Trophy, Download,
   LogOut, Menu, X, TrendingUp, Target, Medal, Pencil, Trash2, Activity, MapPin, MessageCircle, Eye, Mail, Bus, Calendar, Heart, PlusCircle, Search, ChevronLeft, ChevronRight, Sparkles, Video, CheckCircle2, ShieldAlert, FileText, Check,
-  History, Clock, ShoppingBag,
+  History, Clock, ShoppingBag, EyeOff, Lock, LockOpen, Phone,
 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LineChart, Line, PieChart, Pie, Legend } from "recharts";
 import logo from "@/assets/logo.webp";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { NotificationsMenu } from "@/components/NotificationsMenu";
 import { assignAdminChurch } from "@/lib/admin-church";
+import {
+  buildCsvContent,
+  filterExternalChurchAttendees,
+  formatBirthdayDisplay,
+  prepareAttendeeExportRows,
+} from "@/utils/attendeeExport";
+import { normalizePrivacyMode, sanitizeChurchExportRow } from "@/utils/externalChurchAuth";
 
 const SuperAdminShopSection = React.lazy(() => import("@/components/admin/SuperAdminShopSection"));
 
@@ -80,6 +87,8 @@ const SuperAdminDashboard = () => {
   const [editingTestimonial, setEditingTestimonial] = useState<any>(null);
   const [editingResource, setEditingResource] = useState<any>(null);
   const [viewingAttendee, setViewingAttendee] = useState<any>(null);
+  const [showMaskedPreview, setShowMaskedPreview] = useState(false);
+  const [updatingChurchPrivacyId, setUpdatingChurchPrivacyId] = useState<string | null>(null);
 
   const [isAddingTestimonial, setIsAddingTestimonial] = useState(false);
   const [newTestimonial, setNewTestimonial] = useState({ author_name: "", church_name: "", content: "", is_approved: true });
@@ -165,7 +174,10 @@ const SuperAdminDashboard = () => {
   const { data: churches = [], isLoading: churchesLoading, isError: churchesError } = useQuery({
     queryKey: ["all-churches"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("churches").select("*").order("name");
+      const { data, error } = await supabase
+        .from("churches")
+        .select("id, name, target, confirmed, is_external, pastor_name, pastor_email, pastor_phone, location, privacy_mode, delegation_notes, created_at")
+        .order("name");
       if (error) throw error;
       return data;
     },
@@ -787,11 +799,49 @@ const SuperAdminDashboard = () => {
     queryClient.invalidateQueries({ queryKey: ["all-attendees"] });
   };
 
+  const handleToggleChurchPrivacy = async (churchId: string, currentMode?: string | null) => {
+    const nextMode = normalizePrivacyMode(currentMode) === "masked" ? "open" : "masked";
+    setUpdatingChurchPrivacyId(churchId);
+    try {
+      const { error: rpcError } = await (supabase as any).rpc("set_church_privacy_mode", {
+        p_church_id: churchId,
+        p_privacy_mode: nextMode,
+      });
+      if (rpcError) {
+        const { error: directError } = await supabase
+          .from("churches")
+          .update({ privacy_mode: nextMode })
+          .eq("id", churchId);
+        if (directError) throw directError;
+      }
+
+      toast.success(
+        nextMode === "open"
+          ? "Church set to Open for call-center follow-up."
+          : "Church set to Masked mode."
+      );
+      queryClient.invalidateQueries({ queryKey: ["all-churches"] });
+      queryClient.invalidateQueries({ queryKey: ["all-attendees"] });
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to update church privacy mode.");
+    } finally {
+      setUpdatingChurchPrivacyId(null);
+    }
+  };
+
   const handleSaveChurch = async () => {
     if (!editingChurch) return;
+    const updatePayload: Record<string, any> = {
+      name: editingChurch.name,
+      target: editingChurch.target,
+    };
+    if (editingChurch.is_external) {
+      updatePayload.privacy_mode = normalizePrivacyMode(editingChurch.privacy_mode);
+    }
+
     const { error } = await supabase
       .from("churches")
-      .update({ name: editingChurch.name, target: editingChurch.target })
+      .update(updatePayload)
       .eq("id", editingChurch.id);
 
     if (error) {
@@ -802,6 +852,7 @@ const SuperAdminDashboard = () => {
     toast.success("Church updated!");
     setEditingChurch(null);
     queryClient.invalidateQueries({ queryKey: ["all-churches"] });
+    queryClient.invalidateQueries({ queryKey: ["all-attendees"] });
   };
 
   const handleCreateChurch = async () => {
@@ -1112,12 +1163,7 @@ const SuperAdminDashboard = () => {
       return;
     }
 
-    const headers = Object.keys(data[0]).filter((k) => typeof data[0][k] !== "object");
-    const csv = [
-      headers.map((h) => (/^[=+\-@]/.test(h) ? "'" + h : h)).join(","),
-      ...data.map((row) => headers.map((h) => { let v = String(row[h] ?? ""); if (/^[=+\-@\t\r]/.test(v)) v = "'" + v; return `"${v.replace(/"/g, '""')}"`; }).join(",")),
-    ].join("\n");
-
+    const csv = buildCsvContent(data);
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -1127,6 +1173,15 @@ const SuperAdminDashboard = () => {
     URL.revokeObjectURL(url);
 
     toast.success(`${filename}.csv exported!`);
+  };
+
+  const exportAttendeeCSV = (list: any[], filename: string) => {
+    if (!list.length) {
+      toast.error("No attendees available to export.");
+      return;
+    }
+    const rows = prepareAttendeeExportRows(list);
+    exportCSV(rows, filename);
   };
 
   const handleLogout = async () => {
@@ -1394,7 +1449,7 @@ const SuperAdminDashboard = () => {
                   <Button onClick={() => setIsAddingChurch(true)} className="bg-gradient-gold text-navy font-bold rounded-2xl gap-2 shadow-gold hover:shadow-gold/80 h-11 px-5">
                     <PlusCircle className="h-4 w-4" /> Add Church Center
                   </Button>
-                  <Button variant="outline" onClick={() => exportCSV(churches as any, "churches")} className="border-border/60 rounded-2xl gap-2 h-11">
+                  <Button variant="outline" onClick={() => exportCSV(churches.map((c: any) => sanitizeChurchExportRow(c)), "churches")} className="border-border/60 rounded-2xl gap-2 h-11">
                     <Download className="h-4 w-4" /> Export CSV
                   </Button>
                 </div>
@@ -1406,7 +1461,7 @@ const SuperAdminDashboard = () => {
                     <TableHeader className="bg-zinc-900/90 border-b border-border/60">
                       <TableRow>
                         <TableHead className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">Church Center Name</TableHead>
-                        <TableHead className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">Network Type</TableHead>
+                        <TableHead className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">Network &amp; Call-Center Access</TableHead>
                         <TableHead className="font-semibold text-xs uppercase tracking-wider text-muted-foreground">Pastor / Contact</TableHead>
                         <TableHead className="font-semibold text-xs uppercase tracking-wider text-muted-foreground text-center">Headcount</TableHead>
                         <TableHead className="font-semibold text-xs uppercase tracking-wider text-muted-foreground text-center">Target Goal</TableHead>
@@ -1414,7 +1469,9 @@ const SuperAdminDashboard = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {paginatedChurches.map((c) => (
+                      {paginatedChurches.map((c) => {
+                        const mode = normalizePrivacyMode(c.privacy_mode);
+                        return (
                         <TableRow key={c.id} className="hover:bg-zinc-900/50 border-b border-border/40">
                           <TableCell className="font-semibold text-foreground text-sm">
                             <div className="flex items-center gap-2">
@@ -1424,9 +1481,22 @@ const SuperAdminDashboard = () => {
                           </TableCell>
                           <TableCell>
                             {c.is_external ? (
-                              <Badge variant="outline" className="border-emerald-500/40 text-emerald-400 bg-emerald-500/10 text-xs font-semibold">
-                                External Partner ({c.privacy_mode || "masked"})
-                              </Badge>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <Badge variant="outline" className={mode === "open" ? "border-emerald-500/40 text-emerald-400 bg-emerald-500/10 text-xs font-semibold" : "border-amber-500/40 text-amber-300 bg-amber-500/10 text-xs font-semibold"}>
+                                  External · {mode === "open" ? "Open" : "Masked"}
+                                </Badge>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={updatingChurchPrivacyId === c.id}
+                                  onClick={() => handleToggleChurchPrivacy(c.id, c.privacy_mode)}
+                                  aria-label={`Switch ${c.name} to ${mode === "masked" ? "Open" : "Masked"}`}
+                                  className="h-7 px-2.5 text-[11px] rounded-lg border-border/60 gap-1"
+                                >
+                                  {mode === "masked" ? <LockOpen className="w-3 h-3 text-emerald-400" /> : <Lock className="w-3 h-3 text-amber-400" />}
+                                  {mode === "masked" ? "Set Open" : "Set Masked"}
+                                </Button>
+                              </div>
                             ) : (
                               <Badge variant="outline" className="border-gold/40 text-gold bg-gold/10 text-xs font-semibold">
                                 Christ Embassy
@@ -1449,16 +1519,16 @@ const SuperAdminDashboard = () => {
                           <TableCell className="text-center font-mono font-bold text-gold text-sm">{c.target || 100}</TableCell>
                           <TableCell className="text-center">
                             <div className="flex items-center justify-center gap-2">
-                              <Button size="sm" variant="ghost" onClick={() => setEditingChurch({ ...c })} className="hover:text-gold rounded-lg">
+                              <Button size="sm" variant="ghost" aria-label={`Edit ${c.name}`} onClick={() => setEditingChurch({ ...c, privacy_mode: normalizePrivacyMode(c.privacy_mode) })} className="hover:text-gold rounded-lg">
                                 <Pencil className="h-4 w-4" />
                               </Button>
-                              <Button size="sm" variant="ghost" onClick={() => handleDeleteChurch(c.id)} className="hover:text-red-400 rounded-lg">
+                              <Button size="sm" variant="ghost" aria-label={`Delete ${c.name}`} onClick={() => handleDeleteChurch(c.id)} className="hover:text-red-400 rounded-lg">
                                 <Trash2 className="h-4 w-4 text-red-400" />
                               </Button>
                             </div>
                           </TableCell>
                         </TableRow>
-                      ))}
+                      ); })}
 
                       {filteredChurches.length === 0 && (
                         <TableRow>
@@ -1650,8 +1720,17 @@ const SuperAdminDashboard = () => {
                       </Button>
                     </>
                   )}
-                  <Button variant="outline" size="sm" onClick={() => exportCSV(filteredAttendees as any, "attendees")} className="rounded-xl gap-1.5 text-xs h-11">
-                    <Download className="h-4 w-4" /> CSV
+                  <Button
+                    variant={showMaskedPreview ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setShowMaskedPreview((prev) => !prev)}
+                    className="rounded-xl gap-1.5 text-xs h-11"
+                  >
+                    {showMaskedPreview ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                    {showMaskedPreview ? "Show Full Details" : "Preview Masked"}
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => exportAttendeeCSV(filteredAttendees, "attendees-follow-up")} className="rounded-xl gap-1.5 text-xs h-11">
+                    <Download className="h-4 w-4" /> Export CSV
                   </Button>
                 </div>
               </div>
@@ -1678,11 +1757,12 @@ const SuperAdminDashboard = () => {
                     </TableHeader>
                     <TableBody>
                       {paginatedAttendees.map((m) => {
-                        const isProtected = m.is_privacy_protected || (m.churches as any)?.privacy_mode === "masked";
-                        const displayName = isProtected
-                          ? (m.masked_identifier || `Member #···${m.id.substring(0, 4)}`)
-                          : m.full_name;
-                        const displayPhone = isProtected ? "✦ Confidential (Pastor Protected)" : (m.phone || "—");
+                        const churchInfo = m.churches as { id?: string; name?: string; is_external?: boolean; privacy_mode?: string } | null;
+                        const isExternal = Boolean(churchInfo?.is_external);
+                        const churchPrivacy = isExternal ? normalizePrivacyMode(churchInfo?.privacy_mode) : "open";
+                        const isMaskedPreview = showMaskedPreview && churchPrivacy === "masked";
+                        const displayName = isMaskedPreview ? `Member #···${m.id.substring(0, 4)}` : m.full_name;
+                        const displayPhone = isMaskedPreview ? "✦ Confidential (Preview Masked)" : (m.phone || "—");
 
                         return (
                           <TableRow key={m.id} className="hover:bg-zinc-900/50 border-b border-border/40">
@@ -1693,11 +1773,18 @@ const SuperAdminDashboard = () => {
                               />
                             </TableCell>
                             <TableCell className="font-semibold text-foreground text-sm">
-                              <div className="flex items-center gap-2">
+                              <div className="flex flex-wrap items-center gap-2">
                                 <span>{displayName}</span>
-                                {isProtected && (
-                                  <Badge variant="outline" className="text-[10px] bg-zinc-900 border-zinc-700 text-muted-foreground">
-                                    Privacy Protected
+                                {isExternal && (
+                                  <Badge
+                                    variant="outline"
+                                    className={
+                                      churchPrivacy === "open"
+                                        ? "text-[10px] bg-emerald-500/10 border-emerald-500/40 text-emerald-400"
+                                        : "text-[10px] bg-amber-500/10 border-amber-500/40 text-amber-300"
+                                    }
+                                  >
+                                    {churchPrivacy === "open" ? "Open" : "Masked"}
                                   </Badge>
                                 )}
                               </div>
@@ -1717,12 +1804,12 @@ const SuperAdminDashboard = () => {
                                 <span className="text-xs text-muted-foreground">General</span>
                               )}
                             </TableCell>
-                            <TableCell className={`text-sm font-mono ${isProtected ? "text-muted-foreground italic text-xs" : "text-foreground"}`}>
+                            <TableCell className={`text-sm font-mono ${isMaskedPreview ? "text-muted-foreground italic text-xs" : "text-foreground"}`}>
                               {displayPhone}
                             </TableCell>
                             <TableCell className="text-sm text-muted-foreground">
-                              <span>{(m.churches as any)?.name || "—"}</span>
-                              {(m.churches as any)?.is_external && (
+                              <span>{churchInfo?.name || "Direct Self-Registration"}</span>
+                              {isExternal && (
                                 <span className="ml-1.5 text-[10px] text-emerald-400 font-semibold">(External)</span>
                               )}
                             </TableCell>
@@ -1734,13 +1821,13 @@ const SuperAdminDashboard = () => {
                             </TableCell>
                             <TableCell className="text-center">
                               <div className="flex items-center justify-center gap-1.5">
-                                <Button size="sm" variant="ghost" onClick={() => setViewingAttendee(m)} className="hover:text-gold rounded-lg" title="View Details">
+                                <Button size="sm" variant="ghost" aria-label={`View details for ${m.full_name}`} onClick={() => setViewingAttendee(m)} className="hover:text-gold rounded-lg" title="View Full Details">
                                   <Eye className="h-4 w-4" />
                                 </Button>
-                                <Button size="sm" variant="ghost" onClick={() => setEditingAttendee({ ...m, inviter_id: m.inviter_id || "none" })} className="hover:text-gold rounded-lg">
+                                <Button size="sm" variant="ghost" aria-label={`Edit ${m.full_name}`} onClick={() => setEditingAttendee({ ...m, inviter_id: m.inviter_id || "none" })} className="hover:text-gold rounded-lg">
                                   <Pencil className="h-4 w-4" />
                                 </Button>
-                                <Button size="sm" variant="ghost" onClick={() => handleDeleteAttendee(m.id)} className="hover:text-red-400 rounded-lg">
+                                <Button size="sm" variant="ghost" aria-label={`Delete ${m.full_name}`} onClick={() => handleDeleteAttendee(m.id)} className="hover:text-red-400 rounded-lg">
                                   <Trash2 className="h-4 w-4 text-red-400" />
                                 </Button>
                                 <Button
@@ -1759,7 +1846,7 @@ const SuperAdminDashboard = () => {
 
                       {filteredAttendees.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
+                          <TableCell colSpan={8} className="text-center py-12 text-muted-foreground">
                             No attendee records match your filter criteria.
                           </TableCell>
                         </TableRow>
@@ -2330,9 +2417,10 @@ const SuperAdminDashboard = () => {
 
           {/* TAB 13: EXPORT CENTER */}
           {activeTab === "export" && (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-up">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-fade-up">
               {[
-                { label: "Export Full Attendees CSV", desc: "Download entire registered attendee list across all churches", onClick: () => exportCSV(programAttendees as any, "all-attendees") },
+                { label: "Export Full Attendees CSV", desc: "Download full unmasked attendee contact list with church center & privacy status", onClick: () => exportAttendeeCSV(programAttendees, "all-attendees-follow-up") },
+                { label: "Export External Churches CSV", desc: "Download external church attendees ready for call-center follow-up", onClick: () => exportAttendeeCSV(filterExternalChurchAttendees(programAttendees), "external-churches-follow-up") },
                 { label: "Export Church Statistics", desc: "Download church centers breakdown, targets, and confirmation rates", onClick: () => exportCSV(churchLeaderboard as any, "church-stats") },
                 { label: "Export Inviters Roster", desc: "Download full list of registered inviters and invitation counts", onClick: () => exportCSV(inviters as any, "inviters-list") },
               ].map((item) => (
@@ -2412,11 +2500,117 @@ const SuperAdminDashboard = () => {
             <div className="space-y-4 py-2">
               <div className="space-y-1.5"><Label className="text-xs">Church Name</Label><Input value={editingChurch.name} onChange={e => setEditingChurch((p: any) => ({ ...p, name: e.target.value }))} className="bg-zinc-900 border-border/60" /></div>
               <div className="space-y-1.5"><Label className="text-xs">Target Goal</Label><Input type="number" value={editingChurch.target} onChange={e => setEditingChurch((p: any) => ({ ...p, target: parseInt(e.target.value) || 100 }))} className="bg-zinc-900 border-border/60" /></div>
+              {editingChurch.is_external && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Call-Center Follow-Up Privacy Mode</Label>
+                  <Select
+                    value={normalizePrivacyMode(editingChurch.privacy_mode)}
+                    onValueChange={(val) => setEditingChurch((p: any) => ({ ...p, privacy_mode: val }))}
+                  >
+                    <SelectTrigger className="bg-zinc-900 border-border/60">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="bg-zinc-950 border-gold/30">
+                      <SelectItem value="masked">Masked (Confidential Indicator)</SelectItem>
+                      <SelectItem value="open">Open (Call-Center Follow-Up Ready)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditingChurch(null)} className="rounded-xl">Cancel</Button>
             <Button onClick={handleSaveChurch} className="bg-gradient-gold text-navy font-bold rounded-xl shadow-gold">Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* MODAL 2B: View Attendee Follow-up Details */}
+      <Dialog open={!!viewingAttendee} onOpenChange={open => !open && setViewingAttendee(null)}>
+        <DialogContent className="bg-zinc-950 border-gold/40 text-foreground rounded-3xl max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="font-display text-xl font-bold flex items-center gap-2">
+              <Users className="w-5 h-5 text-gold" /> Attendee Call-Center Details
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Full back-end record for pastoral and call-center follow-up.
+            </DialogDescription>
+          </DialogHeader>
+          {viewingAttendee && (
+            <div className="space-y-4 py-2 text-sm">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 rounded-2xl bg-zinc-900/80 border border-border/50">
+                <div>
+                  <span className="text-[11px] uppercase tracking-wider text-muted-foreground block">Full Name</span>
+                  <span className="font-semibold text-foreground">{viewingAttendee.full_name}</span>
+                </div>
+                <div>
+                  <span className="text-[11px] uppercase tracking-wider text-muted-foreground block">Phone</span>
+                  {viewingAttendee.phone ? (
+                    <a href={`tel:${viewingAttendee.phone}`} className="font-mono font-semibold text-gold hover:underline inline-flex items-center gap-1">
+                      <Phone className="w-3.5 h-3.5" /> {viewingAttendee.phone}
+                    </a>
+                  ) : (
+                    <span className="text-muted-foreground">—</span>
+                  )}
+                </div>
+                <div>
+                  <span className="text-[11px] uppercase tracking-wider text-muted-foreground block">Email</span>
+                  <span className="text-foreground break-all">{viewingAttendee.email || "—"}</span>
+                </div>
+                <div>
+                  <span className="text-[11px] uppercase tracking-wider text-muted-foreground block">Birthday (MM-DD)</span>
+                  <span className="text-foreground">{formatBirthdayDisplay(viewingAttendee.date_of_birth) || "—"}</span>
+                </div>
+                <div>
+                  <span className="text-[11px] uppercase tracking-wider text-muted-foreground block">Occupation</span>
+                  <span className="text-foreground">{viewingAttendee.occupation || "—"}</span>
+                </div>
+                <div>
+                  <span className="text-[11px] uppercase tracking-wider text-muted-foreground block">Location</span>
+                  <span className="text-foreground">{viewingAttendee.location || "—"}</span>
+                </div>
+                <div>
+                  <span className="text-[11px] uppercase tracking-wider text-muted-foreground block">Church Center</span>
+                  <span className="text-foreground">
+                    {(viewingAttendee.churches as any)?.name || "Direct Self-Registration"}
+                    {(viewingAttendee.churches as any)?.is_external && (
+                      <span className="ml-1.5 text-xs text-emerald-400">
+                        ({normalizePrivacyMode((viewingAttendee.churches as any)?.privacy_mode) === "open" ? "Open" : "Masked"})
+                      </span>
+                    )}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-[11px] uppercase tracking-wider text-muted-foreground block">Invited By</span>
+                  <span className="text-foreground">{(viewingAttendee.inviters as any)?.full_name || "Direct"}</span>
+                </div>
+              </div>
+              <div className="flex items-center justify-between text-xs text-muted-foreground px-1">
+                <span>Registered: {new Date(viewingAttendee.created_at).toLocaleString()}</span>
+                <Badge variant="outline" className={viewingAttendee.confirmed ? "border-emerald-500/40 text-emerald-400 bg-emerald-500/10" : "border-amber-500/40 text-amber-400 bg-amber-500/10"}>
+                  {viewingAttendee.confirmed ? "Confirmed" : "Pending"}
+                </Badge>
+              </div>
+            </div>
+          )}
+          <DialogFooter className="gap-2">
+            {viewingAttendee && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  const target = viewingAttendee;
+                  setViewingAttendee(null);
+                  setEditingAttendee({ ...target, inviter_id: target.inviter_id || "none" });
+                }}
+                className="rounded-xl"
+              >
+                <Pencil className="w-3.5 h-3.5 mr-1.5" /> Edit
+              </Button>
+            )}
+            <Button onClick={() => setViewingAttendee(null)} className="bg-gradient-gold text-navy font-bold rounded-xl">
+              Close
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

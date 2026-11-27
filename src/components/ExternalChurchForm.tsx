@@ -1,8 +1,11 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
+import { createEphemeralSupabaseClient } from "@/lib/ephemeralAuthClient";
+import { validateExternalChurchPassword } from "@/utils/externalChurchAuth";
 import { toast } from "sonner";
 import { Church, Shield, Eye, EyeOff } from "lucide-react";
 
@@ -10,6 +13,7 @@ export const ExternalChurchForm = ({ onSuccess }: { onSuccess?: () => void }) =>
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [authNotice, setAuthNotice] = useState("");
   const [formData, setFormData] = useState({
     churchName: "",
     pastorName: "",
@@ -18,7 +22,7 @@ export const ExternalChurchForm = ({ onSuccess }: { onSuccess?: () => void }) =>
     location: "",
     target: "100",
     authCode: "",
-    privacyMode: "masked" as "masked" | "open" | "anonymized",
+    privacyMode: "masked" as "masked" | "open",
     delegationNotes: "",
   });
 
@@ -41,10 +45,14 @@ export const ExternalChurchForm = ({ onSuccess }: { onSuccess?: () => void }) =>
       toast.error("Please enter a valid Church Administrator / Pastor email address for alerts.");
       return;
     }
-    if (!formData.authCode.trim()) {
-      toast.error("Please create an authentication / password code for your church admin access.");
+
+    const passwordError = validateExternalChurchPassword(formData.authCode);
+    if (passwordError) {
+      toast.error(passwordError);
       return;
     }
+
+    const cleanPassword = formData.authCode.trim();
 
     setLoading(true);
     try {
@@ -55,15 +63,52 @@ export const ExternalChurchForm = ({ onSuccess }: { onSuccess?: () => void }) =>
         p_pastor_phone: formData.pastorPhone.trim(),
         p_location: formData.location.trim() || null,
         p_target: parseInt(formData.target, 10) || 100,
-        p_auth_code: formData.authCode.trim(),
+        p_auth_code: cleanPassword,
         p_privacy_mode: formData.privacyMode,
         p_delegation_notes: formData.delegationNotes.trim() || null,
       });
 
       if (churchError) throw churchError;
 
+      let resultNotice = `Your Church Admin account for ${cleanEmail} is ready. Sign in at the Admin Portal with your email and password.`;
+      try {
+        const ephemeral = createEphemeralSupabaseClient();
+        const { data: authData, error: signUpErr } = await ephemeral.auth.signUp({
+          email: cleanEmail,
+          password: cleanPassword,
+          options: {
+            emailRedirectTo: `${window.location.origin}/verify-email`,
+            data: {
+              full_name: formData.pastorName.trim(),
+            },
+          },
+        });
+
+        if (signUpErr) {
+          if (signUpErr.message?.toLowerCase().includes("already registered")) {
+            resultNotice = `Your church is registered. Sign in at the Admin Portal with ${cleanEmail} and your password to activate Church Admin access.`;
+          } else {
+            resultNotice = `Your church is registered. Visit the Admin Portal and sign in with ${cleanEmail} and your password to finish portal setup.`;
+          }
+        } else if (authData.session) {
+          const { error: claimErr } = await (ephemeral as any).rpc("claim_external_church_role", {
+            p_password: cleanPassword,
+          });
+          if (!claimErr) {
+            resultNotice = `Your encrypted Church Admin Portal login for ${cleanEmail} is active. Sign in at the Admin Portal anytime.`;
+          } else {
+            resultNotice = `Your account was created. Sign in at the Admin Portal with ${cleanEmail} and your password to complete activation.`;
+          }
+        } else {
+          resultNotice = `We sent a verification link to ${cleanEmail}. Verify your email address, then sign in at the Admin Portal with your password.`;
+        }
+      } catch {
+        resultNotice = `Your church is registered. Sign in at the Admin Portal with ${cleanEmail} and your password to activate Church Admin access.`;
+      }
+
+      setAuthNotice(resultNotice);
       setSubmitted(true);
-      toast.success(`Church '${formData.churchName}' registered successfully! Your congregation can now select your church when registering.`);
+      toast.success(`Church '${formData.churchName}' registered successfully!`);
       if (onSuccess) onSuccess();
     } catch (err: unknown) {
       console.error("External church registration error:", err);
@@ -98,22 +143,25 @@ export const ExternalChurchForm = ({ onSuccess }: { onSuccess?: () => void }) =>
             <span className="font-semibold text-foreground">{formData.pastorEmail}</span>
           </div>
           <div className="flex justify-between border-b border-zinc-800 pb-2">
-            <span className="text-muted-foreground">Privacy Protection:</span>
-            <span className="font-semibold text-gold capitalize">{formData.privacyMode} (Member data protected)</span>
+            <span className="text-muted-foreground">Follow-up Visibility:</span>
+            <span className="font-semibold text-gold capitalize">
+              {formData.privacyMode === "open" ? "Open (Call-Center Follow-up Enabled)" : "Masked (Pastor Confidential)"}
+            </span>
           </div>
           <div className="flex justify-between pt-1">
-            <span className="text-muted-foreground">Portal Access Code:</span>
-            <span className="font-mono text-gold font-bold">••••••••</span>
+            <span className="text-muted-foreground">Portal Password Security:</span>
+            <span className="font-mono text-emerald-400 font-semibold">Hashed &amp; Encrypted</span>
           </div>
         </div>
-        <p className="text-xs text-muted-foreground font-body max-w-md mx-auto">
-          Sign up and verify your administrator account in the Admin Portal with <span className="text-foreground font-medium">{formData.pastorEmail}</span> to activate inviter registration alerts and daily attendee summary emails.
+        <p className="text-xs text-muted-foreground font-body max-w-md mx-auto leading-relaxed">
+          {authNotice}
         </p>
 
         <div className="pt-4 flex flex-wrap justify-center gap-4">
           <Button
             onClick={() => {
               setSubmitted(false);
+              setAuthNotice("");
               setFormData({
                 churchName: "",
                 pastorName: "",
@@ -131,12 +179,12 @@ export const ExternalChurchForm = ({ onSuccess }: { onSuccess?: () => void }) =>
           >
             Register Another Church
           </Button>
-          <a
-            href="/admin"
+          <Link
+            to="/admin"
             className="px-6 py-2.5 bg-gradient-gold text-navy font-bold font-body text-sm rounded-xl shadow-gold hover:opacity-95 transition-all"
           >
             Access Church Admin Portal &rarr;
-          </a>
+          </Link>
         </div>
       </div>
     );
@@ -147,7 +195,7 @@ export const ExternalChurchForm = ({ onSuccess }: { onSuccess?: () => void }) =>
       <div className="p-4 rounded-2xl bg-gold/10 border border-gold/30 flex items-start gap-3">
         <Shield className="w-5 h-5 text-gold shrink-0 mt-0.5" />
         <div className="text-xs text-foreground/90 font-body leading-relaxed">
-          <span className="font-bold text-gold">External Church Privacy Guarantee:</span> When your congregation members register under your church name, their personal names and contact details are masked for confidentiality. You retain exclusive access to your church roster through your pastor portal.
+          <span className="font-bold text-gold">External Church Privacy &amp; Account Security:</span> Choose whether your church member details are Masked or Open for central call-center follow-up. Your Admin Portal password is stored securely hashed so no one else can view it or log into your church account.
         </div>
       </div>
 
@@ -209,7 +257,7 @@ export const ExternalChurchForm = ({ onSuccess }: { onSuccess?: () => void }) =>
             required
           />
           <p className="text-[11px] text-muted-foreground font-body">
-            Used for inviter alerts and daily attendee summaries once verified in the Admin Portal.
+            Used to sign in to the Church Admin Portal and receive inviter/attendee email alerts.
           </p>
         </div>
 
@@ -244,13 +292,14 @@ export const ExternalChurchForm = ({ onSuccess }: { onSuccess?: () => void }) =>
 
         <div className="space-y-2">
           <Label htmlFor="authCode" className="font-body text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Admin Portal Password / Access Code *
+            Admin Portal Password (min 6 characters) *
           </Label>
           <div className="relative">
             <Input
               id="authCode"
               type={showPassword ? "text" : "password"}
-              placeholder="Create your portal password"
+              minLength={6}
+              placeholder="Create your portal password (min 6 chars)"
               value={formData.authCode}
               onChange={(e) => setFormData({ ...formData, authCode: e.target.value })}
               className="h-12 bg-background/50 border-border/60 focus:border-gold rounded-xl font-body pr-10"
@@ -265,11 +314,14 @@ export const ExternalChurchForm = ({ onSuccess }: { onSuccess?: () => void }) =>
               {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
             </button>
           </div>
+          <p className="text-[11px] text-muted-foreground font-body">
+            Hashed immediately on submission—use this with your email to sign in at the Admin Portal.
+          </p>
         </div>
 
         <div className="space-y-2 md:col-span-2">
           <Label htmlFor="privacyMode" className="font-body text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Member Privacy Protection Level
+            Member Privacy &amp; Call-Center Follow-Up Mode
           </Label>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <button
@@ -282,10 +334,10 @@ export const ExternalChurchForm = ({ onSuccess }: { onSuccess?: () => void }) =>
               }`}
             >
               <div className="font-semibold text-xs text-foreground flex items-center gap-1.5">
-                <Shield className="w-3.5 h-3.5 text-gold" /> Masked Confidential (Recommended)
+                <Shield className="w-3.5 h-3.5 text-gold" /> Masked Confidential
               </div>
               <p className="text-[11px] text-muted-foreground mt-1">
-                Central system sees verified headcount only (e.g. Member #14). Pastor sees full details in their portal.
+                Marks roster as Masked; central administrators can still manage follow-ups or switch between Masked and Open when coordinated.
               </p>
             </button>
 
@@ -299,10 +351,10 @@ export const ExternalChurchForm = ({ onSuccess }: { onSuccess?: () => void }) =>
               }`}
             >
               <div className="font-semibold text-xs text-foreground flex items-center gap-1.5">
-                <Church className="w-3.5 h-3.5 text-gold" /> Open Network Partnership
+                <Church className="w-3.5 h-3.5 text-gold" /> Open Call-Center Partnership
               </div>
               <p className="text-[11px] text-muted-foreground mt-1">
-                Full member contact shared with Central Worship Committee for joint intercession and transport coordination.
+                Marks roster Open for immediate call-center follow-up, CSV outreach exports, and transport coordination.
               </p>
             </button>
           </div>

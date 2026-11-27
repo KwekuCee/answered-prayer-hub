@@ -14,11 +14,13 @@ import { toast } from "sonner";
 import {
   LayoutDashboard, Users, UserCheck, Download, LogOut, Menu, X,
   CheckCircle2, Clock, Target, Pencil, Trash2, Search, PlusCircle,
-  ChevronLeft, ChevronRight, Sparkles, Building2, Trophy, ArrowUpRight
+  ChevronLeft, ChevronRight, Sparkles, Building2, Trophy, ArrowUpRight, Lock, LockOpen
 } from "lucide-react";
 import logo from "@/assets/logo.webp";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { NotificationsMenu } from "@/components/NotificationsMenu";
+import { buildCsvContent, prepareAttendeeExportRows } from "@/utils/attendeeExport";
+import { normalizePrivacyMode } from "@/utils/externalChurchAuth";
 
 type AttendeeFilter = "all" | "confirmed" | "pending";
 
@@ -56,6 +58,7 @@ const ChurchAdminDashboard = () => {
 
   const [isAddingInviter, setIsAddingInviter] = useState(false);
   const [newInviter, setNewInviter] = useState<any>({ full_name: "", phone: "", email: "" });
+  const [updatingPrivacy, setUpdatingPrivacy] = useState(false);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -174,7 +177,11 @@ const ChurchAdminDashboard = () => {
     queryFn: async () => {
       if (!churchId) return null;
       try {
-        const { data } = await supabase.from("churches").select("*").eq("id", churchId).maybeSingle();
+        const { data } = await supabase
+          .from("churches")
+          .select("id, name, target, confirmed, is_external, pastor_name, pastor_email, pastor_phone, location, privacy_mode, delegation_notes, created_at")
+          .eq("id", churchId)
+          .maybeSingle();
         return data || null;
       } catch {
         return null;
@@ -449,18 +456,36 @@ const ChurchAdminDashboard = () => {
     queryClient.invalidateQueries({ queryKey: ["inviters", churchId] });
   };
 
+  const handleTogglePrivacyMode = async () => {
+    if (!churchId || !church?.is_external) return;
+    const nextMode = normalizePrivacyMode(church.privacy_mode) === "masked" ? "open" : "masked";
+    setUpdatingPrivacy(true);
+    try {
+      const { error } = await (supabase as any).rpc("set_church_privacy_mode", {
+        p_church_id: churchId,
+        p_privacy_mode: nextMode,
+      });
+      if (error) throw error;
+      toast.success(
+        nextMode === "open"
+          ? "Roster switched to Open for call-center follow-up."
+          : "Roster switched to Masked mode."
+      );
+      queryClient.invalidateQueries({ queryKey: ["church", churchId] });
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to update privacy mode.");
+    } finally {
+      setUpdatingPrivacy(false);
+    }
+  };
+
   const exportCSV = (data: Record<string, any>[], filename: string) => {
     if (!data.length) {
       toast.error("No data available to export.");
       return;
     }
 
-    const headers = Object.keys(data[0]).filter((k) => typeof data[0][k] !== "object");
-    const csv = [
-      headers.map((h) => (/^[=+\-@]/.test(h) ? "'" + h : h)).join(","),
-      ...data.map((row) => headers.map((h) => { let v = String(row[h] ?? ""); if (/^[=+\-@\t\r]/.test(v)) v = "'" + v; return `"${v.replace(/"/g, '""')}"`; }).join(",")),
-    ].join("\n");
-
+    const csv = buildCsvContent(data);
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -470,6 +495,25 @@ const ChurchAdminDashboard = () => {
     URL.revokeObjectURL(url);
 
     toast.success(`${filename}.csv exported successfully!`);
+  };
+
+  const exportAttendeeCSV = (list: any[], filename: string) => {
+    if (!list.length) {
+      toast.error("No attendee data available to export.");
+      return;
+    }
+    const enriched = list.map((m) => ({
+      ...m,
+      churches: church
+        ? {
+            id: church.id,
+            name: church.name,
+            is_external: church.is_external,
+            privacy_mode: church.privacy_mode,
+          }
+        : null,
+    }));
+    exportCSV(prepareAttendeeExportRows(enriched), filename);
   };
 
   const handleLogout = async () => {
@@ -605,9 +649,35 @@ const ChurchAdminDashboard = () => {
                   {activeTab.replace("-", " ")}
                 </h1>
                 {church?.is_external && (
-                  <Badge variant="outline" className="border-emerald-500/40 text-emerald-400 bg-emerald-500/10 text-xs font-semibold">
-                    External Church Network ({church.privacy_mode || "Masked"} Privacy)
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge
+                      variant="outline"
+                      className={
+                        normalizePrivacyMode(church.privacy_mode) === "open"
+                          ? "border-emerald-500/40 text-emerald-400 bg-emerald-500/10 text-xs font-semibold"
+                          : "border-amber-500/40 text-amber-300 bg-amber-500/10 text-xs font-semibold"
+                      }
+                    >
+                      External · {normalizePrivacyMode(church.privacy_mode) === "open" ? "Open (Call-Center)" : "Masked"}
+                    </Badge>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={updatingPrivacy}
+                      onClick={handleTogglePrivacyMode}
+                      className="h-7 px-2.5 rounded-lg border-border/60 text-[11px] gap-1"
+                    >
+                      {normalizePrivacyMode(church.privacy_mode) === "masked" ? (
+                        <>
+                          <LockOpen className="w-3 h-3 text-emerald-400" /> Switch to Open
+                        </>
+                      ) : (
+                        <>
+                          <Lock className="w-3 h-3 text-amber-400" /> Switch to Masked
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 )}
               </div>
               <p className="text-xs text-muted-foreground font-body">Management dashboard for {churchName}</p>
@@ -869,7 +939,7 @@ const ChurchAdminDashboard = () => {
                   <Button variant={statusFilter === "confirmed" ? "default" : "outline"} size="sm" onClick={() => { setStatusFilter("confirmed"); setAttendeePage(1); }} className="rounded-xl text-xs">Confirmed</Button>
                   <Button variant={statusFilter === "pending" ? "default" : "outline"} size="sm" onClick={() => { setStatusFilter("pending"); setAttendeePage(1); }} className="rounded-xl text-xs">Pending</Button>
                   <Button size="sm" variant="outline" onClick={handleConfirmAllPending} disabled={pendingCount === 0} className="rounded-xl text-xs">Confirm All Pending</Button>
-                  <Button variant="outline" size="sm" onClick={() => exportCSV(filteredAttendees as any, "attendees")} className="rounded-xl gap-1.5 text-xs">
+                  <Button variant="outline" size="sm" onClick={() => exportAttendeeCSV(filteredAttendees, "attendees-follow-up")} className="rounded-xl gap-1.5 text-xs">
                     <Download className="h-4 w-4" /> CSV
                   </Button>
                 </div>
@@ -968,8 +1038,8 @@ const ChurchAdminDashboard = () => {
           {activeTab === "export" && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-up">
               {[
-                { label: "Export All Attendees", desc: "Download full database of registered attendees for your church", onClick: () => exportCSV(programAttendees as any, "attendees") },
-                { label: "Export Pending Only", desc: "Download records awaiting verification and follow-up", onClick: () => exportCSV(programAttendees.filter(m => !m.confirmed) as any, "pending-attendees") },
+                { label: "Export All Attendees", desc: "Download full database of registered attendees for your church", onClick: () => exportAttendeeCSV(programAttendees, "attendees-follow-up") },
+                { label: "Export Pending Only", desc: "Download records awaiting verification and follow-up", onClick: () => exportAttendeeCSV(programAttendees.filter(m => !m.confirmed), "pending-attendees-follow-up") },
                 { label: "Export Inviter Roster", desc: "Download all inviter profiles and mobilization stats", onClick: () => exportCSV(inviters as any, "inviters") },
               ].map((item) => (
                 <Card
