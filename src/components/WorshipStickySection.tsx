@@ -411,7 +411,7 @@ export const WorshipStickySection = () => {
               src={choristerCutout}
               alt="Loveworld chorister"
               data-testid="worship-cutout-img"
-              loading="eager"
+              loading="lazy"
               decoding="async"
               className="max-h-[68vh] xl:max-h-[75vh] max-w-full w-auto h-auto object-contain object-bottom drop-shadow-2xl select-none"
             />

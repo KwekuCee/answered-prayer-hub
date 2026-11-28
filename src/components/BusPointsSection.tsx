@@ -2,24 +2,33 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Bus, MapPin, Clock } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
-import "leaflet/dist/leaflet.css";
-import L from "leaflet";
-import icon from "leaflet/dist/images/marker-icon.png";
-import iconShadow from "leaflet/dist/images/marker-shadow.png";
 import ErrorBoundary from "./ErrorBoundary";
-import React, { Suspense } from "react";
-const BusMap = React.lazy(() => import("./BusMap"));
-
-const DefaultIcon = L.icon({
-    iconUrl: icon,
-    shadowUrl: iconShadow,
-    iconSize: [25, 41],
-    iconAnchor: [12, 41]
-});
-L.Marker.prototype.options.icon = DefaultIcon;
+import { Suspense, useEffect, useRef, useState } from "react";
+import { lazyWithRetry } from "@/utils/lazyWithRetry";
+const BusMap = lazyWithRetry(() => import("./BusMap"), "BusMap");
 
 export const BusPointsSection = () => {
+    const [shouldLoadMap, setShouldLoadMap] = useState(false);
+    const mapContainerRef = useRef<HTMLDivElement | null>(null);
+
+    useEffect(() => {
+        if (shouldLoadMap || !mapContainerRef.current) return;
+        if (typeof IntersectionObserver === "undefined") {
+            setShouldLoadMap(true);
+            return;
+        }
+
+        const observer = new IntersectionObserver(([entry]) => {
+            if (entry.isIntersecting) {
+                setShouldLoadMap(true);
+                observer.disconnect();
+            }
+        }, { rootMargin: "600px 0px" });
+
+        observer.observe(mapContainerRef.current);
+        return () => observer.disconnect();
+    }, [shouldLoadMap]);
+
     const { data: activeProgram } = useQuery({
         queryKey: ["active-program"],
         queryFn: async () => {
@@ -77,12 +86,18 @@ export const BusPointsSection = () => {
                 ) : busPoints && busPoints.length > 0 ? (
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
                         {/* Map View */}
-                        <div className="bg-card/80 backdrop-blur-sm border border-border/50 rounded-3xl p-4 shadow-xl h-[500px] overflow-hidden sticky top-24 z-10">
-                            <ErrorBoundary>
-                                <Suspense fallback={<div className="w-full h-full flex items-center justify-center">Loading map…</div>}>
-                                    <BusMap busPoints={busPoints || []} />
-                                </Suspense>
-                            </ErrorBoundary>
+                        <div ref={mapContainerRef} className="bg-card/80 backdrop-blur-sm border border-border/50 rounded-3xl p-4 shadow-xl h-[500px] overflow-hidden sticky top-24 z-10">
+                            {shouldLoadMap ? (
+                                <ErrorBoundary>
+                                    <Suspense fallback={<div className="w-full h-full flex items-center justify-center">Loading map…</div>}>
+                                        <BusMap busPoints={busPoints || []} />
+                                    </Suspense>
+                                </ErrorBoundary>
+                            ) : (
+                                <div className="w-full h-full flex items-center justify-center text-sm text-muted-foreground" role="status">
+                                    Map loads as you approach
+                                </div>
+                            )}
                         </div>
 
                         {/* List View */}

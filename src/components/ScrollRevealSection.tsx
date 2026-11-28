@@ -17,8 +17,8 @@ export const ScrollRevealSection: React.FC<ScrollRevealSectionProps> = ({
   return (
     <motion.div
       id={id}
-      initial={{ opacity: 0, y: 40, filter: "blur(10px)" }}
-      whileInView={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+      initial={{ opacity: 0, y: 40 }}
+      whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, amount: 0.15 }}
       transition={{
         duration: 0.7,

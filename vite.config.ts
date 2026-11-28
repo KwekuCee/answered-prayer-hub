@@ -98,7 +98,13 @@ export default defineConfig(({ mode }) => {
         injectManifest: {
           maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
           globPatterns: ["**/*.{js,css,html,ico,png,svg,woff,woff2,jpg,jpeg}"],
-          globIgnores: ["**/version.json"],
+          globIgnores: [
+            "**/version.json",
+            "**/KSWVENUE_e411344e.jpeg",
+            "**/mid.png",
+            "**/praying.png",
+            "**/KSWLOGO2_daac715f.png",
+          ],
         },
         devOptions: {
           enabled: false,
