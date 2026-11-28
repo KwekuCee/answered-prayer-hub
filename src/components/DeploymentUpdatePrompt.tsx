@@ -90,15 +90,39 @@ export const DeploymentUpdatePrompt: React.FC = () => {
   const handleRefresh = async () => {
     setRefreshing(true);
     try {
+      // 1. Tell the waiting service worker to take control immediately.
+      if ("serviceWorker" in navigator) {
+        const reg = await navigator.serviceWorker.getRegistration();
+        if (reg?.waiting) {
+          reg.waiting.postMessage({ type: "SKIP_WAITING" });
+          // Give the new SW a moment to activate before we wipe caches.
+          await new Promise((r) => window.setTimeout(r, 300));
+        }
+        // 2. Wipe all runtime caches so the new SW fetches fresh assets.
+        if ("caches" in window) {
+          const keys = await caches.keys();
+          await Promise.all(keys.map((k) => caches.delete(k)));
+        }
+      }
+
+      // 3. If vite-plugin-pwa also tracks it, let it handle skipWaiting too.
       if (swNeedRefresh) {
         await Promise.race([
           updateServiceWorker(true),
-          new Promise((resolve) => window.setTimeout(resolve, 1200)),
+          new Promise((resolve) => window.setTimeout(resolve, 800)),
         ]);
       }
-      await fetch("/", { cache: "reload" }).catch(() => {});
-    } finally {
-      window.location.reload();
+
+      // 4. Hard-navigate: append a cache-bust query param so browsers
+      //    (especially mobile Safari) don't serve from the HTTP cache.
+      const url = new URL(window.location.href);
+      url.searchParams.set("_cb", Date.now().toString());
+      window.location.replace(url.toString());
+    } catch {
+      // Fallback: if anything throws, still do a hard reload.
+      window.location.replace(
+        window.location.href.split("?")[0] + "?_cb=" + Date.now()
+      );
     }
   };
 

@@ -7,6 +7,19 @@ import { CacheFirst, NetworkFirst, NetworkOnly } from "workbox-strategies";
 
 precacheAndRoute(self.__WB_MANIFEST);
 
+// Hard-refresh support: when the prompt sends SKIP_WAITING, activate the new
+// SW immediately so the subsequent navigation loads fresh assets.
+self.addEventListener("message", (event: ExtendableMessageEvent) => {
+  if (event.data?.type === "SKIP_WAITING") {
+    (self as unknown as ServiceWorkerGlobalScope).skipWaiting();
+  }
+  if (event.data?.type === "CLEAR_CACHES") {
+    event.waitUntil(
+      caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k))))
+    );
+  }
+});
+
 registerRoute(
   new NavigationRoute(createHandlerBoundToURL("/index.html"), {
     denylist: [/^\/version\.json$/],
