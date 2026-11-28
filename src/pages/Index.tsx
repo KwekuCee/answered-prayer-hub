@@ -2,7 +2,6 @@ import Navbar from "@/components/Navbar";
 import HeroSection from "@/components/HeroSection";
 import ScrollRevealSection from "@/components/ScrollRevealSection";
 import AboutSection from "@/components/AboutSection";
-import LaunchOutlineSection from "@/components/LaunchOutlineSection";
 import LocationSection from "@/components/LocationSection";
 import WorshipStickySection from "@/components/WorshipStickySection";
 import PrayerPointsSection from "@/components/PrayerPointsSection";
@@ -18,10 +17,6 @@ const Index = () => {
 
       <ScrollRevealSection>
         <AboutSection />
-      </ScrollRevealSection>
-
-      <ScrollRevealSection>
-        <LaunchOutlineSection />
       </ScrollRevealSection>
 
       <ScrollRevealSection>
