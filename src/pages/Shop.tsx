@@ -94,7 +94,7 @@ const ProductThumbnail: React.FC<{ src: string; alt: string; className?: string 
     <img
       src={src}
       alt={alt}
-      loading="eager"
+      loading="lazy"
       decoding="async"
       referrerPolicy="no-referrer"
       onError={() => setFailed(true)}
@@ -248,33 +248,6 @@ const Shop = () => {
       setCart((prev) => syncCartWithProducts(prev, products));
     }
   }, [products]);
-
-  useEffect(() => {
-    if (typeof supabase.channel !== "function") return;
-    const channel = supabase
-      .channel("public-shop-catalog-sync")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "shop_products" },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["shop-products-public"] });
-        }
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "shop_settings" },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ["shop-settings-public"] });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      if (typeof supabase.removeChannel === "function") {
-        supabase.removeChannel(channel);
-      }
-    };
-  }, [queryClient]);
 
   const categories = useMemo(() => {
     const unique = Array.from(new Set(products.map((p) => p.category).filter(Boolean)));

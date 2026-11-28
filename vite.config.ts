@@ -92,79 +92,18 @@ export default defineConfig(({ mode }) => {
             },
           ],
         },
-        workbox: {
-          maximumFileSizeToCacheInBytes: 6 * 1024 * 1024, // 6 MB
+        strategies: "injectManifest",
+        srcDir: "src",
+        filename: "sw.ts",
+        injectManifest: {
+          maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
           globPatterns: ["**/*.{js,css,html,ico,png,svg,woff,woff2,jpg,jpeg}"],
-          globIgnores: ["**/version.json"],
-          navigateFallback: "/index.html",
-          navigateFallbackDenylist: [/^\/version\.json$/],
-          runtimeCaching: [
-            {
-              urlPattern: ({ url }) => url.pathname === "/version.json",
-              handler: "NetworkOnly",
-            },
-            {
-              // Cache Google Fonts Stylesheets
-              urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
-              handler: "CacheFirst",
-              options: {
-                cacheName: "google-fonts-cache",
-                expiration: {
-                  maxEntries: 10,
-                  maxAgeSeconds: 60 * 60 * 24 * 365, // 1 year
-                },
-                cacheableResponse: {
-                  statuses: [0, 200],
-                },
-              },
-            },
-            {
-              // Cache Google Fonts Webfonts
-              urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
-              handler: "CacheFirst",
-              options: {
-                cacheName: "gstatic-fonts-cache",
-                expiration: {
-                  maxEntries: 15,
-                  maxAgeSeconds: 60 * 60 * 24 * 365, // 1 year
-                },
-                cacheableResponse: {
-                  statuses: [0, 200],
-                },
-              },
-            },
-            {
-              // Cache Supabase API calls: core resources, recent testimonials, programs, prayer wall
-              urlPattern:
-                /^https:\/\/.*\.supabase\.co\/rest\/v1\/(testimonials|resources|programs|prayer_points|prayer_wall|churches).*/i,
-              handler: "NetworkFirst",
-              options: {
-                cacheName: "supabase-api-offline-cache",
-                networkTimeoutSeconds: 3,
-                expiration: {
-                  maxEntries: 100,
-                  maxAgeSeconds: 60 * 60 * 24 * 7, // 7 days offline availability
-                },
-                cacheableResponse: {
-                  statuses: [0, 200],
-                },
-              },
-            },
-            {
-              // Cache soundtrack ambient streams & audio
-              urlPattern: /^https:\/\/actions\.google\.com\/sounds\/v1\/.*/i,
-              handler: "CacheFirst",
-              options: {
-                cacheName: "worship-audio-cache",
-                expiration: {
-                  maxEntries: 20,
-                  maxAgeSeconds: 60 * 60 * 24 * 30, // 30 days
-                },
-                cacheableResponse: {
-                  statuses: [0, 200],
-                },
-              },
-            },
+          globIgnores: [
+            "**/version.json",
+            "**/KSWVENUE_e411344e.jpeg",
+            "**/mid.png",
+            "**/praying.png",
+            "**/KSWLOGO2_daac715f.png",
           ],
         },
         devOptions: {
@@ -173,6 +112,7 @@ export default defineConfig(({ mode }) => {
       }),
     ].filter(Boolean),
     resolve: {
+      dedupe: ["react", "react-dom"],
       alias: {
         "@": path.resolve(__dirname, "./src"),
       },

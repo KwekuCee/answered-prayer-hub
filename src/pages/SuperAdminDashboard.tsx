@@ -243,7 +243,7 @@ const SuperAdminDashboard = () => {
   });
 
   const { data: testimonials = [] } = useQuery({
-    queryKey: ["live-testimonials"],
+    queryKey: ["all-testimonials"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("testimonials")
@@ -1042,14 +1042,14 @@ const SuperAdminDashboard = () => {
     toast.success("Testimonial added!");
     setIsAddingTestimonial(false);
     setNewTestimonial({ author_name: "", church_name: "", content: "", is_approved: true });
-    queryClient.invalidateQueries({ queryKey: ["live-testimonials"] });
+    queryClient.invalidateQueries({ queryKey: ["all-testimonials"] });
   };
 
   const handleToggleTestimonialApproved = async (id: string, current: boolean) => {
     const { error } = await supabase.from("testimonials").update({ is_approved: !current }).eq("id", id);
     if (error) { toast.error("Failed."); return; }
     toast.success(!current ? "Testimonial Approved for public website!" : "Testimonial Hidden.");
-    queryClient.invalidateQueries({ queryKey: ["live-testimonials"] });
+    queryClient.invalidateQueries({ queryKey: ["all-testimonials"] });
   };
 
   const handleDeleteTestimonial = async (id: string) => {
@@ -1057,7 +1057,7 @@ const SuperAdminDashboard = () => {
     const { error } = await supabase.from("testimonials").delete().eq("id", id);
     if (error) { toast.error("Failed."); return; }
     toast.success("Deleted.");
-    queryClient.invalidateQueries({ queryKey: ["live-testimonials"] });
+    queryClient.invalidateQueries({ queryKey: ["all-testimonials"] });
   };
 
   const handleCreateResource = async (file: File | null) => {
